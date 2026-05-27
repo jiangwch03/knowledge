@@ -56,10 +56,10 @@ def create_async_db_engine(echo: bool | None = None) -> AsyncEngine:
     """
     return create_async_engine(
         ASYNC_SQLALCHEMY_DATABASE_URL,
-        echo=DataBaseConfig.db_echo if echo is None else echo,
+        echo=DataBaseConfig.db_echo if echo is None else echo,#可选：输出SQL日志
         max_overflow=DataBaseConfig.db_max_overflow,
-        pool_size=DataBaseConfig.db_pool_size,
-        pool_recycle=DataBaseConfig.db_pool_recycle,
+        pool_size=DataBaseConfig.db_pool_size,#设置连接池中保持的持久连接数
+        pool_recycle=DataBaseConfig.db_pool_recycle,#设置连接池允许创建的额外连接数
         pool_timeout=DataBaseConfig.db_pool_timeout,
     )
 
