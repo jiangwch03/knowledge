@@ -1,0 +1,33 @@
+[project]
+name = "knowledge-rag"
+version = "0.0.1"
+description = "knowledge-rag"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "knowledge-common>=0.0.1",
+    "aiomysql>=0.3.2",
+    "fastapi>=0.136.3",
+    "llama-index>=0.14.22",
+    "llama-index-embeddings-langchain>=0.5.0",
+    "llama-index-llms-langchain>=0.8.0",
+    "pydantic-settings>=2.14.1",
+    "redis>=7.4.0",
+    "uvicorn>=0.48.0",
+]
+[tool.hatch.build.targets.wheel]
+packages = ["src/knowledge_rag"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# uv 索引配置
+[[tool.uv.index]]
+name = "nexus"
+url = "http://localhost:8081/repository/pypi-group/simple/"
+default = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
