@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import HTTPException
 from pydantic_validation_decorator import FieldValidationError
 
-from exceptions.exception import (
+from knowledge_common.exceptions.exception import (
     AuthException,
     LoginException,
     ModelValidatorException,
@@ -10,8 +10,8 @@ from exceptions.exception import (
     ServiceException,
     ServiceWarning,
 )
-from utils.log_util import logger
-from utils.response_util import JSONResponse, ResponseUtil, jsonable_encoder
+from knowledge_common.utils.log_util import logger
+from knowledge_common.utils.response_util import JSONResponse, ResponseUtil, jsonable_encoder
 
 
 def handle_exception(app: FastAPI) -> None:
