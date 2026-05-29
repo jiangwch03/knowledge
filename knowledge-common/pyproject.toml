@@ -15,7 +15,8 @@ dependencies = [
     "pydantic>=2.11.4",
     "pydantic-validation-decorator==0.1.5",
     "redis>=7.4.0",
-    "sqlalchemy>=2.0.50",
+    "sqlalchemy[asyncio]==2.0.46",
+    "sqlglot[rs]==28.10.0",
     "ollama==0.6.1",
     "openai==2.17.0",
     "openpyxl==3.1.5",
@@ -24,6 +25,9 @@ dependencies = [
     "bcrypt==5.0.0",
     "aiofiles==25.1.0",
     "apscheduler==3.11.2",
+    "async-lru==2.1.0",
+    "asyncmy==0.2.11",
+    "pymysql==1.1.2",
 ]
 
 [build-system]
