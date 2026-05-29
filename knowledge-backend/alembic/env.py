@@ -37,7 +37,7 @@ if alembic_config.config_file_name is not None:
 target_metadata = Base.metadata
 # ASYNC_SQLALCHEMY_DATABASE_URL = 'mysql+asyncmy://root:mysqlroot@127.0.0.1:3306/ruoyi-fastapi'
 # other values from the config, defined by the needs of env.py,
-alembic_config.set_main_option('sqlalchemy.url', ASYNC_SQLALCHEMY_DATABASE_URL)
+alembic_config.set_main_option('sqlalchemy.url', ASYNC_SQLALCHEMY_DATABASE_URL.replace('%', '%%'))
 
 
 def run_migrations_offline() -> None:
