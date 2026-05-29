@@ -18,5 +18,8 @@ create_app() 针对 Swagger UI 的访问和构建做了自定义方案处理：
 
 详细方案说明：[FastAPI Swagger UI 文档机制全景](./docs/ruoyi/fastapi-swagger-ui-overview.md)
 
-## fastapi多进程
-详细方案说明：[fastapi多进程](./docs/fastapi/fastapi-multiprocess.md)
+## FastAPI 多进程
+详细说明：[FastAPI 多进程](./docs/fastapi/fastapi-multiprocess.md)
+
+## FastAPI 反向代理场景下的路由前缀处理
+详细说明：[FastAPI 多进程](./docs/fastapi/fastapi-root-path-proxy.md)
