@@ -5,9 +5,9 @@ from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from knowledge_common.config.database import AsyncSessionLocal
 from knowledge_common.config.env import RedisConfig
-from module_admin.service.config_service import ConfigService
-from module_admin.service.dict_service import DictDataService
-from utils.log_util import logger
+from knowledge_common.service.config_service import ConfigService
+from knowledge_common.service.dict_service import DictDataService
+from knowledge_common.utils.log_util import logger
 
 
 class RedisUtil:

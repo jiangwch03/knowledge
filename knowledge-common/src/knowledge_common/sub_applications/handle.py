@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from sub_applications.staticfiles import mount_staticfiles
+from .staticfiles import mount_staticfiles
 
 
 def handle_sub_applications(app: FastAPI) -> None:

@@ -12,7 +12,7 @@ from loguru import logger as _logger
 from loguru._logger import Logger
 
 from knowledge_common.config.env import AppConfig, LogConfig
-from knowledge_common.context import TraceCtx
+from knowledge_common.middlewares.trace_middleware import TraceCtx
 from knowledge_common.utils.server_util import WorkerIdUtil
 
 """
