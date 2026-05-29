@@ -30,6 +30,15 @@ class AppSettings(BaseSettings):
     app_trusted_proxy_ips: str = '127.0.0.1,::1'
     app_trusted_proxy_hops: int = 1
 
+class JwtSettings(BaseSettings):
+    """
+    Jwt配置
+    """
+
+    jwt_secret_key: str = 'b01c66dc2c58dc6a0aabfe2144256be36226de378bf87f72c0c795dda67f4d55'
+    jwt_algorithm: str = 'HS256'
+    jwt_expire_minutes: int = 1440
+    jwt_redis_expire_minutes: int = 30
 
 class DataBaseSettings(BaseSettings):
     """
@@ -203,6 +212,13 @@ class GetConfig:
         # 实例化应用配置模型
         return AppSettings()
 
+    def get_jwt_config(self) -> JwtSettings:
+        """
+        获取Jwt配置
+        """
+        # 实例化Jwt配置模型
+        return JwtSettings()
+
     def get_database_config(self) -> DataBaseSettings:
         """
         获取数据库配置
@@ -276,7 +292,8 @@ class GetConfig:
 get_config = GetConfig()
 # 应用配置
 AppConfig = get_config.get_app_config()
-
+# Jwt配置
+JwtConfig = get_config.get_jwt_config()
 # 数据库配置
 DataBaseConfig = get_config.get_database_config()
 # Redis配置
