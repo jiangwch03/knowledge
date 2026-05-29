@@ -1,8 +1,8 @@
 from fastapi import Request
 
-from common.context import RequestContext
-from config.env import AppConfig
-from exceptions.exception import PermissionException
+from knowledge_common.common.context import RequestContext
+from knowledge_common.config.env import AppConfig
+from knowledge_common.exceptions.exception import PermissionException
 
 
 class DependencyUtil:

@@ -13,9 +13,9 @@ from sqlalchemy.engine.row import Row
 from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.sql.expression import TextClause, null
 
-from config.database import Base
-from config.env import CachePathConfig
-from utils.log_util import logger
+from knowledge_common.config.database import Base
+from knowledge_common.config.env import CachePathConfig
+from knowledge_common.utils.log_util import logger
 
 
 def worship() -> None:

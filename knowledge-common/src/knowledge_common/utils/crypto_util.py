@@ -3,8 +3,8 @@ import hashlib
 
 from cryptography.fernet import Fernet
 
-from config.env import JwtConfig
-from exceptions.exception import ServiceException
+from knowledge_common.config.env import JwtConfig
+from knowledge_common.exceptions.exception import ServiceException
 
 
 class CryptoUtil:

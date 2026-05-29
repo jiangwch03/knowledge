@@ -6,8 +6,8 @@ from fastapi import Request
 from redis import asyncio as aioredis
 from typing_extensions import ParamSpec
 
-from common.enums import HttpMethod
-from utils.log_util import logger
+from knowledge_common.common.enums import HttpMethod
+from knowledge_common.utils.log_util import logger
 
 P = ParamSpec('P')
 R = TypeVar('R')

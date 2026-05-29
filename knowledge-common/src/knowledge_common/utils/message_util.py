@@ -1,4 +1,4 @@
-from utils.log_util import logger
+from knowledge_common.utils.log_util import logger
 
 
 def message_service(sms_code: str) -> None:

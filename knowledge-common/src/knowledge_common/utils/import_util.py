@@ -8,7 +8,7 @@ from typing import Any
 
 from sqlalchemy import inspect as sa_inspect
 
-from config.database import Base
+from knowledge_common.config.database import Base
 
 
 class ImportUtil:

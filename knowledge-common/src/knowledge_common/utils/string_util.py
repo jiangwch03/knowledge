@@ -1,4 +1,4 @@
-from common.constant import CommonConstant
+from knowledge_common.common.constant import CommonConstant
 
 
 class StringUtil:

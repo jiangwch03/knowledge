@@ -4,8 +4,8 @@ from typing import Any
 from sqlalchemy import Row, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from common.vo import PageModel
-from utils.common_util import CamelCaseUtil
+from knowledge_common.common.vo import PageModel
+from knowledge_common.utils.common_util import CamelCaseUtil
 
 
 class PageUtil:

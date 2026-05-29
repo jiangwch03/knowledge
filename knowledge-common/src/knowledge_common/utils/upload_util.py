@@ -6,7 +6,7 @@ from datetime import datetime
 import aiofiles
 from fastapi import UploadFile
 
-from config.env import UploadConfig
+from knowledge_common.config.env import UploadConfig
 
 
 class UploadUtil:

@@ -14,8 +14,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import FastAPI, Request
 from redis import asyncio as aioredis
 
-from config.env import AppConfig, TransportCryptoConfig
-from utils.log_util import logger
+from knowledge_common.config.env import AppConfig, TransportCryptoConfig
+from knowledge_common.utils.log_util import logger
 
 
 # 通用编码辅助

@@ -1,6 +1,6 @@
 from fastapi import Request
 
-from config.env import AppConfig
+from knowledge_common.config.env import AppConfig
 
 
 class ClientIPUtil:

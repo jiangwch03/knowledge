@@ -1,8 +1,8 @@
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from config.database import async_engine
-from config.env import DataBaseConfig
+from knowledge_common.config.database import async_engine
+from knowledge_common.config.env import DataBaseConfig
 
 if TYPE_CHECKING:
     from agno.db.base import AsyncBaseDb
