@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.alias_generators import to_camel
 from typing_extensions import Self
 
-from common.constant import HttpStatusConstant
+from knowledge_common.common.constant import HttpStatusConstant
 
 T = TypeVar('T')
 
@@ -30,7 +30,11 @@ class ResponseBaseModel(BaseModel):
     success: bool = Field(default=True, description='响应是否成功')
     time: datetime = Field(default_factory=datetime.now, description='响应时间')
 
-
+"""
+总结：这个文件是项目中统一接口响应格式的核心定义，
+确保所有 API 返回结构一致，支持分页、单数据、
+动态模型等多种场景。
+"""
 class DynamicResponseModel(ResponseBaseModel, Generic[T]):
     """
     动态响应模型

@@ -16,7 +16,9 @@ from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Lifespan
 from typing_extensions import deprecated
 
-
+"""
+自动路由注册 不用再手动注册路由
+"""
 class APIRouterPro(APIRouter):
     """
     `APIRouterPro` class, inherited from the `APIRouter` class, it has all the functions of `APIRouter` and provides some additional parameter settings.

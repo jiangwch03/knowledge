@@ -1,4 +1,4 @@
-from config.env import DataBaseConfig
+from knowledge_common.config.env import DataBaseConfig
 
 
 class CommonConstant:

@@ -2,8 +2,8 @@ import re
 from contextvars import ContextVar, Token
 from typing import Literal
 
-from exceptions.exception import LoginException
-from module_admin.entity.vo.user_vo import CurrentUserModel
+from knowledge_common.exceptions.exception import LoginException
+from knowledge_common.entity.vo.user_vo import CurrentUserModel
 
 # 定义上下文变量
 # 存储当前请求的编译后的排除路由模式列表
