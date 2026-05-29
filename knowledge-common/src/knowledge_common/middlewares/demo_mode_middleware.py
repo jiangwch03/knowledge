@@ -2,9 +2,9 @@ from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
-from utils.client_ip_util import ClientIPUtil
-from utils.log_util import logger
-from utils.response_util import ResponseUtil
+from knowledge_common.utils.client_ip_util import ClientIPUtil
+from knowledge_common.utils.log_util import logger
+from knowledge_common.utils.response_util import ResponseUtil
 
 
 class DemoModeMiddleware(BaseHTTPMiddleware):

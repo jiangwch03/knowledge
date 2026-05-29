@@ -7,9 +7,9 @@ from fastapi.datastructures import Headers, QueryParams
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from common.constant import HttpStatusConstant
-from config.env import AppConfig, TransportCryptoConfig
-from utils.transport_crypto_util import (
+from knowledge_common.common.constant import HttpStatusConstant
+from knowledge_common.config.env import AppConfig, TransportCryptoConfig
+from knowledge_common.utils.transport_crypto_util import (
     DecryptedTransportEnvelope,
     TransportCryptoMonitorUtil,
     TransportCryptoUtil,
