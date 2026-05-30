@@ -1,5 +1,6 @@
 import uvicorn
 from knowledge_common.config.env import AppConfig
+from knowledge_rag.server.server import create_app
 
 
 def main():
@@ -13,6 +14,8 @@ def main():
         factory=True,  # 标记app参数为工厂函数，uvicorn会调用该函数创建应用实例
     )
 
+if __name__ != '__main__':
+    app = create_app()
 
 if __name__ == "__main__":
     main()
