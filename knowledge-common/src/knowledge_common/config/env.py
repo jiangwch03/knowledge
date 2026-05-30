@@ -283,9 +283,11 @@ class GetConfig:
         env_file = '.env.dev'
         # 运行环境不为空时按命令行参数加载对应.env文件
         if run_env != '':
-            env_file = f'.env.{run_env}'
+            env_file = f'configs/.env.{run_env}'
         # 加载配置
         load_dotenv(env_file)
+        print(f'当前cwd: {os.getcwd()}')
+        print(f'加载配置文件: {env_file}')
 
 
 # 实例化获取配置类
