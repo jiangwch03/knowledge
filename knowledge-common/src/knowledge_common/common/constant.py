@@ -1,4 +1,4 @@
-from knowledge_common.config.env import DataBaseConfig
+from knowledge_common.config.env import DataBaseConfig, AppConfig
 
 
 class CommonConstant:
@@ -140,7 +140,7 @@ class LockConstant:
     分布式锁常量
     """
 
-    APP_STARTUP_LOCK_KEY = 'app:startup:lock'
+    APP_STARTUP_LOCK_KEY = AppConfig.app_name.join(':app:startup:lock')
     LOCK_EXPIRE_SECONDS = 60
     LOCK_RENEWAL_INTERVAL = 20
 

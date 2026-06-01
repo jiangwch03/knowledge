@@ -66,7 +66,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     :param app: FastAPI对象
     :return: None
     """
+    #创建 Redis 连接池
     app.state.redis = await RedisUtil.create_redis_pool(log_enabled=False)
+
+    # 获取启动日志锁 多进程模式下 只有抢占到锁的进程打印启动日志
     startup_log_enabled = await StartupUtil.acquire_startup_log_gate(
         redis=app.state.redis,
         lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
@@ -90,13 +93,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f'⏰️ {AppConfig.app_name}开始启动')
         if startup_log_enabled:
             worship()
+
+        # 验证传输加密配置
         TransportKeyProvider.validate_runtime_configuration()
+
+        # 初始化数据库表 没表建表 有表跳过 表结构变更跳过
         await init_create_table()
+
+        # 检查 Redis 连接
         await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
+
+        # 应用启动时缓存字典表
         await RedisUtil.init_sys_dict(app.state.redis)
+
+        #  应用启动时缓存参数配置表
         await RedisUtil.init_sys_config(app.state.redis)
+
+        # 启动后台任务
         await _start_background_tasks(app)
 
+    # 启动成功日志打印
     if startup_log_enabled:
         # 短暂等待确保下面的启动日志在最后打印
         await asyncio.sleep(0.5)
@@ -127,7 +143,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.redoc_url()}</cyan>' for ip in network_ips
             )
             logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
+
     yield
+
     shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
     with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
         await _stop_background_tasks(app)
