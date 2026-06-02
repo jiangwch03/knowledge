@@ -19,7 +19,7 @@ from knowledge_common.config.get_db import get_db
 from knowledge_common.exceptions.exception import AuthException, LoginException, ServiceException
 from knowledge_backend.module_admin.dao.login_dao import login_by_account
 from knowledge_backend.module_admin.dao.user_dao import UserDao
-from knowledge_backend.module_admin.entity.do.dept_do import SysDept
+from knowledge_common.entity.do.dept_do import SysDept
 from knowledge_backend.module_admin.entity.do.menu_do import SysMenu
 from knowledge_backend.module_admin.entity.do.user_do import SysUser
 from knowledge_backend.module_admin.entity.vo.login_vo import MenuTreeModel, MetaModel, RouterModel, SmsCode, UserLogin, UserRegister

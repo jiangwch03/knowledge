@@ -4,7 +4,7 @@ from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_backend.module_admin.entity.do.menu_do import SysMenu
-from knowledge_backend.module_admin.entity.do.role_do import SysRole, SysRoleMenu
+from knowledge_common.entity.do.role_do import SysRole, SysRoleMenu
 from knowledge_backend.module_admin.entity.do.user_do import SysUser, SysUserRole
 from knowledge_backend.module_admin.entity.vo.menu_vo import MenuModel, MenuQueryModel
 

@@ -4,7 +4,7 @@ from sqlalchemy import ColumnElement, bindparam, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.util import immutabledict
 
-from knowledge_backend.module_admin.entity.do.dept_do import SysDept
+from knowledge_common.entity.do.dept_do import SysDept
 from knowledge_backend.module_admin.entity.do.user_do import SysUser
 from knowledge_common.entity.vo.dept_vo import DeptModel
 

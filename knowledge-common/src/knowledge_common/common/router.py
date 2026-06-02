@@ -292,7 +292,7 @@ class RouterRegister:
     路由注册器，用于自动注册所有controller目录下的路由
     """
 
-    def __init__(self, app: FastAPI) -> None:
+    def __init__(self, app: FastAPI, project_root: str | None = None) -> None:
         """
         初始化路由注册器
 
@@ -300,7 +300,10 @@ class RouterRegister:
         """
         self.app = app
         # 获取项目根目录
-        self.project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        if project_root is not None:
+            self.project_root = os.path.abspath(project_root)
+        else:
+            self.project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         sys.path.insert(0, self.project_root)
 
     def _find_controller_files(self) -> list[str]:
@@ -383,7 +386,7 @@ class RouterRegister:
         self._register_routers_to_app(sorted_routers)
 
 
-def auto_register_routers(app: FastAPI) -> None:
+def auto_register_routers(app: FastAPI, project_root: str | None = None) -> None:
     """
     自动注册所有controller目录下的路由
 
@@ -391,5 +394,5 @@ def auto_register_routers(app: FastAPI) -> None:
     :return: None
     """
     # 使用路由注册器进行注册
-    router_register = RouterRegister(app)
+    router_register = RouterRegister(app,project_root = project_root)
     router_register.register_routers()

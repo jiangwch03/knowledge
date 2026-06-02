@@ -5,7 +5,7 @@ from fastapi import Request
 
 from knowledge_common.common.enums import RedisInitKeyConfig
 from knowledge_common.common.vo import CrudResponseModel
-from config.env import AppConfig, JwtConfig
+from knowledge_common.config.env import AppConfig, JwtConfig
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_backend.module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineQueryModel
 from knowledge_common.utils.common_util import CamelCaseUtil
