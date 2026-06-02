@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from fastapi import Request, Response
 
-from knowledge_backend.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
+from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from knowledge_common.common.constant import ApiNamespace
 from knowledge_common.common.enums import RedisInitKeyConfig
 from knowledge_common.common.router import APIRouterPro

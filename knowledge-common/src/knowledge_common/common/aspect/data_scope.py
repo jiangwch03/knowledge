@@ -3,8 +3,8 @@ from sqlalchemy import ColumnElement, func, or_, select
 
 from knowledge_common.common.context import RequestContext
 from knowledge_common.config.database import Base
-from knowledge_backend.module_admin.entity.do.dept_do import SysDept
-from knowledge_backend.module_admin.entity.do.role_do import SysRoleDept
+from knowledge_common.entity.do.dept_do import SysDept
+from knowledge_common.entity.do.role_do import SysRoleDept
 from knowledge_common.utils.dependency_util import DependencyUtil
 
 

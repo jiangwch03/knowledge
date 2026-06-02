@@ -6,10 +6,10 @@ import jwt
 from fastapi import Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from knowledge_backend.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
-from knowledge_backend.common.annotation.log_annotation import Log
-from knowledge_backend.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_backend.common.aspect.db_seesion import DBSessionDependency
+from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
+from knowledge_common.common.annotation.log_annotation import Log
+from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
+from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_backend.common.aspect.pre_auth import CurrentUserDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType, RedisInitKeyConfig

@@ -66,7 +66,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     :param app: FastAPI对象
     :return: None
     """
+    #创建 Redis 连接池
     app.state.redis = await RedisUtil.create_redis_pool(log_enabled=False)
+
+    # 获取启动日志锁 多进程模式下 只有抢占到锁的进程打印启动日志
     startup_log_enabled = await StartupUtil.acquire_startup_log_gate(
         redis=app.state.redis,
         lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
@@ -90,13 +93,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f'⏰️ {AppConfig.app_name}开始启动')
         if startup_log_enabled:
             worship()
+
+        # 验证传输加密配置
         TransportKeyProvider.validate_runtime_configuration()
+
+        # 初始化数据库表 没表建表 有表跳过 表结构变更跳过
         await init_create_table()
+
+        # 检查 Redis 连接
         await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
+
+        # 应用启动时缓存字典表
         await RedisUtil.init_sys_dict(app.state.redis)
+
+        #  应用启动时缓存参数配置表
         await RedisUtil.init_sys_config(app.state.redis)
+
+        # 启动后台任务
         await _start_background_tasks(app)
 
+    # 启动成功日志打印
     if startup_log_enabled:
         # 短暂等待确保下面的启动日志在最后打印
         await asyncio.sleep(0.5)
@@ -127,7 +143,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.redoc_url()}</cyan>' for ip in network_ips
             )
             logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
+
     yield
+
     shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
     with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
         await _stop_background_tasks(app)
@@ -143,25 +161,39 @@ def create_app() -> FastAPI:
     APIDocsUtil.setup_docs_static_resources()
     # 初始化FastAPI对象
     app = FastAPI(
-        title=AppConfig.app_name,
-        description=f'{AppConfig.app_name}接口文档',
-        version=AppConfig.app_version,
-        lifespan=lifespan,
-        openapi_url=APIDocsUtil.proxy_openapi_url(),
-        docs_url=APIDocsUtil.proxy_docs_url(),
-        redoc_url=APIDocsUtil.proxy_redoc_url(),
-        swagger_ui_oauth2_redirect_url=APIDocsUtil.proxy_oauth2_redirect_url(),
+        title=AppConfig.app_name,  # 应用名称
+        description=f'{AppConfig.app_name}接口文档',  # API文档描述信息
+        version=AppConfig.app_version,  # 应用版本号
+        lifespan=lifespan,  # 生命周期管理（启动/关闭事件）
+        openapi_url=APIDocsUtil.proxy_openapi_url(),  # OpenAPI schema地址（支持代理前缀）
+        docs_url=APIDocsUtil.proxy_docs_url(),  # Swagger UI文档地址
+        redoc_url=APIDocsUtil.proxy_redoc_url(),  # ReDoc文档地址
+        swagger_ui_oauth2_redirect_url=APIDocsUtil.proxy_oauth2_redirect_url(),  # OAuth2回调重定向地址
     )
 
-    # 自定义API文档路由，修复无法直接通过后端地址访问文档的问题
+    # 自定义API文档路由，修复无法直接通过后端地址访问文档的问题 fastapi注册了/proxy-docs 这里手动注册/docs
     APIDocsUtil.custom_api_docs_router(app)
 
-    # 挂载子应用
+    # 挂载子应用  目前不涉及子应用
+    """
+    FastAPI/Starlette 的 Mount 机制
+        1. 挂载静态文件服务
+            app.mount("/static", StaticFiles(directory="static"), name="static")
+            # 访问 /static/logo.png 就会读取 static/logo.png
+        2.挂载另一个 FastAPI 实例
+            sub_app = FastAPI()
+            app.mount("/sub", sub_app)
+            # 子应用的路由 /users 变成 /sub/users
+        3. 挂载 Swagger/ReDoc 等静态资源(前端页面) 
+    """
     handle_sub_applications(app)
+
     # 加载中间件处理方法
     handle_middleware(app)
+
     # 加载全局异常处理方法
     handle_exception(app)
+
     # 自动注册路由
     auto_register_routers(app)
 

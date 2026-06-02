@@ -30,9 +30,9 @@ from knowledge_backend.module_ai.entity.vo.ai_chat_vo import (
     SessionMetricsModel,
 )
 from knowledge_backend.module_ai.entity.vo.ai_model_vo import AiModelModel
-from utils.ai_util import AiUtil
-from utils.common_util import CamelCaseUtil
-from utils.crypto_util import CryptoUtil
+from knowledge_common.utils.ai_util import AiUtil
+from knowledge_common.utils.common_util import CamelCaseUtil
+from knowledge_common.utils.crypto_util import CryptoUtil
 
 if TYPE_CHECKING:
     from agno.models.message import Message

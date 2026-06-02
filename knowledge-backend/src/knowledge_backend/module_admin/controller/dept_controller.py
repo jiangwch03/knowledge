@@ -6,17 +6,17 @@ from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from knowledge_backend.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
-from knowledge_backend.common.annotation.log_annotation import Log
-from knowledge_backend.common.aspect.data_scope import DataScopeDependency
-from knowledge_backend.common.aspect.db_seesion import DBSessionDependency
-from knowledge_backend.common.aspect.interface_auth import UserInterfaceAuthDependency
+from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
+from knowledge_common.common.annotation.log_annotation import Log
+from knowledge_common.common.aspect.data_scope import DataScopeDependency
+from knowledge_common.common.aspect.db_seesion import DBSessionDependency
+from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_backend.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, ResponseBaseModel
-from knowledge_backend.module_admin.entity.do.dept_do import SysDept
+from knowledge_common.entity.do.dept_do import SysDept
 from knowledge_common.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptQueryModel
 from knowledge_common.entity.vo.user_vo import CurrentUserModel
 from knowledge_backend.module_admin.service.dept_service import DeptService

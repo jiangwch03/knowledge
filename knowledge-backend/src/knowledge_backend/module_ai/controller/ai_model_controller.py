@@ -6,11 +6,11 @@ from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from knowledge_backend.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
-from knowledge_backend.common.annotation.log_annotation import Log, RequestLogFieldRoot
-from knowledge_backend.common.aspect.data_scope import DataScopeDependency
-from knowledge_backend.common.aspect.db_seesion import DBSessionDependency
-from knowledge_backend.common.aspect.interface_auth import UserInterfaceAuthDependency
+from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
+from knowledge_common.common.annotation.log_annotation import Log, RequestLogFieldRoot
+from knowledge_common.common.aspect.data_scope import DataScopeDependency
+from knowledge_common.common.aspect.db_seesion import DBSessionDependency
+from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_backend.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
