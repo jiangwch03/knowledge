@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_common.common.vo import PageModel
 from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_backend.module_admin.entity.do.menu_do import SysMenu
+from knowledge_common.entity.do.menu_do import SysMenu
 from knowledge_common.entity.do.role_do import SysRole, SysRoleDept, SysRoleMenu
-from knowledge_backend.module_admin.entity.do.user_do import SysUser, SysUserRole
+from knowledge_common.entity.do.user_do import SysUser, SysUserRole
 from knowledge_common.entity.vo.role_vo import RoleDeptModel, RoleMenuModel, RoleModel, RolePageQueryModel
 from knowledge_common.utils.page_util import PageUtil
 

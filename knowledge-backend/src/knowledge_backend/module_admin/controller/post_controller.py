@@ -11,7 +11,7 @@ from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
-from knowledge_backend.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
+from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro

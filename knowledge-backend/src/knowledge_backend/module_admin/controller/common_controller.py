@@ -4,7 +4,7 @@ from fastapi import BackgroundTasks, File, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_backend.common.aspect.pre_auth import PreAuthDependency
+from knowledge_common.common.aspect.pre_auth import PreAuthDependency
 from knowledge_common.common.constant import ApiNamespace
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DynamicResponseModel

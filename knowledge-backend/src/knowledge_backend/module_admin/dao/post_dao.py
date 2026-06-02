@@ -4,8 +4,8 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_common.common.vo import PageModel
-from knowledge_backend.module_admin.entity.do.post_do import SysPost
-from knowledge_backend.module_admin.entity.do.user_do import SysUserPost
+from knowledge_common.entity.do.post_do import SysPost
+from knowledge_common.entity.do.user_do import SysUserPost
 from knowledge_common.entity.vo.post_vo import PostModel, PostPageQueryModel
 from knowledge_common.utils.page_util import PageUtil
 

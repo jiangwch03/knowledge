@@ -11,7 +11,7 @@ from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_backend.module_admin.dao.user_dao import UserDao
-from knowledge_backend.module_admin.entity.do.user_do import SysUserRole
+from knowledge_common.entity.do.user_do import SysUserRole
 from knowledge_common.entity.vo.post_vo import PostPageQueryModel
 from knowledge_common.entity.vo.user_vo import (
     AddUserModel,

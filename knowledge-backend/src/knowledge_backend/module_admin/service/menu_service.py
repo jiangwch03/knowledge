@@ -8,7 +8,7 @@ from knowledge_common.common.vo import CrudResponseModel
 from knowledge_common.exceptions.exception import ServiceException, ServiceWarning
 from knowledge_backend.module_admin.dao.menu_dao import MenuDao
 from knowledge_backend.module_admin.dao.role_dao import RoleDao
-from knowledge_backend.module_admin.entity.do.menu_do import SysMenu
+from knowledge_common.entity.do.menu_do import SysMenu
 from knowledge_backend.module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuTreeModel
 from knowledge_common.entity.vo.role_vo import RoleMenuQueryModel
 from knowledge_common.entity.vo.user_vo import CurrentUserModel

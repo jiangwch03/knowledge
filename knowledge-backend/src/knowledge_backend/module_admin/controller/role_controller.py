@@ -13,13 +13,13 @@ from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimi
 from knowledge_common.common.aspect.data_scope import DataScopeDependency
 from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
-from knowledge_backend.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
+from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
 from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_backend.module_admin.entity.do.user_do import SysUser
+from knowledge_common.entity.do.user_do import SysUser
 from knowledge_common.entity.vo.dept_vo import DeptModel
 from knowledge_common.entity.vo.role_vo import (
     AddRoleModel,

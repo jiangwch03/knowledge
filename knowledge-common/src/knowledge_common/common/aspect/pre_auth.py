@@ -10,7 +10,7 @@ from knowledge_common.config.env import AppConfig
 from knowledge_common.config.get_db import get_db
 from knowledge_common.exceptions.exception import AuthException
 from knowledge_common.entity.vo.user_vo import CurrentUserModel
-from knowledge_backend.module_admin.service.login_service import LoginService
+from knowledge_common.service.login_user_service import LoginUserService as LoginService
 
 
 # 定义排除路由的字典结构

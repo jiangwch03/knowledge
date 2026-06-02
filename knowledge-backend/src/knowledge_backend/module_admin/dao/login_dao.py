@@ -2,7 +2,7 @@ from sqlalchemy import Row, and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_backend.module_admin.entity.do.user_do import SysUser
+from knowledge_common.entity.do.user_do import SysUser
 
 
 async def login_by_account(db: AsyncSession, user_name: str) -> Row[tuple[SysUser, SysDept]] | None:
