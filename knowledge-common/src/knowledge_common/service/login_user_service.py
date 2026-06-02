@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 import jwt
 from fastapi import Depends, Form, Request
@@ -19,6 +19,20 @@ from knowledge_common.utils.log_util import logger
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='login')
 
 class LoginUserService:
+
+    @classmethod
+    async def __init_password_is_modify(cls, request: Request, pwd_update_date: datetime) -> bool:
+        """
+        判断当前用户是否初始密码登录
+
+        :param request: Request对象
+        :param pwd_update_date: 密码最后更新时间
+        :return: 是否初始密码登录
+        """
+        init_password_is_modify = await request.app.state.redis.get(
+            f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.initPasswordModify'
+        )
+        return init_password_is_modify == '1' and pwd_update_date is None
 
     @classmethod
     async def get_current_user(
@@ -108,6 +122,25 @@ class LoginUserService:
         logger.warning('用户token已失效，请重新登录')
         raise AuthException(data='', message='用户token已失效，请重新登录')
 
+    @classmethod
+    async def __password_is_expired(cls, request: Request, pwd_update_date: datetime) -> bool:
+        """
+        判断当前用户密码是否过期
+
+        :param request: Request对象
+        :param pwd_update_date: 密码最后更新时间
+        :return: 密码是否过期
+        """
+        password_validate_days = await request.app.state.redis.get(
+            f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.passwordValidateDays'
+        )
+        if password_validate_days and int(password_validate_days) > 0:
+            if pwd_update_date is None:
+                return True
+            expire_date = pwd_update_date + timedelta(days=int(password_validate_days))
+            if datetime.now() > expire_date:
+                return True
+        return False
 
 
 
