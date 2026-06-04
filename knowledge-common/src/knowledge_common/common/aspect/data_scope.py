@@ -13,11 +13,11 @@ class GetDataScope:
     获取当前用户数据权限对应的查询sql语句
     """
 
-    DATA_SCOPE_ALL = '1'
-    DATA_SCOPE_CUSTOM = '2'
-    DATA_SCOPE_DEPT = '3'
-    DATA_SCOPE_DEPT_AND_CHILD = '4'
-    DATA_SCOPE_SELF = '5'
+    DATA_SCOPE_ALL = '1' # 全部数据权限 admin 用户或拥有该范围的角色 → 返回 True（不限条件
+    DATA_SCOPE_CUSTOM = '2'# 自定义数据权限  查 sys_role_dept 关联表，限定可见的 dept_id 列
+    DATA_SCOPE_DEPT = '3' # 本部门数据权 dept_id == 当前用户部门ID
+    DATA_SCOPE_DEPT_AND_CHILD = '4' # 本部门及以下 通过 sys_dept.ancestors 字段做 FIND_IN_SET 匹配子部门
+    DATA_SCOPE_SELF = '5' # 仅本人数据权限 user_id == 当前用户ID
 
     def __init__(
         self,

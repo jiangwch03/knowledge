@@ -196,6 +196,19 @@ class CachePathConfig:
     PATH = os.path.join(os.path.abspath(os.getcwd()), 'caches')
     PATHSTR = 'caches'
 
+class MinerUSettings(BaseSettings):
+    """
+    MineU 解析服务配置
+    """
+
+    mineru_url: str = ''
+    mineru_file_urls_uri: str = '/api/v4/file-urls/batch'
+    mineru_extract_results_uri: str = '/api/v4/extract-results/batch'
+    mineru_token: str = ''
+    mineru_model_version: str = 'pipeline'
+    mineru_html_model_version: str = 'MinerU-HTML'
+    mineru_callback_url: str = ''
+    mineru_seed: str = ''
 
 class GetConfig:
     """
@@ -253,6 +266,12 @@ class GetConfig:
         # 实例上传配置
         return UploadSettings()
 
+    def get_mineru_config(self) -> MinerUSettings:
+        """
+        获取MineU配置
+        """
+        return MinerUSettings()
+
     @staticmethod
     def parse_cli_args() -> None:
         """
@@ -306,3 +325,5 @@ LogConfig = get_config.get_log_config()
 TransportCryptoConfig = get_config.get_transport_crypto_config()
 # 上传配置
 UploadConfig = get_config.get_upload_config()
+# MineU配置
+MinerUConfig = get_config.get_mineru_config()
