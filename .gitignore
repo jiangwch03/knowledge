@@ -219,3 +219,5 @@ __marimo__/
 
 # Qoder Repowiki auto-generated files
 .qoder/repowiki/
+
+.DS_Store

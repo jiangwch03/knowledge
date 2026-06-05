@@ -18,7 +18,7 @@ from knowledge_common.utils.common_util import worship
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.server_util import APIDocsUtil, IPUtil, StartupUtil
 from knowledge_common.utils.transport_crypto_util import TransportKeyProvider
-
+from knowledge_rag.common.root_path import CODE_ROOT
 
 async def _start_background_tasks(app: FastAPI) -> None:
     """
@@ -195,6 +195,6 @@ def create_app() -> FastAPI:
     handle_exception(app)
 
     # 自动注册路由
-    auto_register_routers(app)
+    auto_register_routers(app,CODE_ROOT)
 
     return app
