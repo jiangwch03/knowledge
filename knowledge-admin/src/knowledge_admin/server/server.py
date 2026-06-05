@@ -185,7 +185,7 @@ def create_app() -> FastAPI:
             sub_app = FastAPI()
             app.mount("/sub", sub_app)
             # 子应用的路由 /users 变成 /sub/users
-        3. 挂载 Swagger/ReDoc 等静态资源(前端页面) 
+        3. 挂载 Swagger/ReDoc 等静态资源(前端页面)
     """
     handle_sub_applications(app)
 

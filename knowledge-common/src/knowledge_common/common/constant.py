@@ -93,7 +93,6 @@ class JobConstant:
         'exceptions',
         'import ',
         'middlewares',
-        'module_admin',
         'open(',
         'os.',
         'server',

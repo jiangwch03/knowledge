@@ -1,10 +1,10 @@
 import uvicorn
-
 from knowledge_common.config.env import AppConfig
+
 from knowledge_admin.server.server import create_app
 
 
-def main():
+def main() -> None:
     uvicorn.run(
         app='knowledge_admin.server.server:create_app',  # ASGI应用的导入路径，格式为 "模块路径:工厂函数名"
         host=AppConfig.app_host,  # 服务监听的主机地址
