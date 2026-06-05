@@ -221,3 +221,12 @@ __marimo__/
 .qoder/repowiki/
 
 .DS_Store
+
+.claude/
+.codebuddy/
+.codex/
+.cursor/
+.kimi/
+.opencode/
+.qwen/
+.trae/
