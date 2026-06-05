@@ -36,12 +36,3 @@ dependencies = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# uv 索引配置
-[[tool.uv.index]]
-name = "nexus"
-url = "http://localhost:8081/repository/pypi-group/simple/"
-
-[[tool.uv.index]]
-name = "pypi"
-url = "https://pypi.org/simple/"
-default = true

@@ -1,0 +1,21 @@
+[project]
+name = "knowledge"
+version = "0.0.1"
+description = "Knowledge workspace root"
+requires-python = ">=3.13"
+
+[tool.uv.workspace]
+members = ["knowledge-common", "knowledge-admin", "knowledge-rag"]
+
+[tool.uv.sources]
+knowledge-common = { workspace = true }
+
+# uv 索引配置：Nexus 本地私服优先，PyPI 作为 fallback
+[[tool.uv.index]]
+name = "nexus"
+url = "http://localhost:8081/repository/pypi-group/simple/"
+default = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
