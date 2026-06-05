@@ -15,6 +15,7 @@ dependencies = [
     "redis>=7.4.0",
     "uvicorn>=0.48.0",
     "pypdf>=5.0.0",
+    "minio>=7.2.20",
 ]
 # 没写 include = [".env*"] 的话，.env.dev 不会被打包 默认只打包py文件
 [tool.hatch.build.targets.wheel]

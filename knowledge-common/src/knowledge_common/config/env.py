@@ -210,6 +210,24 @@ class MinerUSettings(BaseSettings):
     mineru_callback_url: str = ''
     mineru_seed: str = ''
 
+
+class MinioSettings(BaseSettings):
+    """
+    MinIO 配置
+    """
+
+    # MinIO 服务地址，指向宿主机已运行的 MinIO（端口 9000 为 S3 API 端口）
+    minio_address: str = 'http://localhost:9000'
+    # MinIO 访问密钥 ID（用户自定义账号）
+    minio_access_key_id: str = 'jiangwch'
+    # MinIO 秘密访问密钥（用户自定义密码）
+    minio_secret_access_key: str = 'jiangwch'
+    # Milvus 专用的存储 bucket 名称（需预先在 MinIO 中创建）
+    minio_bucket_name: str = 'milvus-data'
+    # 是否使用 SSL/TLS 加密连接，false 表示使用明文 HTTP
+    minio_use_ssl: bool = False
+
+
 class GetConfig:
     """
     获取配置
@@ -272,6 +290,13 @@ class GetConfig:
         """
         return MinerUSettings()
 
+    def get_minio_config(self) -> MinioSettings:
+        """
+        获取MinIO配置
+        """
+        # 实例化MinIO配置模型
+        return MinioSettings()
+
     @staticmethod
     def parse_cli_args() -> None:
         """
@@ -327,3 +352,5 @@ TransportCryptoConfig = get_config.get_transport_crypto_config()
 UploadConfig = get_config.get_upload_config()
 # MineU配置
 MinerUConfig = get_config.get_mineru_config()
+# MinIO配置
+MinioConfig = get_config.get_minio_config()
