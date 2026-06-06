@@ -4,6 +4,7 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from knowledge_common.common.transactional import transactional_sync
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.dao.job_log_dao import JobLogDao
 from knowledge_common.entity.vo.job_vo import DeleteJobLogModel, JobLogModel, JobLogPageQueryModel
@@ -33,23 +34,17 @@ class JobLogService:
         return job_log_list_result
 
     @classmethod
-    def add_job_log_services(cls, query_db: Session, page_object: JobLogModel) -> CrudResponseModel:
+    @transactional_sync
+    def add_job_log_services(cls, query_db: Session | None = None, page_object: JobLogModel | None = None) -> CrudResponseModel:
         """
         新增定时任务日志信息service
 
-        :param query_db: orm对象
+        :param query_db: orm对象（兼容旧调用方式，新方式可不传）
         :param page_object: 新增定时任务日志对象
         :return: 新增定时任务日志校验结果
         """
-        try:
-            JobLogDao.add_job_log_dao(query_db, page_object)
-            query_db.commit()
-            result = {'is_success': True, 'message': '新增成功'}
-        except Exception as e:
-            query_db.rollback()
-            result = {'is_success': False, 'message': str(e)}
-
-        return CrudResponseModel(**result)
+        JobLogDao.add_job_log_dao(query_db, page_object)
+        return CrudResponseModel(is_success=True, message='新增成功')
 
     @classmethod
     async def delete_job_log_services(cls, query_db: AsyncSession, page_object: DeleteJobLogModel) -> CrudResponseModel:

@@ -5,6 +5,7 @@ from sqlalchemy import delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from knowledge_common.common.transactional import get_current_session, get_current_session_sync
 from knowledge_common.common.vo import PageModel
 from knowledge_common.entity.do.job_do import SysJobLog
 from knowledge_common.entity.vo.job_vo import JobLogModel, JobLogPageQueryModel
@@ -51,14 +52,16 @@ class JobLogDao:
         return job_log_list
 
     @classmethod
-    def add_job_log_dao(cls, db: Session, job_log: JobLogModel) -> SysJobLog:
+    def add_job_log_dao(cls, db: Session | None = None, job_log: JobLogModel | None = None) -> SysJobLog:
         """
         新增定时任务日志数据库操作
 
-        :param db: orm对象
+        :param db: orm对象，不传则从事务上下文获取
         :param job_log: 定时任务日志对象
         :return:
         """
+        if db is None:
+            db = get_current_session_sync()
         db_job_log = SysJobLog(**job_log.model_dump())
         db.add(db_job_log)
         db.flush()

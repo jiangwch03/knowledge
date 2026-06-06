@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
 from knowledge_common.entity.do.dict_do import SysDictData, SysDictType
 from knowledge_common.entity.vo.dict_vo import DictDataModel, DictDataPageQueryModel, DictTypeModel, DictTypePageQueryModel
@@ -144,14 +145,16 @@ class DictDataDao:
     """
 
     @classmethod
-    async def get_dict_data_detail_by_id(cls, db: AsyncSession, dict_code: int) -> SysDictData | None:
+    async def get_dict_data_detail_by_id(cls, db: AsyncSession | None = None, dict_code: int | None = None) -> SysDictData | None:
         """
         根据字典数据id获取字典数据详细信息
 
-        :param db: orm对象
+        :param db: orm对象，不传则从事务上下文获取
         :param dict_code: 字典数据id
         :return: 字典数据信息对象
         """
+        if db is None:
+            db = get_current_session()
         dict_data_info = (
             (await db.execute(select(SysDictData).where(SysDictData.dict_code == dict_code))).scalars().first()
         )
@@ -242,14 +245,16 @@ class DictDataDao:
         return dict_data_list
 
     @classmethod
-    async def add_dict_data_dao(cls, db: AsyncSession, dict_data: DictDataModel) -> SysDictData:
+    async def add_dict_data_dao(cls, db: AsyncSession | None = None, dict_data: DictDataModel | None = None) -> SysDictData:
         """
         新增字典数据数据库操作
 
-        :param db: orm对象
+        :param db: orm对象，不传则从事务上下文获取
         :param dict_data: 字典数据对象
         :return:
         """
+        if db is None:
+            db = get_current_session()
         db_data_type = SysDictData(**dict_data.model_dump())
         db.add(db_data_type)
         await db.flush()
@@ -257,25 +262,29 @@ class DictDataDao:
         return db_data_type
 
     @classmethod
-    async def edit_dict_data_dao(cls, db: AsyncSession, dict_data: dict) -> None:
+    async def edit_dict_data_dao(cls, db: AsyncSession | None = None, dict_data: dict | None = None) -> None:
         """
         编辑字典数据数据库操作
 
-        :param db: orm对象
+        :param db: orm对象，不传则从事务上下文获取
         :param dict_data: 需要更新的字典数据字典
         :return:
         """
+        if db is None:
+            db = get_current_session()
         await db.execute(update(SysDictData), [dict_data])
 
     @classmethod
-    async def delete_dict_data_dao(cls, db: AsyncSession, dict_data: DictDataModel) -> None:
+    async def delete_dict_data_dao(cls, db: AsyncSession | None = None, dict_data: DictDataModel | None = None) -> None:
         """
         删除字典数据数据库操作
 
-        :param db: orm对象
+        :param db: orm对象，不传则从事务上下文获取
         :param dict_data: 字典数据对象
         :return:
         """
+        if db is None:
+            db = get_current_session()
         await db.execute(delete(SysDictData).where(SysDictData.dict_code.in_([dict_data.dict_code])))
 
     @classmethod

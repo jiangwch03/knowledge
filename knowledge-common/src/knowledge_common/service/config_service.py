@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.enums import RedisInitKeyConfig
+from knowledge_common.common.transactional import get_current_session, transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.dao.config_dao import ConfigDao
@@ -70,14 +71,16 @@ class ConfigService:
         return result
 
     @classmethod
-    async def check_config_key_unique_services(cls, query_db: AsyncSession, page_object: ConfigModel) -> bool:
+    async def check_config_key_unique_services(cls, query_db: AsyncSession | None = None, page_object: ConfigModel | None = None) -> bool:
         """
         校验参数键名是否唯一service
 
-        :param query_db: orm对象
+        :param query_db: orm对象，不传则从事务上下文获取
         :param page_object: 参数配置对象
         :return: 校验结果
         """
+        if query_db is None:
+            query_db = get_current_session()
         config_id = -1 if page_object.config_id is None else page_object.config_id
         config = await ConfigDao.get_config_detail_by_info(query_db, ConfigModel(configKey=page_object.config_key))
         if config and config.config_id != config_id:
@@ -85,29 +88,25 @@ class ConfigService:
         return CommonConstant.UNIQUE
 
     @classmethod
+    @transactional
     async def add_config_services(
-        cls, request: Request, query_db: AsyncSession, page_object: ConfigModel
+        cls, request: Request, query_db: AsyncSession | None = None, page_object: ConfigModel | None = None
     ) -> CrudResponseModel:
         """
         新增参数配置信息service
 
         :param request: Request对象
-        :param query_db: orm对象
+        :param query_db: orm对象（兼容旧调用方式，新方式可不传）
         :param page_object: 新增参数配置对象
         :return: 新增参数配置校验结果
         """
         if not await cls.check_config_key_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增参数{page_object.config_name}失败，参数键名已存在')
-        try:
-            await ConfigDao.add_config_dao(query_db, page_object)
-            await query_db.commit()
-            await request.app.state.redis.set(
-                f'{RedisInitKeyConfig.SYS_CONFIG.key}:{page_object.config_key}', page_object.config_value
-            )
-            return CrudResponseModel(is_success=True, message='新增成功')
-        except Exception as e:
-            await query_db.rollback()
-            raise e
+        await ConfigDao.add_config_dao(query_db, page_object)
+        await request.app.state.redis.set(
+            f'{RedisInitKeyConfig.SYS_CONFIG.key}:{page_object.config_key}', page_object.config_value
+        )
+        return CrudResponseModel(is_success=True, message='新增成功')
 
     @classmethod
     async def edit_config_services(
@@ -176,14 +175,16 @@ class ConfigService:
             raise ServiceException(message='传入参数配置id为空')
 
     @classmethod
-    async def config_detail_services(cls, query_db: AsyncSession, config_id: int) -> ConfigModel:
+    async def config_detail_services(cls, query_db: AsyncSession | None = None, config_id: int | None = None) -> ConfigModel:
         """
         获取参数配置详细信息service
 
-        :param query_db: orm对象
+        :param query_db: orm对象，不传则从事务上下文获取
         :param config_id: 参数配置id
         :return: 参数配置id对应的信息
         """
+        if query_db is None:
+            query_db = get_current_session()
         config = await ConfigDao.get_config_detail_by_id(query_db, config_id=config_id)
         result = ConfigModel(**CamelCaseUtil.transform_result(config)) if config else ConfigModel()
 

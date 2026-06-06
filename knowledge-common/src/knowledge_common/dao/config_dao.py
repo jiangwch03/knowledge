@@ -4,6 +4,7 @@ from typing import Any
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
 from knowledge_common.entity.do.config_do import SysConfig
 from knowledge_common.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel
@@ -87,14 +88,16 @@ class ConfigDao:
         return config_list
 
     @classmethod
-    async def add_config_dao(cls, db: AsyncSession, config: ConfigModel) -> SysConfig:
+    async def add_config_dao(cls, db: AsyncSession | None = None, config: ConfigModel | None = None) -> SysConfig:
         """
         新增参数配置数据库操作
 
-        :param db: orm对象
+        :param db: orm对象，不传则从事务上下文获取
         :param config: 参数配置对象
         :return:
         """
+        if db is None:
+            db = get_current_session()
         db_config = SysConfig(**config.model_dump())
         db.add(db_config)
         await db.flush()
@@ -102,23 +105,27 @@ class ConfigDao:
         return db_config
 
     @classmethod
-    async def edit_config_dao(cls, db: AsyncSession, config: dict) -> None:
+    async def edit_config_dao(cls, db: AsyncSession | None = None, config: dict | None = None) -> None:
         """
         编辑参数配置数据库操作
 
-        :param db: orm对象
+        :param db: orm对象，不传则从事务上下文获取
         :param config: 需要更新的参数配置字典
         :return:
         """
+        if db is None:
+            db = get_current_session()
         await db.execute(update(SysConfig), [config])
 
     @classmethod
-    async def delete_config_dao(cls, db: AsyncSession, config: ConfigModel) -> None:
+    async def delete_config_dao(cls, db: AsyncSession | None = None, config: ConfigModel | None = None) -> None:
         """
         删除参数配置数据库操作
 
-        :param db: orm对象
+        :param db: orm对象，不传则从事务上下文获取
         :param config: 参数配置对象
         :return:
         """
+        if db is None:
+            db = get_current_session()
         await db.execute(delete(SysConfig).where(SysConfig.config_id.in_([config.config_id])))
