@@ -60,6 +60,39 @@ def generate_data_id_with_prefix(prefix: str) -> str:
     return data_id
 
 
+def generate_split_data_id(base_data_id: str, part_index: int, page_start: int, page_end: int) -> str:
+    """基于基础 data_id 生成文档拆分后的 chunk data_id。
+
+    格式: {base_data_id}_part{part_index}_p{page_start}-{page_end}
+    总长度不超过 128 个字符，字符集符合 MinerU 规范。
+
+    Args:
+        base_data_id: 基础 data_id（通常为 UUID）。
+        part_index: 拆分块序号（从 1 开始）。
+        page_start: 页码范围起始页。
+        page_end: 页码范围结束页。
+
+    Returns:
+        str: 拆分后的 data_id。
+
+    Raises:
+        ServiceException: base_data_id 非法或生成的 data_id 超过 128 字符。
+    """
+    if not base_data_id or not _DATA_ID_PATTERN.match(base_data_id):
+        raise ServiceException(
+            f'base_data_id 只能包含大小写英文字母、数字、下划线（_）、短划线（-）、英文句号（.），'
+            f'当前值: {base_data_id}'
+        )
+
+    suffix = f'part{part_index}_p{page_start}-{page_end}'
+    data_id = f'{base_data_id}_{suffix}'
+
+    if len(data_id) > 128:
+        raise ServiceException(f'生成的 data_id 长度 {len(data_id)} 超过最大限制 128')
+
+    return data_id
+
+
 def validate_data_id(data_id: str) -> bool:
     """校验 data_id 是否符合 MinerU 规范。
 

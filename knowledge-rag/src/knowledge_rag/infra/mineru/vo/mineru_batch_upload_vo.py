@@ -103,6 +103,9 @@ class MinerUBatchUploadRespVo(BaseModel):
     batch_id: str = Field(..., description='批量任务 ID')
     file_urls: list[str] = Field(default=list, description='文件上传预签名链接')
     upload_results: list[bool] = Field(default=list, description='各文件上传是否成功')
+    data_ids: list[str] = Field(default=list, description='各文件对应业务数据 ID')
+    page_ranges: list[str | None] = Field(default=list, description='各文件对应页码范围')
+    file_names: list[str] = Field(default=list, description='各文件原始文件名')
 
 
 class MinerUUploadUrlsVo(BaseModel):
@@ -111,11 +114,21 @@ class MinerUUploadUrlsVo(BaseModel):
     batch_id: str = Field(..., description='批量任务 ID')
     file_urls: list[str] = Field(default=list, description='文件上传预签名链接')
     file_paths: list[str] = Field(default=list, description='本地文件路径列表')
+    data_ids: list[str] = Field(default=list, description='各文件对应业务数据 ID')
+    page_ranges: list[str | None] = Field(default=list, description='各文件对应页码范围')
+    file_names: list[str] = Field(default=list, description='各文件原始文件名')
 
     @model_validator(mode='after')
     def check_length_match(self) -> 'MinerUUploadUrlsVo':
-        if len(self.file_urls) != len(self.file_paths):
+        expected = len(self.file_urls)
+        if len(self.file_paths) != expected:
             raise ServiceException('上传链接数量与文件路径数量不匹配')
+        if len(self.data_ids) != expected:
+            raise ServiceException('data_ids 数量与上传链接数量不匹配')
+        if len(self.page_ranges) != expected:
+            raise ServiceException('page_ranges 数量与上传链接数量不匹配')
+        if len(self.file_names) != expected:
+            raise ServiceException('file_names 数量与上传链接数量不匹配')
         return self
 
 class MinerUUploadFilesRespVo(BaseModel):

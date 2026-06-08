@@ -1,20 +1,24 @@
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import aiofiles
 import httpx
+import pypdf
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.utils.log_util import logger
 
 from knowledge_rag.configs.mineru_config import minerUClientConfig
+from knowledge_rag.infra.mineru.mineru_data_id_generate import generate_data_id, generate_split_data_id
 from knowledge_rag.infra.mineru.vo import MinerUBatchResultRespVo
 from knowledge_rag.infra.mineru.vo.mineru_batch_upload_vo import (
     MinerUBatchUploadReqVo,
     MinerUBatchUploadRespVo,
     MinerUFileItem,
     MinerUUploadUrlsVo,
-    MinerUUploadFilesRespVo, MinerUUploadUrlsVo,
+    MinerUUploadFilesRespVo,
 )
 
 
@@ -22,7 +26,7 @@ class MineUClient:
     """MineU 精准解析 API 客户端"""
 
     _TIMEOUT: int = 60
-    _MAX_PDF_PAGES: int = 200
+    _MAX_PAGES: int = 300
 
     def __init__(self) -> None:
         self._config = minerUClientConfig
@@ -37,32 +41,122 @@ class MineUClient:
             'Authorization': f'Bearer {self._config.token}',
         }
 
-    async def request_batch_upload(self, request: MinerUBatchUploadReqVo) -> MinerUUploadUrlsVo:
-        """申请批量上传链接"""
-        file_items: list[MinerUFileItem] = []
+    def _get_document_page_count(self, path: Path, suffix: str) -> int | None:
+        """获取文档页数，支持 PDF 和 DOCX 格式。
+
+        Args:
+            path: 文件路径。
+            suffix: 文件后缀（小写）。
+
+        Returns:
+            文档总页数，若无法获取则返回 None。
+        """
+        if suffix == '.pdf':
+            try:
+                reader = pypdf.PdfReader(str(path))
+                return len(reader.pages)
+            except Exception as e:
+                logger.warning(f'PDF 页数读取失败: {path.name}, error={e}')
+                return None
+        elif suffix == '.docx':
+            try:
+                with zipfile.ZipFile(path, 'r') as zf:
+                    if 'docProps/app.xml' not in zf.namelist():
+                        return None
+                    with zf.open('docProps/app.xml') as f:
+                        root = ET.parse(f).getroot()
+                        ns = {'ep': 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties'}
+                        pages_elem = root.find('ep:Pages', ns)
+                        if pages_elem is not None and pages_elem.text:
+                            return int(pages_elem.text)
+                return None
+            except Exception as e:
+                logger.warning(f'DOCX 页数读取失败: {path.name}, error={e}')
+                return None
+        elif suffix == '.doc':
+            logger.warning(f'DOC 文件暂不支持自动页数检测: {path.name}')
+            return None
+        else:
+            return None
+
+    def _split_page_ranges(self, total_pages: int, max_pages: int) -> list[tuple[int, int]]:
+        """将总页数拆分为多个连续的页码区间。
+
+        Args:
+            total_pages: 文档总页数。
+            max_pages: 每个区间的最大页数。
+
+        Returns:
+            页码区间列表，每个元素为 (start_page, end_page)。
+        """
+        chunks: list[tuple[int, int]] = []
+        start = 1
+        while start <= total_pages:
+            end = min(start + max_pages - 1, total_pages)
+            chunks.append((start, end))
+            start = end + 1
+        return chunks
+
+    async def _resolve_file_items(
+        self, file_paths: list[str]
+    ) -> tuple[list[Path], list[MinerUFileItem]]:
+        """解析文件路径列表，生成 MinerUFileItem，支持大文件按页码拆分。
+
+        若文档页数超过 _MAX_PAGES，则自动拆分为多个带页码范围的 FileItem，
+        并为每个项生成独立的 data_id。
+
+        Args:
+            file_paths: 本地文件路径列表。
+
+        Returns:
+            (resolved_paths, file_items): 本地路径列表与对应的文件项列表，
+            两者长度一致且一一对应。
+        """
         resolved_paths: list[Path] = []
-        for fp in request.files:
+        file_items: list[MinerUFileItem] = []
+
+        for fp in file_paths:
             path = Path(fp)
             if not path.exists():
                 raise ServiceException(f'文件不存在: {path}')
             if not path.is_file():
                 raise ServiceException(f'路径不是文件: {path}')
-            # # PDF 页数前置校验
-            # if path.suffix.lower() == '.pdf':
-            #     try:
-            #         with pypdf.PdfReader(str(path)) as reader:
-            #             page_count = len(reader.pages)
-            #         if page_count > self._MAX_PDF_PAGES:
-            #             raise ServiceException(
-            #                 f'PDF 页数超过限制: {path.name} 共 {page_count} 页，'
-            #                 f'最大允许 {self._MAX_PDF_PAGES} 页，请拆分文件或指定页码范围'
-            #             )
-            #     except ServiceException:
-            #         raise
-            #     except Exception as e:
-            #         logger.warning(f'PDF 页数读取失败: {path.name}, error={e}')
-            resolved_paths.append(path)
-            file_items.append(MinerUFileItem(name=path.name))
+
+            suffix = path.suffix.lower()
+            page_count = self._get_document_page_count(path, suffix)
+            base_data_id = generate_data_id()
+
+            if page_count is not None and page_count > self._MAX_PAGES:
+                chunks = self._split_page_ranges(page_count, self._MAX_PAGES)
+                for idx, (start, end) in enumerate(chunks):
+                    page_range = f'{start}-{end}'
+                    chunk_data_id = generate_split_data_id(base_data_id, idx + 1, start, end)
+                    file_items.append(
+                        MinerUFileItem(
+                            name=path.name,
+                            data_id=chunk_data_id,
+                            page_ranges=page_range,
+                        )
+                    )
+                    resolved_paths.append(path)
+                logger.info(
+                    f'文件页数超限已拆分: {path.name} 共 {page_count} 页，'
+                    f'拆分为 {len(chunks)} 个任务，每段不超过 {self._MAX_PAGES} 页'
+                )
+            else:
+                file_items.append(
+                    MinerUFileItem(
+                        name=path.name,
+                        data_id=base_data_id,
+                    )
+                )
+                resolved_paths.append(path)
+
+        return resolved_paths, file_items
+
+    async def request_batch_upload(self, request: MinerUBatchUploadReqVo) -> MinerUUploadUrlsVo:
+        """申请批量上传链接"""
+        resolved_paths, file_items = await self._resolve_file_items(request.files)
 
         # mineru模型版本 如果解析的是HTML文件 MinerU-HTML，如果是非HTML文件 vlm
         model_version = self._config.resolve_model_version(request.parse_mode)
@@ -113,6 +207,9 @@ class MineUClient:
             batch_id=batch_id,
             file_urls=file_urls,
             file_paths=[str(p) for p in resolved_paths],
+            data_ids=[item.data_id or '' for item in file_items],
+            page_ranges=[item.page_ranges for item in file_items],
+            file_names=[item.name for item in file_items],
         )
 
     async def upload_files(self, request: MinerUUploadUrlsVo) -> MinerUUploadFilesRespVo:
@@ -149,14 +246,20 @@ class MineUClient:
     async def batch_upload_local_files(self, request: MinerUBatchUploadReqVo) -> MinerUBatchUploadRespVo:
         """本地文件批量上传解析（申请链接 + 上传文件一站式调用）"""
         try:
+            # 批量上传链接申请
             urls_resp = await self.request_batch_upload(request)
             logger.info(f'批量上传链接申请成功: {urls_resp}')
+            # 文件上传
             upload_resp = await self.upload_files(urls_resp)
             logger.info(f'文件上传成功: {upload_resp}')
+
             return MinerUBatchUploadRespVo(
                 batch_id=urls_resp.batch_id,
                 file_urls=urls_resp.file_urls,
                 upload_results=upload_resp.upload_results,
+                data_ids=urls_resp.data_ids,
+                page_ranges=urls_resp.page_ranges,
+                file_names=urls_resp.file_names,
             )
         except ServiceException:
             raise
