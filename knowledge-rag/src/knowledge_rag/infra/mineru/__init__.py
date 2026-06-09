@@ -6,6 +6,7 @@ from knowledge_rag.infra.mineru.vo import (
     MinerUBatchUploadReqVo,
     MinerUBatchUploadRespVo,
     MinerUFileItem,
+    MinerULocalFileItem,
     MinerUExtractProgressVo,
     MinerUExtractResultVo,
 )
@@ -17,6 +18,7 @@ __all__ = [
     'MinerUParseModeEnum',
     'MinerUClientConfig',
     'MinerUFileItem',
+    'MinerULocalFileItem',
     'MinerUBatchUploadReqVo',
     'MinerUBatchUploadRespVo',
     'MinerUBatchResultRespVo',

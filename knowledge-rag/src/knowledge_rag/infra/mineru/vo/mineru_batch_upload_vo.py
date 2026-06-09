@@ -67,10 +67,38 @@ class MinerUFileItem(BaseModel):
         return value
 
 
+class MinerULocalFileItem(BaseModel):
+    """本地文件项"""
+
+    path: str = Field(..., description='本地文件路径')
+    is_ocr: bool | None = Field(default=False, description='是否启用 OCR')
+    page_ranges: str | None = Field(None, description='页码范围')
+    data_id: str | None = Field(None, description='业务数据 ID，不传则自动生成')
+
+    @field_validator('page_ranges')
+    @classmethod
+    def check_page_ranges(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        for seg in value.split(','):
+            seg = seg.strip()
+            if not seg:
+                raise ServiceException(
+                    f'页码范围格式非法，存在空段，当前值: {value}'
+                )
+            if not _PAGE_RANGE_SEGMENT_PATTERN.match(seg):
+                raise ServiceException(
+                    f'页码范围格式非法，当前值: {value}。'
+                    f'正确格式为逗号分隔的页码段，支持：'
+                    f'单页如 "2"、连续页如 "4-6"、到倒数页如 "2--2"'
+                )
+        return value
+
+
 class MinerUBatchUploadReqVo(BaseModel):
     """本地文件批量上传解析请求 Bean"""
 
-    files: list[str] = Field(..., min_length=1, max_length=50, description='本地文件路径列表')
+    files: list[MinerULocalFileItem] = Field(..., min_length=1, max_length=50, description='本地文件列表')
     parse_mode: MinerUParseModeEnum = Field(default=MinerUParseModeEnum.NORMAL, description='解析模式')
     enable_formula: bool = Field(default=True, description='是否开启公式识别')
     enable_table: bool = Field(default=True, description='是否开启表格识别')
@@ -89,8 +117,8 @@ class MinerUBatchUploadReqVo(BaseModel):
                     raise ServiceException(
                         f'额外导出格式仅支持 docx、html、latex，不支持 {fmt}'
                     )
-            for file_path in self.files:
-                if file_path.lower().endswith('.html'):
+            for item in self.files:
+                if item.path.lower().endswith('.html'):
                     raise ServiceException(
                         'extra_formats 对源文件为 html 的文件无效'
                     )

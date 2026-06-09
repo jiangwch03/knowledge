@@ -8,7 +8,7 @@ from baseTest import *
 import asyncio
 
 from knowledge_rag.infra.mineru.mineru_client import MineUClient
-from knowledge_rag.infra.mineru.vo.mineru_batch_upload_vo import MinerUBatchUploadReqVo
+from knowledge_rag.infra.mineru.vo.mineru_batch_upload_vo import MinerUBatchUploadReqVo, MinerULocalFileItem
 from knowledge_common.utils.log_util import logger
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -22,7 +22,10 @@ async def test_request_batch_upload():
     client = MineUClient()
 
     request = MinerUBatchUploadReqVo(
-        files=[_FILE_PATH_1, _FILE_PATH_2],
+        files=[
+            MinerULocalFileItem(path=_FILE_PATH_1, is_ocr=False),
+            MinerULocalFileItem(path=_FILE_PATH_2, is_ocr=True),
+        ],
         enable_formula=True,
         enable_table=True,
         language='ch',
@@ -46,7 +49,10 @@ async def test_batch_upload_local_files():
     client = MineUClient()
 
     request = MinerUBatchUploadReqVo(
-        files=[_FILE_PATH_1, _FILE_PATH_2],
+        files=[
+            MinerULocalFileItem(path=_FILE_PATH_1, is_ocr=False),
+            MinerULocalFileItem(path=_FILE_PATH_2, is_ocr=True),
+        ],
         enable_formula=True,
         enable_table=True,
         language='ch',

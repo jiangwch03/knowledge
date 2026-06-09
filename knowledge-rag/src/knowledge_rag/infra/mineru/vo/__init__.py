@@ -2,6 +2,7 @@
 from knowledge_rag.infra.mineru.vo.mineru_base_vo import MinerUBaseRespVo
 from knowledge_rag.infra.mineru.vo.mineru_batch_upload_vo import (
     MinerUFileItem,
+    MinerULocalFileItem,
     MinerUBatchUploadReqVo,
     MinerUBatchUploadRespVo,
     MinerUUploadUrlsVo,
@@ -17,6 +18,7 @@ __all__ = [
     'MinerUBaseRespVo',
 
     'MinerUFileItem',
+    'MinerULocalFileItem',
     'MinerUBatchUploadReqVo',
     'MinerUBatchUploadRespVo',
     'MinerUUploadUrlsVo',

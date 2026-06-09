@@ -9,7 +9,7 @@ import httpx
 import pypdf
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.utils.log_util import logger
-
+from knowledge_common.utils.file_util import FileUtil as FileUtil
 from knowledge_rag.configs.mineru_config import minerUClientConfig
 from knowledge_rag.infra.mineru.mineru_data_id_generate import generate_data_id, generate_split_data_id
 from knowledge_rag.infra.mineru.vo import MinerUBatchResultRespVo
@@ -17,6 +17,7 @@ from knowledge_rag.infra.mineru.vo.mineru_batch_upload_vo import (
     MinerUBatchUploadReqVo,
     MinerUBatchUploadRespVo,
     MinerUFileItem,
+    MinerULocalFileItem,
     MinerUUploadUrlsVo,
     MinerUUploadFilesRespVo,
 )
@@ -98,15 +99,15 @@ class MineUClient:
         return chunks
 
     async def _resolve_file_items(
-        self, file_paths: list[str]
+        self, file_items_input: list[MinerULocalFileItem]
     ) -> tuple[list[Path], list[MinerUFileItem]]:
-        """解析文件路径列表，生成 MinerUFileItem，支持大文件按页码拆分。
+        """解析本地文件项列表，生成 MinerUFileItem，支持大文件按页码拆分。
 
-        若文档页数超过 _MAX_PAGES，则自动拆分为多个带页码范围的 FileItem，
+        若用户未指定页码范围且文档页数超过 _MAX_PAGES，则自动拆分为多个带页码范围的 FileItem，
         并为每个项生成独立的 data_id。
 
         Args:
-            file_paths: 本地文件路径列表。
+            file_items_input: 本地文件项列表。
 
         Returns:
             (resolved_paths, file_items): 本地路径列表与对应的文件项列表，
@@ -115,17 +116,30 @@ class MineUClient:
         resolved_paths: list[Path] = []
         file_items: list[MinerUFileItem] = []
 
-        for fp in file_paths:
-            path = Path(fp)
+        for item in file_items_input:
+            path = Path(item.path)
             if not path.exists():
                 raise ServiceException(f'文件不存在: {path}')
             if not path.is_file():
                 raise ServiceException(f'路径不是文件: {path}')
 
             suffix = path.suffix.lower()
-            page_count = self._get_document_page_count(path, suffix)
-            base_data_id = generate_data_id()
+            base_data_id = item.data_id or generate_data_id()
 
+            # 用户显式指定了页码范围，直接使用，不再自动拆分
+            if item.page_ranges is not None:
+                file_items.append(
+                    MinerUFileItem(
+                        name=path.name,
+                        data_id=base_data_id,
+                        is_ocr=item.is_ocr,
+                        page_ranges=item.page_ranges,
+                    )
+                )
+                resolved_paths.append(path)
+                continue
+
+            page_count = self._get_document_page_count(path, suffix)
             if page_count is not None and page_count > self._MAX_PAGES:
                 chunks = self._split_page_ranges(page_count, self._MAX_PAGES)
                 for idx, (start, end) in enumerate(chunks):
@@ -135,6 +149,7 @@ class MineUClient:
                         MinerUFileItem(
                             name=path.name,
                             data_id=chunk_data_id,
+                            is_ocr=item.is_ocr,
                             page_ranges=page_range,
                         )
                     )
@@ -148,6 +163,7 @@ class MineUClient:
                     MinerUFileItem(
                         name=path.name,
                         data_id=base_data_id,
+                        is_ocr=item.is_ocr,
                     )
                 )
                 resolved_paths.append(path)
@@ -221,7 +237,7 @@ class MineUClient:
                 try:
                     upload_resp = await client.put(
                         file_url,
-                        content=self._file_chunk_stream(file_path),
+                        content=FileUtil.file_chunk_stream(file_path),
                         timeout=360,
                     )
                     success = upload_resp.status_code == 200
@@ -237,11 +253,7 @@ class MineUClient:
 
         return MinerUUploadFilesRespVo(upload_results=upload_results)
 
-    async def _file_chunk_stream(self, file_path: Path, chunk_size: int = 256 * 1024):
-        """异步流式读取文件，内存中仅保留一个 chunk 大小的缓冲区"""
-        async with aiofiles.open(file_path, 'rb') as f:
-            while chunk := await f.read(chunk_size):
-                yield chunk
+    
 
     async def batch_upload_local_files(self, request: MinerUBatchUploadReqVo) -> MinerUBatchUploadRespVo:
         """本地文件批量上传解析（申请链接 + 上传文件一站式调用）"""
