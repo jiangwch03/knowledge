@@ -27,7 +27,7 @@ async def _start_background_tasks(app: FastAPI) -> None:
     :param app: FastAPI对象
     :return: None
     """
-    await SchedulerUtil.init_system_scheduler(app.state.redis)
+    await SchedulerUtil.init_system_scheduler(app.state.redis, app_scope='knowledge-rag')
     app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
 
 

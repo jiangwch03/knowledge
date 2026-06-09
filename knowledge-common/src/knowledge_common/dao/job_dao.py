@@ -75,6 +75,7 @@ class JobDao:
                 SysJob.job_name.like(f'%{query_object.job_name}%') if query_object.job_name else True,
                 SysJob.job_group == query_object.job_group if query_object.job_group else True,
                 SysJob.status == query_object.status if query_object.status else True,
+                SysJob.app_scope == query_object.app_scope if query_object.app_scope else True,
             )
             .order_by(SysJob.job_id)
             .distinct()
@@ -86,26 +87,38 @@ class JobDao:
         return job_list
 
     @classmethod
-    async def get_job_list_for_scheduler(cls, db: AsyncSession) -> Sequence[SysJob]:
+    async def get_job_list_for_scheduler(cls, db: AsyncSession, app_scope: str | None = None) -> Sequence[SysJob]:
         """
         获取定时任务列表信息
 
         :param db: orm对象
+        :param app_scope: 应用标识，为None时加载status='0'的全部任务
         :return: 定时任务列表信息对象
         """
-        job_list = (await db.execute(select(SysJob).where(SysJob.status == '0').distinct())).scalars().all()
+        query = select(SysJob).where(SysJob.status == '0')
+        if app_scope:
+            query = query.where(
+                (SysJob.app_scope == app_scope) | (SysJob.app_scope.is_(None)) | (SysJob.app_scope == '')
+            )
+        job_list = (await db.execute(query.distinct())).scalars().all()
 
         return job_list
 
     @classmethod
-    async def get_all_job_list_for_scheduler(cls, db: AsyncSession) -> Sequence[SysJob]:
+    async def get_all_job_list_for_scheduler(cls, db: AsyncSession, app_scope: str | None = None) -> Sequence[SysJob]:
         """
         获取全部定时任务列表信息
 
         :param db: orm对象
+        :param app_scope: 应用标识
         :return: 定时任务列表信息对象
         """
-        job_list = (await db.execute(select(SysJob).distinct())).scalars().all()
+        query = select(SysJob)
+        if app_scope:
+            query = query.where(
+                (SysJob.app_scope == app_scope) | (SysJob.app_scope.is_(None)) | (SysJob.app_scope == '')
+            )
+        job_list = (await db.execute(query.distinct())).scalars().all()
 
         return job_list
 
