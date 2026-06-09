@@ -483,6 +483,7 @@ insert into sys_dict_type values(9,  '通知状态', 	   'sys_notice_status',   
 insert into sys_dict_type values(10, '操作类型', 	   'sys_oper_type',       '0', 'admin', sysdate(), '', null, '操作类型列表');
 insert into sys_dict_type values(11, '系统状态',     'sys_common_status',   '0', 'admin', sysdate(), '', null, '登录状态列表');
 insert into sys_dict_type values(12, 'AI模型提供商', 'ai_provider_type',    '0', 'admin', sysdate(), '', null, 'AI模型提供商列表');
+insert into sys_dict_type values(13, '任务所属应用', 'sys_job_app_scope',   '0', 'admin', sysdate(), '', null, '定时任务所属应用列表');
 
 
 -- ----------------------------
@@ -558,6 +559,9 @@ insert into sys_dict_data values(47, 15,  'LiteLLM',         'LiteLLM',         
 insert into sys_dict_data values(48, 16,  'LiteLLMOpenAI',   'LiteLLMOpenAI',    'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LiteLLMOpenAI');
 insert into sys_dict_data values(49, 17,  'LlamaCpp',        'LlamaCpp',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LlamaCpp');
 insert into sys_dict_data values(50, 18,  'LMStudio',        'LMStudio',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LMStudio');
+insert into sys_dict_data values(70, 1,  'knowledge-admin',  'knowledge-admin',  'sys_job_app_scope',   '',   'primary', 'Y', '0', 'admin', sysdate(), '', null, '知识管理后台');
+insert into sys_dict_data values(71, 2,  'knowledge-rag',    'knowledge-rag',    'sys_job_app_scope',   '',   'info',    'N', '0', 'admin', sysdate(), '', null, '知识RAG服务');
+insert into sys_dict_data values(72, 3,  'knowledge-agent',  'knowledge-agent',  'sys_job_app_scope',   '',   'info',    'N', '0', 'admin', sysdate(), '', null, '知识Agent服务');
 insert into sys_dict_data values(51, 19,  'Meta',            'Meta',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Meta');
 insert into sys_dict_data values(52, 20,  'Mistral',         'Mistral',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Mistral');
 insert into sys_dict_data values(53, 21,  'N1N',             'N1N',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'N1N');
@@ -643,6 +647,7 @@ create table sys_job (
   misfire_policy      varchar(20)   default '3'                comment '计划执行错误策略（1立即执行 2执行一次 3放弃执行）',
   concurrent          char(1)       default '1'                comment '是否并发执行（0允许 1禁止）',
   status              char(1)       default '0'                comment '状态（0正常 1暂停）',
+  app_scope           varchar(64)   default 'knowledge-admin'  comment '任务所属应用（knowledge-admin/knowledge-rag/knowledge-agent）',
   create_by           varchar(64)   default ''                 comment '创建者',
   create_time         datetime                                 comment '创建时间',
   update_by           varchar(64)   default ''                 comment '更新者',
@@ -651,9 +656,9 @@ create table sys_job (
   primary key (job_id, job_name, job_group)
 ) engine=innodb auto_increment=100 comment = '定时任务调度表';
 
-insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', NULL,   NULL, '0/10 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
-insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', NULL, '0/15 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
-insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{\"test\": 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
+insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'knowledge_admin.tasks.scheduler_test.job', NULL,   NULL, '0/10 * * * * ?', '3', '1', '1', 'knowledge-admin', 'admin', sysdate(), '', null, '');
+insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'knowledge_admin.tasks.scheduler_test.job', 'test', NULL, '0/15 * * * * ?', '3', '1', '1', 'knowledge-admin', 'admin', sysdate(), '', null, '');
+insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'knowledge_admin.tasks.scheduler_test.job', 'new',  '{"test": 111}', '0/20 * * * * ?', '3', '1', '1', 'knowledge-admin', 'admin', sysdate(), '', null, '');
 
 
 -- ----------------------------
@@ -672,6 +677,7 @@ create table sys_job_log (
   job_message         varchar(500)                              comment '日志信息',
   status              char(1)        default '0'                comment '执行状态（0正常 1失败）',
   exception_info      varchar(2000)  default ''                 comment '异常信息',
+  app_scope           varchar(64)    default 'knowledge-admin'  comment '任务所属应用',
   create_time         datetime                                  comment '创建时间',
   primary key (job_log_id)
 ) engine=innodb comment = '定时任务调度日志表';
