@@ -25,7 +25,7 @@ _ALLOWED_NAME_SUFFIXES = {
     'bmp',
 }
 
-
+#--------MinerU 文件项---------
 class MinerUFileItem(BaseModel):
     """MineU 批量上传文件项"""
 
@@ -66,39 +66,11 @@ class MinerUFileItem(BaseModel):
                 )
         return value
 
-
-class MinerULocalFileItem(BaseModel):
-    """本地文件项"""
-
-    path: str = Field(..., description='本地文件路径')
-    is_ocr: bool | None = Field(default=False, description='是否启用 OCR')
-    page_ranges: str | None = Field(None, description='页码范围')
-    data_id: str | None = Field(None, description='业务数据 ID，不传则自动生成')
-
-    @field_validator('page_ranges')
-    @classmethod
-    def check_page_ranges(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        for seg in value.split(','):
-            seg = seg.strip()
-            if not seg:
-                raise ServiceException(
-                    f'页码范围格式非法，存在空段，当前值: {value}'
-                )
-            if not _PAGE_RANGE_SEGMENT_PATTERN.match(seg):
-                raise ServiceException(
-                    f'页码范围格式非法，当前值: {value}。'
-                    f'正确格式为逗号分隔的页码段，支持：'
-                    f'单页如 "2"、连续页如 "4-6"、到倒数页如 "2--2"'
-                )
-        return value
-
-
+#--------批量上传请求 Bean---------
 class MinerUBatchUploadReqVo(BaseModel):
     """本地文件批量上传解析请求 Bean"""
 
-    files: list[MinerULocalFileItem] = Field(..., min_length=1, max_length=50, description='本地文件列表')
+    files: list[MinerUFileItem] = Field(..., min_length=1, max_length=50, description='文件列表')
     parse_mode: MinerUParseModeEnum = Field(default=MinerUParseModeEnum.NORMAL, description='解析模式')
     enable_formula: bool = Field(default=True, description='是否开启公式识别')
     enable_table: bool = Field(default=True, description='是否开启表格识别')
@@ -118,39 +90,25 @@ class MinerUBatchUploadReqVo(BaseModel):
                         f'额外导出格式仅支持 docx、html、latex，不支持 {fmt}'
                     )
             for item in self.files:
-                if item.path.lower().endswith('.html'):
+                if item.name.lower().endswith('.html'):
                     raise ServiceException(
                         'extra_formats 对源文件为 html 的文件无效'
                     )
         return self
 
-
-class MinerUBatchUploadRespVo(BaseModel):
-    """本地文件批量上传解析响应"""
-
-    batch_id: str = Field(..., description='批量任务 ID')
-    file_urls: list[str] = Field(default=list, description='文件上传预签名链接')
-    upload_results: list[bool] = Field(default=list, description='各文件上传是否成功')
-    data_ids: list[str] = Field(default=list, description='各文件对应业务数据 ID')
-    page_ranges: list[str | None] = Field(default=list, description='各文件对应页码范围')
-    file_names: list[str] = Field(default=list, description='各文件原始文件名')
-
-
-class MinerUUploadUrlsVo(BaseModel):
-    """申请批量上传链接响应 批量上传文件请求参数"""
+#--------上传链接 Bean---------
+class MinerUApplyUploadUrlsVo(BaseModel):
+    """申请批量上传链接响应"""
 
     batch_id: str = Field(..., description='批量任务 ID')
     file_urls: list[str] = Field(default=list, description='文件上传预签名链接')
-    file_paths: list[str] = Field(default=list, description='本地文件路径列表')
     data_ids: list[str] = Field(default=list, description='各文件对应业务数据 ID')
     page_ranges: list[str | None] = Field(default=list, description='各文件对应页码范围')
     file_names: list[str] = Field(default=list, description='各文件原始文件名')
 
     @model_validator(mode='after')
-    def check_length_match(self) -> 'MinerUUploadUrlsVo':
+    def check_length_match(self) -> 'MinerUApplyUploadUrlsVo':
         expected = len(self.file_urls)
-        if len(self.file_paths) != expected:
-            raise ServiceException('上传链接数量与文件路径数量不匹配')
         if len(self.data_ids) != expected:
             raise ServiceException('data_ids 数量与上传链接数量不匹配')
         if len(self.page_ranges) != expected:
@@ -159,6 +117,7 @@ class MinerUUploadUrlsVo(BaseModel):
             raise ServiceException('file_names 数量与上传链接数量不匹配')
         return self
 
+#--------上传文件 Bean---------
 class MinerUUploadFilesRespVo(BaseModel):
     """批量上传文件响应"""
     upload_results: list[bool] = Field(default=list, description='各文件上传是否成功')

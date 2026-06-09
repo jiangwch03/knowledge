@@ -4,9 +4,7 @@ from knowledge_rag.infra.mineru.mineru_client import MineUClient
 from knowledge_rag.infra.mineru.vo import (
     MinerUBatchResultRespVo,
     MinerUBatchUploadReqVo,
-    MinerUBatchUploadRespVo,
     MinerUFileItem,
-    MinerULocalFileItem,
     MinerUExtractProgressVo,
     MinerUExtractResultVo,
 )
@@ -18,9 +16,7 @@ __all__ = [
     'MinerUParseModeEnum',
     'MinerUClientConfig',
     'MinerUFileItem',
-    'MinerULocalFileItem',
     'MinerUBatchUploadReqVo',
-    'MinerUBatchUploadRespVo',
     'MinerUBatchResultRespVo',
     'MinerUExtractResultVo',
     'MinerUExtractProgressVo',
