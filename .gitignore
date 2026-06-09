@@ -229,3 +229,6 @@ __marimo__/
 .opencode/
 .qwen/
 .trae/
+
+# Proxy scripts
+git-push-with-proxy.sh
