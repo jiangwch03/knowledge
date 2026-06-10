@@ -312,8 +312,15 @@ class RouterRegister:
 
         :return: py文件路径列表
         """
-        pattern = os.path.join(self.project_root, '*', 'controller', '[!_]*.py')
-        return sorted(glob.glob(pattern))
+        # 扫描当前目录下的 controller 以及子目录下的 controller
+        patterns = [
+            os.path.join(self.project_root, 'controller', '[!_]*.py'),
+            os.path.join(self.project_root, '*', 'controller', '[!_]*.py'),
+        ]
+        controller_files = []
+        for pattern in patterns:
+            controller_files.extend(glob.glob(pattern))
+        return sorted(set(controller_files))
 
     def _import_module_and_get_routers(self, controller_files: list[str]) -> list[tuple[str, APIRouter]]:
         """

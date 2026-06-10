@@ -3,6 +3,7 @@ from redis import asyncio as aioredis
 from redis.exceptions import AuthenticationError, RedisError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 
+from knowledge_common.common.context import RedisContext
 from knowledge_common.config.database import AsyncSessionLocal
 from knowledge_common.config.env import RedisConfig
 from knowledge_common.service.config_service import ConfigService
@@ -32,11 +33,15 @@ class RedisUtil:
             db=RedisConfig.redis_database,
             encoding='utf-8',
             decode_responses=True,
+            health_check_interval=30,
         )
         if log_start_enabled is None:
             log_start_enabled = log_enabled
         if log_enabled or log_start_enabled:
             await cls.check_redis_connection(redis, log_enabled=log_enabled, log_start_enabled=log_start_enabled)
+
+        # 将 redis 客户端注入到 server 生命周期上下文，供各业务模块（Pub/Sub、缓存等）统一获取
+        RedisContext.set_redis(redis)
         return redis
 
     @classmethod
@@ -81,6 +86,8 @@ class RedisUtil:
         :param app: fastapi对象
         :return:
         """
+        # 关闭前先清空 server 生命周期上下文中的 redis 客户端引用
+        RedisContext.clear()
         await app.state.redis.close()
         logger.info('✅️ 关闭redis连接成功')
 

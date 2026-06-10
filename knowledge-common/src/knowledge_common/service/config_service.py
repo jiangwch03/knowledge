@@ -88,7 +88,7 @@ class ConfigService:
         return CommonConstant.UNIQUE
 
     @classmethod
-    @transactional
+    @transactional()
     async def add_config_services(
         cls, request: Request, query_db: AsyncSession | None = None, page_object: ConfigModel | None = None
     ) -> CrudResponseModel:

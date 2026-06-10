@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import Request
 from redis import asyncio as aioredis
+from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_common.common.vo import CrudResponseModel, PageModel
@@ -460,6 +461,9 @@ class LogAggregatorService:
                     await cls._process_messages(redis, stream_name, messages)
             except asyncio.CancelledError:
                 raise
+            except RedisTimeoutError as exc:
+                logger.warning(f'⚠️ 日志聚合消费超时（连接空闲被断开）: {exc}，1秒后重试...')
+                await asyncio.sleep(1)
             except Exception as exc:
                 logger.error(f'日志聚合消费异常: {exc}')
                 await asyncio.sleep(1)

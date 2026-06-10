@@ -24,5 +24,8 @@ create_app() 针对 Swagger UI 的访问和构建做了自定义方案处理：
 ## FastAPI 反向代理场景下的路由前缀处理
 详细说明：[FastAPI 多进程](./docs/fastapi/fastapi-root-path-proxy.md)
 
-## RAG 优化说明
+## 定时任务多项目运行支持优化说明
 详细说明：[定时任务多项目运行支持优化说明](./docs/rag/job-app-scope-optimization.md)
+
+## 定时任务调度同步机制
+详细说明：[定时任务注册与同步调度机制](./docs/rag/scheduler-sync-flow.md)

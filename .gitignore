@@ -230,7 +230,7 @@ __marimo__/
 .qwen/
 .trae/
 
-./qoder/repowiki/
-
+.qoder/repowiki/
+.idea/
 # Proxy scripts
 git-push-with-proxy.sh

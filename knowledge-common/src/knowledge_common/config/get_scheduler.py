@@ -34,7 +34,9 @@ from knowledge_common.config.env import AppConfig, LogConfig, RedisConfig
 from knowledge_common.dao.job_dao import JobDao
 from knowledge_common.entity.vo.job_vo import JobLogModel, JobModel
 from knowledge_common.service.job_log_service import JobLogService
+from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.log_util import logger
+from knowledge_common.utils.redis_pubsub_util import PubSubMessage, RedisPubSubUtil
 from knowledge_common.utils.server_util import StartupUtil, WorkerIdUtil
 
 
@@ -116,11 +118,9 @@ class SchedulerUtil:
     _is_leader: bool = False
     _worker_id: str = WorkerIdUtil.get_worker_id(LogConfig.log_worker_id)
     _redis: aioredis.Redis | None = None
-    _app_scope: str = 'knowledge-admin'
+    _app_scope: str = AppConfig.app_name
     _job_update_time_cache: dict[str, datetime] = {}
-    _sync_channel: str = 'scheduler:sync:request'
     _global_sync_channel: str = 'scheduler:global:sync'
-    _sync_listener_task: asyncio.Task | None = None
     _global_sync_listener_task: asyncio.Task | None = None
     _lock_lost_task: asyncio.Task | None = None
     _sync_task: asyncio.Task | None = None
@@ -193,15 +193,6 @@ class SchedulerUtil:
         cls._scheduler_configured = True
 
     @classmethod
-    def _should_enable_scheduler_sync(cls) -> bool:
-        """
-        判断是否需要启用多 worker 的任务状态同步机制
-
-        :return: 是否开启定时同步与监听
-        """
-        return not AppConfig.app_reload and AppConfig.app_workers > 1
-
-    @classmethod
     async def init_system_scheduler(cls, redis: aioredis.Redis, app_scope: str = 'knowledge-admin') -> None:
         """
         应用启动时初始化定时任务（使用分布式锁确保只有一个worker启动scheduler）
@@ -212,6 +203,7 @@ class SchedulerUtil:
         """
         cls._redis = redis
         cls._app_scope = app_scope
+
         logger.info(f'🔎 Worker {cls._worker_id} 尝试获取 Application 锁...')
 
         acquired = await StartupUtil.acquire_startup_log_gate(
@@ -262,7 +254,11 @@ class SchedulerUtil:
         )
 
         # 始终启动全局广播监听器
-        cls._global_sync_listener_task = asyncio.create_task(cls._listen_global_sync_channel(redis))
+        cls._global_sync_listener_task = await RedisPubSubUtil.subscribe(
+            cls._global_sync_channel,
+            cls._on_global_sync_message,
+            task_name='scheduler_global_sync_listener',
+        )
 
         logger.info('✅️ 系统初始定时任务加载成功')
 
@@ -288,13 +284,6 @@ class SchedulerUtil:
 
         :return: None
         """
-        if cls._sync_listener_task:
-            cls._sync_listener_task.cancel()
-            try:
-                await cls._sync_listener_task
-            except asyncio.CancelledError:
-                pass
-            cls._sync_listener_task = None
         if cls._sync_task:
             cls._sync_task.cancel()
             try:
@@ -455,9 +444,6 @@ class SchedulerUtil:
         if cls._is_leader:
             cls._sync_pending = True
             cls._ensure_sync_task()
-            return
-        if cls._redis:
-            await cls._redis.publish(cls._sync_channel, cls._worker_id)
 
     @classmethod
     async def broadcast_scheduler_sync(cls, app_scope: str | None = None) -> None:
@@ -468,49 +454,76 @@ class SchedulerUtil:
         :return: None
         """
         if cls._redis:
-            message = json.dumps({'app_scope': app_scope or cls._app_scope, 'worker_id': cls._worker_id})
-            await cls._redis.publish(cls._global_sync_channel, message)
-            logger.info(f'📢 广播同步通知: app_scope={app_scope or cls._app_scope}')
+            await RedisPubSubUtil.publish(
+                cls._global_sync_channel,
+                {
+                    'app_scope': app_scope or cls._app_scope,
+                    'worker_id': cls._worker_id,
+                    'action': 'sync',
+                },
+            )
 
     @classmethod
-    async def _listen_global_sync_channel(cls, redis: aioredis.Redis) -> None:
+    async def broadcast_execute_job_once(cls, job_id: int, app_scope: str | None = None) -> None:
         """
-        监听全局同步广播通道
+        向全局广播频道发布执行一次通知
 
-        :param redis: Redis连接对象
+        :param job_id: 任务ID
+        :param app_scope: 目标应用标识
         :return: None
         """
-        while True:
-            pubsub = redis.pubsub()
-            try:
-                await pubsub.subscribe(cls._global_sync_channel)
-                async for message in pubsub.listen():
-                    if not cls._is_leader:
-                        continue
-                    if message.get('type') != 'message':
-                        continue
-                    try:
-                        data = json.loads(message.get('data', '{}'))
-                        msg_app_scope = data.get('app_scope')
-                        # 如果广播指定了 app_scope，且不是本项目的，跳过
-                        if msg_app_scope and msg_app_scope != cls._app_scope:
-                            continue
-                        await cls.request_scheduler_sync()
-                    except json.JSONDecodeError:
-                        logger.warning(f'⚠️ 全局广播消息格式异常: {message.get("data")}')
-            except asyncio.CancelledError:
-                await pubsub.unsubscribe(cls._global_sync_channel)
-                await pubsub.close()
-                raise
-            except Exception as e:
-                logger.error(f'❌ 全局广播监听异常: {e}，5秒后重试...')
-                await pubsub.close()
-                await asyncio.sleep(5)
-            finally:
-                try:
-                    await pubsub.close()
-                except Exception:
-                    pass
+        if cls._redis:
+            await RedisPubSubUtil.publish(
+                cls._global_sync_channel,
+                {
+                    'app_scope': app_scope or cls._app_scope,
+                    'worker_id': cls._worker_id,
+                    'action': 'execute_once',
+                    'job_id': job_id,
+                },
+            )
+
+    @classmethod
+    async def _on_global_sync_message(cls, msg: PubSubMessage) -> None:
+        """
+        全局广播消息处理 handler
+
+        仅 Leader 才会响应，app_scope 不匹配的消息会被丢弃。
+
+        :param msg: 标准化后的广播消息（data 已自动反序列化为 dict）
+        :return: None
+        """
+        if not cls._is_leader:
+            return
+        data = msg.data if isinstance(msg.data, dict) else {}
+        msg_app_scope = data.get('app_scope')
+        # 如果广播指定了 app_scope，且不是本项目的，跳过
+        if msg_app_scope and msg_app_scope != cls._app_scope:
+            return
+        action = data.get('action', 'sync')
+        if action == 'execute_once':
+            job_id = data.get('job_id')
+            if job_id:
+                await cls._execute_job_once_from_broadcast(job_id)
+            return
+        await cls.request_scheduler_sync()
+
+    @classmethod
+    async def _execute_job_once_from_broadcast(cls, job_id: int) -> None:
+        """
+        处理 execute_once 广播消息（在后台任务中调用）
+
+        :param job_id: 任务ID
+        :return: None
+        """
+        try:
+            async with cls._get_sync_async_session() as session:
+                job_orm = await JobDao.get_job_detail_by_id(session, job_id=int(job_id))
+                if job_orm:
+                    job_info = JobModel(**CamelCaseUtil.transform_result(job_orm))
+                    cls.execute_scheduler_job_once(job_info)
+        except Exception as e:
+            logger.error(f'❌ 执行一次任务失败: job_id={job_id}, error={e}')
 
     @classmethod
     def _ensure_sync_task(cls) -> None:
@@ -644,38 +657,6 @@ class SchedulerUtil:
             cls._last_sync_at = datetime.now()
 
     @classmethod
-    async def _listen_sync_channel(cls, redis: aioredis.Redis) -> None:
-        """
-        监听同步请求通道
-
-        :param redis: Redis连接对象
-        :return: None
-        """
-        while True:
-            pubsub = redis.pubsub()
-            try:
-                await pubsub.subscribe(cls._sync_channel)
-                async for message in pubsub.listen():
-                    if not cls._is_leader:
-                        continue
-                    if message.get('type') != 'message':
-                        continue
-                    await cls.request_scheduler_sync()
-            except asyncio.CancelledError:
-                await pubsub.unsubscribe(cls._sync_channel)
-                await pubsub.close()
-                raise
-            except Exception as e:
-                logger.error(f'❌ Scheduler 同步监听异常: {e}，5秒后重试...')
-                await pubsub.close()
-                await asyncio.sleep(5)
-            finally:
-                try:
-                    await pubsub.close()
-                except Exception:
-                    pass
-
-    @classmethod
     async def _execute_async_job_with_log(
         cls, job_func: Callable[..., Any], job_info: JobModel, args: list, kwargs: dict
     ) -> None:
@@ -791,19 +772,8 @@ class SchedulerUtil:
 
         :return:
         """
-        if cls._sync_listener_task:
-            cls._sync_listener_task.cancel()
-            try:
-                await cls._sync_listener_task
-            except asyncio.CancelledError:
-                pass
-            cls._sync_listener_task = None
         if cls._global_sync_listener_task:
-            cls._global_sync_listener_task.cancel()
-            try:
-                await cls._global_sync_listener_task
-            except asyncio.CancelledError:
-                pass
+            await RedisPubSubUtil.unsubscribe(cls._global_sync_listener_task)
             cls._global_sync_listener_task = None
         if cls._sync_task:
             cls._sync_task.cancel()

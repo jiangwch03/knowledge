@@ -228,6 +228,78 @@ class MinioSettings(BaseSettings):
     minio_use_ssl: bool = False
 
 
+def _resolve_workspace_root() -> str | None:
+    """
+    从 knowledge_common 包位置回溯 workspace 根目录
+    """
+    try:
+        # env.py 位于 knowledge-common/src/knowledge_common/config/env.py
+        # 回溯 3 层到达 knowledge-common/，再上一层即为 workspace 根
+        env_dir = os.path.dirname(os.path.abspath(__file__))
+        knowledge_common_dir = os.path.dirname(os.path.dirname(os.path.dirname(env_dir)))
+        workspace_root = os.path.dirname(knowledge_common_dir)
+        if os.path.isdir(workspace_root):
+            return workspace_root
+    except Exception:
+        pass
+    return None
+
+
+def _infer_current_project() -> str | None:
+    """
+    根据 sys.argv 推断当前启动的是哪个子项目
+    """
+    argv_str = ' '.join(sys.argv)
+    if 'knowledge_admin' in argv_str or 'knowledge-admin' in argv_str:
+        return 'knowledge-admin'
+    if 'knowledge_rag' in argv_str or 'knowledge-rag' in argv_str:
+        return 'knowledge-rag'
+    return None
+
+
+def _find_env_file(run_env: str) -> str | None:
+    """
+    按优先级在多个候选路径中查找 .env 文件
+    优先级：cwd 向上回溯 src/configs/ -> 推断的当前项目 -> workspace 其他子项目
+    """
+    env_filename = f'.env.{run_env}' if run_env else '.env.dev'
+
+    candidates = []
+
+    # 1. 从 cwd 向上回溯，查找 src/configs/
+    current = os.getcwd()
+    prev = None
+    while current != prev:
+        candidates.append(os.path.join(current, 'src', 'configs', env_filename))
+        prev = current
+        current = os.path.dirname(current)
+
+    # 2. workspace 下各子项目的 src/configs/，优先检查推断出的当前项目
+    workspace_root = _resolve_workspace_root()
+    current_project = _infer_current_project()
+    if workspace_root:
+        try:
+            entries = sorted(os.listdir(workspace_root))
+            # 优先把推断出的当前项目放前面
+            if current_project and current_project in entries:
+                entries.remove(current_project)
+                entries.insert(0, current_project)
+            for entry in entries:
+                project_path = os.path.join(workspace_root, entry)
+                if os.path.isdir(project_path) and entry.startswith('knowledge-'):
+                    candidates.append(os.path.join(project_path, 'src', 'configs', env_filename))
+        except Exception:
+            pass
+
+    seen: set[str] = set()
+    for path in candidates:
+        if path not in seen and os.path.isfile(path):
+            return path
+        seen.add(path)
+
+    return None
+
+
 class GetConfig:
     """
     获取配置
@@ -323,15 +395,15 @@ class GetConfig:
             os.environ['APP_ENV'] = args.env if args.env else 'dev'
         # 读取运行环境
         run_env = os.environ.get('APP_ENV', '')
-        # 运行环境未指定时默认加载.env.dev
-        env_file = '.env.dev'
-        # 运行环境不为空时按命令行参数加载对应.env文件
-        if run_env != '':
-            env_file = f'configs/.env.{run_env}'
-        # 加载配置
-        load_dotenv(env_file)
+        # 在多个候选路径中查找 .env 文件
+        env_path = _find_env_file(run_env)
+        if env_path:
+            load_dotenv(env_path)
+            print(f'加载配置文件: {env_path}')
+        else:
+            env_filename = f'.env.{run_env}' if run_env else '.env.dev'
+            print(f'警告: 未找到 {env_filename} 配置文件，使用默认配置')
         print(f'当前cwd: {os.getcwd()}')
-        print(f'加载配置文件: {env_file}')
 
 
 # 实例化获取配置类

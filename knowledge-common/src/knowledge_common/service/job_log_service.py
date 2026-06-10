@@ -34,7 +34,7 @@ class JobLogService:
         return job_log_list_result
 
     @classmethod
-    @transactional_sync
+    @transactional_sync()
     def add_job_log_services(cls, query_db: Session | None = None, page_object: JobLogModel | None = None) -> CrudResponseModel:
         """
         新增定时任务日志信息service

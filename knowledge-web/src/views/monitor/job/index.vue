@@ -30,6 +30,16 @@
                />
             </el-select>
          </el-form-item>
+         <el-form-item label="所属应用" prop="appScope">
+            <el-select v-model="queryParams.appScope" placeholder="请选择所属应用" clearable style="width: 200px">
+               <el-option
+                  v-for="dict in sys_job_app_scope"
+                  :key="dict.value"
+                  :label="dict.label"
+                  :value="dict.value"
+               />
+            </el-select>
+         </el-form-item>
          <el-form-item>
             <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
             <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -96,6 +106,11 @@
                <dict-tag :options="sys_job_group" :value="scope.row.jobGroup" />
             </template>
          </el-table-column>
+         <el-table-column label="所属应用" align="center" prop="appScope">
+            <template #default="scope">
+               <dict-tag :options="sys_job_app_scope" :value="scope.row.appScope" />
+            </template>
+         </el-table-column>
          <el-table-column label="调用目标字符串" align="center" prop="invokeTarget" :show-overflow-tooltip="true" />
          <el-table-column label="cron执行表达式" align="center" prop="cronExpression" :show-overflow-tooltip="true" />
          <el-table-column label="状态" align="center">
@@ -151,6 +166,18 @@
                      <el-select v-model="form.jobGroup" placeholder="请选择">
                         <el-option
                            v-for="dict in sys_job_group"
+                           :key="dict.value"
+                           :label="dict.label"
+                           :value="dict.value"
+                        ></el-option>
+                     </el-select>
+                  </el-form-item>
+               </el-col>
+               <el-col :span="12">
+                  <el-form-item label="所属应用" prop="appScope">
+                     <el-select v-model="form.appScope" placeholder="请选择所属应用">
+                        <el-option
+                           v-for="dict in sys_job_app_scope"
                            :key="dict.value"
                            :label="dict.label"
                            :value="dict.value"
@@ -275,6 +302,7 @@
                </el-col>
                <el-col :span="12">
                   <el-form-item label="任务分组：">{{ jobGroupFormat(form) }}</el-form-item>
+                  <el-form-item label="所属应用：">{{ appScopeFormat(form) }}</el-form-item>
                   <el-form-item label="创建时间：">{{ parseTime(form.createTime) }}</el-form-item>
                </el-col>
                <el-col :span="12">
@@ -332,7 +360,7 @@ import { listJob, getJob, delJob, addJob, updateJob, runJob, changeJobStatus } f
 
 const router = useRouter();
 const { proxy } = getCurrentInstance();
-const { sys_job_group, sys_job_status, sys_job_executor } = proxy.useDict("sys_job_group", "sys_job_status", "sys_job_executor");
+const { sys_job_group, sys_job_status, sys_job_executor, sys_job_app_scope } = proxy.useDict("sys_job_group", "sys_job_status", "sys_job_executor", "sys_job_app_scope");
 
 const jobList = ref([]);
 const open = ref(false);
@@ -354,7 +382,8 @@ const data = reactive({
     pageSize: 10,
     jobName: undefined,
     jobGroup: undefined,
-    status: undefined
+    status: undefined,
+    appScope: undefined
   },
   rules: {
     jobName: [{ required: true, message: "任务名称不能为空", trigger: "blur" }],
@@ -382,6 +411,10 @@ function jobGroupFormat(row, column) {
 function jobExecutorFormat(row, column) {
   return proxy.selectDictLabel(sys_job_executor.value, row.jobExecutor);
 }
+/** 所属应用字典翻译 */
+function appScopeFormat(row, column) {
+  return proxy.selectDictLabel(sys_job_app_scope.value, row.appScope);
+}
 /** 取消按钮 */
 function cancel() {
   open.value = false;
@@ -393,6 +426,7 @@ function reset() {
     jobId: undefined,
     jobName: undefined,
     jobGroup: undefined,
+    appScope: "knowledge-admin",
     invokeTarget: undefined,
     cronExpression: undefined,
     misfirePolicy: "1",

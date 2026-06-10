@@ -131,7 +131,7 @@ class JobConstant:
         '}',
         ' ',
     ]
-    JOB_WHITE_LIST = ['module_task']
+    JOB_WHITE_LIST = ['knowledge_rag','knowledge_admin','knowledge_agent']
 
 
 class LockConstant:

@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from knowledge_common.config.env import AppConfig
+
 
 def job(*args, **kwargs) -> None:
     """
@@ -7,7 +9,7 @@ def job(*args, **kwargs) -> None:
     """
     print(args)
     print(kwargs)
-    print(f'{datetime.now()} {AppConfig.APP_NAME} 同步函数执行了')
+    print(f'{datetime.now()} {AppConfig.app_name} 同步函数执行了')
 
 
 async def async_job(*args, **kwargs) -> None:
@@ -16,4 +18,4 @@ async def async_job(*args, **kwargs) -> None:
     """
     print(args)
     print(kwargs)
-    print(f'{datetime.now()} {AppConfig.APP_NAME} 异步函数执行了')
+    print(f'{datetime.now()} {AppConfig.app_name} 异步函数执行了')

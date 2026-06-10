@@ -79,8 +79,6 @@ class JobService:
         try:
             add_job = await JobDao.add_job_dao(query_db, page_object)
             job_info = await cls.job_detail_services(query_db, add_job.job_id)
-            if job_info.status == '0':
-                SchedulerUtil.add_scheduler_job(job_info=job_info)
             await query_db.commit()
             await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
             result = {'is_success': True, 'message': '新增成功'}
@@ -139,10 +137,6 @@ class JobService:
                     raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，定时任务已存在')
             try:
                 await JobDao.edit_job_dao(query_db, edit_job, job_info)
-                SchedulerUtil.remove_scheduler_job(job_id=edit_job.get('job_id'))
-                if edit_job.get('status') == '0':
-                    job_info = await cls.job_detail_services(query_db, edit_job.get('job_id'))
-                    SchedulerUtil.add_scheduler_job(job_info=job_info)
                 await query_db.commit()
                 await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
                 return CrudResponseModel(is_success=True, message='更新成功')
@@ -161,10 +155,9 @@ class JobService:
         :param page_object: 定时任务对象
         :return: 执行一次定时任务结果
         """
-        SchedulerUtil.remove_scheduler_job(job_id=page_object.job_id)
         job_info = await cls.job_detail_services(query_db, page_object.job_id)
         if job_info:
-            SchedulerUtil.execute_scheduler_job_once(job_info=job_info)
+            await SchedulerUtil.broadcast_execute_job_once(job_id=page_object.job_id, app_scope=job_info.app_scope)
             return CrudResponseModel(is_success=True, message='执行成功')
         raise ServiceException(message='定时任务不存在')
 
@@ -183,7 +176,6 @@ class JobService:
                 for job_id in job_id_list:
                     job_info = await cls.job_detail_services(query_db, int(job_id))
                     await JobDao.delete_job_dao(query_db, JobModel(jobId=job_id))
-                    SchedulerUtil.remove_scheduler_job(job_id=job_id)
                     await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='删除成功')
