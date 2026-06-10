@@ -5,11 +5,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from knowledge_common.common.constant import LockConstant
 from knowledge_common.common.router import auto_register_routers
-from knowledge_common.config.env import AppConfig
+from knowledge_common.config.env import AppConfig, MessageStreamConfig
 from knowledge_common.config.get_db import close_async_engine, init_create_table
 from knowledge_common.config.get_redis import RedisUtil
 from knowledge_common.config.get_scheduler import SchedulerUtil
 from knowledge_common.exceptions.handle import handle_exception
+from knowledge_common.message_stream import MessageStreamService
 from knowledge_common.middlewares.handle import handle_middleware
 from knowledge_common.service.log_service import LogAggregatorService
 from knowledge_common.sub_applications.handle import handle_sub_applications
@@ -19,6 +20,7 @@ from knowledge_common.utils.server_util import APIDocsUtil, IPUtil, StartupUtil
 from knowledge_common.utils.transport_crypto_util import TransportKeyProvider
 
 from knowledge_admin.common.root_path import CODE_ROOT
+from knowledge_admin.message.test_publisher import AdminMessageTestPublisher
 
 
 async def _start_background_tasks(app: FastAPI) -> None:
@@ -30,10 +32,30 @@ async def _start_background_tasks(app: FastAPI) -> None:
     """
     # 将 app_name 注入到 app.state，供「自产自销」日志隔离使用
     app.state.app_name = AppConfig.app_name
-    await SchedulerUtil.init_system_scheduler(app.state.redis, app_scope='knowledge-admin')
+    await SchedulerUtil.init_system_scheduler(app.state.redis, app_scope=app.state.app_name)
     app.state.log_aggregator_task = asyncio.create_task(
         LogAggregatorService.consume_stream(app.state.redis, app_name=app.state.app_name)
     )
+
+
+async def _init_message_stream(app: FastAPI) -> None:
+    """
+    初始化消息流服务（基础设施注册，非后台任务）
+
+    接入范式三步 + 启动自检：
+        1. 注入后端实现（按 .env 的 ``MESSAGE_STREAM_BACKEND`` 自动选 Redis/Kafka）
+        2. 声明消费者扫描路径（message/consumer 下所有 @consumer 装饰函数）
+        3. 扫描 + 拉起后台消费协程
+        4. 启动自检：发送一条测试消息验证生产-消费链路通畅
+
+    :param app: FastAPI 对象（提取 app.state.redis 作为 Redis 后端连接；Kafka 后端可忽略）
+    :return: None
+    """
+    MessageStreamService.init_from_settings(MessageStreamConfig, redis=app.state.redis)
+    MessageStreamService.register_consumer_paths(['knowledge_admin.message.consumer'])
+    await MessageStreamService.discover_and_start()
+    # 启动自检：发送失败仅打日志，不阻塞启动
+    await AdminMessageTestPublisher.send_demo()
 
 
 async def _stop_background_tasks(app: FastAPI) -> None:
@@ -60,6 +82,17 @@ async def _stop_background_tasks(app: FastAPI) -> None:
     await RedisUtil.close_redis_pool(app)
     await SchedulerUtil.close_system_scheduler()
     await close_async_engine()
+
+
+async def _shutdown_message_stream() -> None:
+    """
+    关闭消息流服务（取消后台消费协程、关闭后端）
+
+    必须在 Redis 连接池关闭之前调用。
+
+    :return: None
+    """
+    await MessageStreamService.shutdown()
 
 
 # 生命周期事件
@@ -114,8 +147,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         #  应用启动时缓存参数配置表
         await RedisUtil.init_sys_config(app.state.redis)
 
-        # 启动后台任务
+        # 启动后台任务（调度器、日志聚合等长运行协程）
         await _start_background_tasks(app)
+
+        # 初始化消息流服务（基础设施注册，独立于后台任务）
+        await _init_message_stream(app)
 
     # 启动成功日志打印
     if startup_log_enabled:
@@ -153,6 +189,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
     with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
+        # 先关闭消息流服务（依赖 Redis，须在连接池关闭前）
+        await _shutdown_message_stream()
         await _stop_background_tasks(app)
 
 

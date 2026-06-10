@@ -171,6 +171,51 @@ class TransportCryptoSettings(BaseSettings):
     )
 
 
+class MessageStreamSettings(BaseSettings):
+    """
+    消息流后端选择与跨后端公共参数
+
+    - 修改 .env 中的 ``MESSAGE_STREAM_BACKEND`` 即可在 redis / kafka 后端间切换
+    - 切换时业务侧代码、装饰器、消息字段、异常类型均保持不变
+    """
+
+    # ---------- 后端选择 ----------
+    message_stream_backend: Literal['redis', 'kafka'] = 'redis'
+
+    # ---------- 跨后端公共消费参数 ----------
+    message_stream_consume_block_ms: int = 2000
+    message_stream_consume_batch_size: int = 100
+    message_stream_claim_idle_ms: int = 60000
+    message_stream_claim_interval_ms: int = 5000
+
+    # ---------- Redis 后端专属 ----------
+    message_stream_redis_maxlen: int = 100000
+
+    # ---------- Kafka 后端专属 ----------
+    message_stream_kafka_bootstrap_servers: str = 'localhost:9092'
+    message_stream_kafka_client_id: str = 'knowledge'
+    message_stream_kafka_security_protocol: str = 'PLAINTEXT'  # PLAINTEXT / SSL / SASL_PLAINTEXT / SASL_SSL
+    message_stream_kafka_sasl_mechanism: str = ''               # PLAIN / SCRAM-SHA-256 / SCRAM-SHA-512
+    message_stream_kafka_sasl_username: str = ''
+    message_stream_kafka_sasl_password: str = ''
+    message_stream_kafka_acks: str = 'all'                      # 0 / 1 / all
+    message_stream_kafka_linger_ms: int = 5
+    message_stream_kafka_request_timeout_ms: int = 30000
+    message_stream_kafka_session_timeout_ms: int = 10000
+    message_stream_kafka_heartbeat_interval_ms: int = 3000
+    message_stream_kafka_auto_offset_reset: str = 'earliest'    # earliest / latest
+    message_stream_kafka_create_topic_partitions: int = 1
+    message_stream_kafka_create_topic_replication_factor: int = 1
+
+    @property
+    def is_kafka(self) -> bool:
+        return self.message_stream_backend == 'kafka'
+
+    @property
+    def is_redis(self) -> bool:
+        return self.message_stream_backend == 'redis'
+
+
 class UploadSettings:
     """
     上传配置
@@ -398,6 +443,12 @@ class GetConfig:
         # 实例化MinIO配置模型
         return MinioSettings()
 
+    def get_message_stream_config(self) -> MessageStreamSettings:
+        """
+        获取消息流后端配置
+        """
+        return MessageStreamSettings()
+
     @staticmethod
     def parse_cli_args() -> None:
         """
@@ -455,3 +506,5 @@ UploadConfig = get_config.get_upload_config()
 MinerUConfig = get_config.get_mineru_config()
 # MinIO配置
 MinioConfig = get_config.get_minio_config()
+# 消息流后端配置
+MessageStreamConfig = get_config.get_message_stream_config()
