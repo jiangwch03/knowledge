@@ -76,6 +76,10 @@ const checkboxString = computed(() => {
 watch(() => props.cron.min, value => changeRadioValue(value))
 watch([radioValue, cycleTotal, averageTotal, checkboxString], () => onRadioChange())
 function changeRadioValue(value) {
+    // 联动：分钟字段变化时，若秒字段为通配符 *，重置为 0 防止被解释为"每秒执行"
+    if (props.cron.second === '*') {
+        emit('update', 'second', '0', 'min')
+    }
     if (value === '*') {
         radioValue.value = 1
     } else if (value.indexOf('-') > -1) {
