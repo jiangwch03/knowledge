@@ -27,8 +27,12 @@ async def _start_background_tasks(app: FastAPI) -> None:
     :param app: FastAPI对象
     :return: None
     """
+    # 将 app_name 注入到 app.state，供「自产自销」日志隔离使用
+    app.state.app_name = AppConfig.app_name
     await SchedulerUtil.init_system_scheduler(app.state.redis, app_scope='knowledge-rag')
-    app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
+    app.state.log_aggregator_task = asyncio.create_task(
+        LogAggregatorService.consume_stream(app.state.redis, app_name=app.state.app_name)
+    )
 
 
 async def _stop_background_tasks(app: FastAPI) -> None:

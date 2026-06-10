@@ -103,6 +103,35 @@ class LogSettings(BaseSettings):
     log_stream_dedup_ttl: int = 3600
     log_stream_dedup_prefix: str = 'log:dedup'
 
+    @staticmethod
+    def get_stream_key(app_name: str) -> str:
+        """
+        根据 app_name 派生日志流 key，实现「自产自销」隔离
+
+        不同 app（admin / rag / agent）的操作日志写入不同的 Redis Stream，
+        各自消费各自的，避免跨项目日志串扰。
+        """
+        # 直接访问 LogConfig.log_stream_key（避免 pydantic-settings 的 __getattr__ 拦截 cls.xxx）
+        return f'{LogConfig.log_stream_key}:{app_name}'
+
+    @staticmethod
+    def get_stream_group(app_name: str) -> str:
+        """
+        根据 app_name 派生消费组名
+
+        不同 app 使用不同的消费组，确保彼此独立（互不抢消息）。
+        """
+        return f'{LogConfig.log_stream_group}:{app_name}'
+
+    @staticmethod
+    def get_dedup_prefix(app_name: str) -> str:
+        """
+        根据 app_name 派生去重 key 前缀
+
+        避免 admin 端和 rag 端 event_id 冲突（虽然 UUID 撞概率极低，但语义上更清晰）。
+        """
+        return f'{LogConfig.log_stream_dedup_prefix}:{app_name}'
+
     loguru_json: bool = False
     loguru_level: str = 'INFO'
     loguru_stdout: bool = True
