@@ -6,7 +6,6 @@ from fastapi.responses import StreamingResponse
 from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
@@ -19,7 +18,6 @@ from knowledge_common.utils.common_util import bytes2file_response
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.service.post_service import PostService
 
@@ -39,10 +37,9 @@ post_controller = APIRouterPro(
 async def get_system_post_list(
     request: Request,
     post_page_query: Annotated[PostPageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
-    post_page_query_result = await PostService.get_post_list_services(query_db, post_page_query, is_page=True)
+    post_page_query_result = await PostService.get_post_list_services(post_page_query, is_page=True)
     logger.info('获取成功')
 
     return ResponseUtil.success(model_content=post_page_query_result)
@@ -61,14 +58,13 @@ async def get_system_post_list(
 async def add_system_post(
     request: Request,
     add_post: PostModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_post.create_by = current_user.user.user_name
     add_post.create_time = datetime.now()
     add_post.update_by = current_user.user.user_name
     add_post.update_time = datetime.now()
-    add_post_result = await PostService.add_post_services(query_db, add_post)
+    add_post_result = await PostService.add_post_services(add_post)
     logger.info(add_post_result.message)
 
     return ResponseUtil.success(msg=add_post_result.message)
@@ -87,12 +83,11 @@ async def add_system_post(
 async def edit_system_post(
     request: Request,
     edit_post: PostModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_post.update_by = current_user.user.user_name
     edit_post.update_time = datetime.now()
-    edit_post_result = await PostService.edit_post_services(query_db, edit_post)
+    edit_post_result = await PostService.edit_post_services(edit_post)
     logger.info(edit_post_result.message)
 
     return ResponseUtil.success(msg=edit_post_result.message)
@@ -110,10 +105,9 @@ async def edit_system_post(
 async def delete_system_post(
     request: Request,
     post_ids: Annotated[str, Path(description='需要删除的岗位ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_post = DeletePostModel(postIds=post_ids)
-    delete_post_result = await PostService.delete_post_services(query_db, delete_post)
+    delete_post_result = await PostService.delete_post_services(delete_post)
     logger.info(delete_post_result.message)
 
     return ResponseUtil.success(msg=delete_post_result.message)
@@ -130,9 +124,8 @@ async def delete_system_post(
 async def query_detail_system_post(
     request: Request,
     post_id: Annotated[int, Path(description='岗位ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    post_detail_result = await PostService.post_detail_services(query_db, post_id)
+    post_detail_result = await PostService.post_detail_services(post_id)
     logger.info(f'获取post_id为{post_id}的信息成功')
 
     return ResponseUtil.success(data=post_detail_result)
@@ -158,10 +151,9 @@ async def query_detail_system_post(
 async def export_system_post_list(
     request: Request,
     post_page_query: Annotated[PostPageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
-    post_query_result = await PostService.get_post_list_services(query_db, post_page_query, is_page=False)
+    post_query_result = await PostService.get_post_list_services(post_page_query, is_page=False)
     post_export_result = await PostService.export_post_list_services(post_query_result)
     logger.info('导出成功')
 

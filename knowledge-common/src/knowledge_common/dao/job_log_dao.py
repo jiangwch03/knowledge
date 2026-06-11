@@ -2,8 +2,6 @@ from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import delete, desc, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from knowledge_common.common.transactional import get_current_session, get_current_session_sync
 from knowledge_common.common.vo import PageModel
@@ -19,16 +17,16 @@ class JobLogDao:
 
     @classmethod
     async def get_job_log_list(
-        cls, db: AsyncSession, query_object: JobLogPageQueryModel, is_page: bool = False
+        cls, query_object: JobLogPageQueryModel, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取定时任务日志列表信息
 
-        :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 定时任务日志列表信息对象
         """
+        db = get_current_session()
         query = (
             select(SysJobLog)
             .where(
@@ -46,22 +44,20 @@ class JobLogDao:
             .distinct()
         )
         job_log_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
-            db, query, query_object.page_num, query_object.page_size, is_page
+            query, query_object.page_num, query_object.page_size, is_page
         )
 
         return job_log_list
 
     @classmethod
-    def add_job_log_dao(cls, db: Session | None = None, job_log: JobLogModel | None = None) -> SysJobLog:
+    def add_job_log_dao(cls, job_log: JobLogModel | None = None) -> SysJobLog:
         """
         新增定时任务日志数据库操作
 
-        :param db: orm对象，不传则从事务上下文获取
         :param job_log: 定时任务日志对象
         :return:
         """
-        if db is None:
-            db = get_current_session_sync()
+        db = get_current_session_sync()
         db_job_log = SysJobLog(**job_log.model_dump())
         db.add(db_job_log)
         db.flush()
@@ -69,22 +65,22 @@ class JobLogDao:
         return db_job_log
 
     @classmethod
-    async def delete_job_log_dao(cls, db: AsyncSession, job_log: JobLogModel) -> None:
+    async def delete_job_log_dao(cls, job_log: JobLogModel) -> None:
         """
         删除定时任务日志数据库操作
 
-        :param db: orm对象
         :param job_log: 定时任务日志对象
         :return:
         """
+        db = get_current_session()
         await db.execute(delete(SysJobLog).where(SysJobLog.job_log_id.in_([job_log.job_log_id])))
 
     @classmethod
-    async def clear_job_log_dao(cls, db: AsyncSession) -> None:
+    async def clear_job_log_dao(cls) -> None:
         """
         清除定时任务日志数据库操作
 
-        :param db: orm对象
         :return:
         """
+        db = get_current_session()
         await db.execute(delete(SysJobLog))

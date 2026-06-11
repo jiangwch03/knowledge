@@ -4,7 +4,6 @@ from typing import Annotated
 from fastapi import Path, Query, Request, Response
 from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from knowledge_common.common.annotation.log_annotation import Log
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
@@ -16,7 +15,6 @@ from knowledge_common.entity.vo.user_vo import CurrentUserModel
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.service.menu_service import MenuService
 from knowledge_admin.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuTreeModel
@@ -35,10 +33,9 @@ menu_controller = APIRouterPro(
 @ApiCache(namespace=ApiNamespace.SYSTEM_MENU_TREE)
 async def get_system_menu_tree(
     request: Request,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    menu_query_result = await MenuService.get_menu_tree_services(query_db, current_user)
+    menu_query_result = await MenuService.get_menu_tree_services(current_user)
     logger.info('获取成功')
 
     return ResponseUtil.success(data=menu_query_result)
@@ -54,10 +51,9 @@ async def get_system_menu_tree(
 async def get_system_role_menu_tree(
     request: Request,
     role_id: Annotated[int, Path(description='角色ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    role_menu_query_result = await MenuService.get_role_menu_tree_services(query_db, role_id, current_user)
+    role_menu_query_result = await MenuService.get_role_menu_tree_services(role_id, current_user)
     logger.info('获取成功')
 
     return ResponseUtil.success(model_content=role_menu_query_result)
@@ -74,10 +70,9 @@ async def get_system_role_menu_tree(
 async def get_system_menu_list(
     request: Request,
     menu_query: Annotated[MenuQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    menu_query_result = await MenuService.get_menu_list_services(query_db, menu_query, current_user)
+    menu_query_result = await MenuService.get_menu_list_services(menu_query, current_user)
     logger.info('获取成功')
 
     return ResponseUtil.success(data=menu_query_result)
@@ -96,14 +91,13 @@ async def get_system_menu_list(
 async def add_system_menu(
     request: Request,
     add_menu: MenuModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_menu.create_by = current_user.user.user_name
     add_menu.create_time = datetime.now()
     add_menu.update_by = current_user.user.user_name
     add_menu.update_time = datetime.now()
-    add_menu_result = await MenuService.add_menu_services(query_db, add_menu)
+    add_menu_result = await MenuService.add_menu_services(add_menu)
     logger.info(add_menu_result.message)
 
     return ResponseUtil.success(msg=add_menu_result.message)
@@ -122,12 +116,11 @@ async def add_system_menu(
 async def edit_system_menu(
     request: Request,
     edit_menu: MenuModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_menu.update_by = current_user.user.user_name
     edit_menu.update_time = datetime.now()
-    edit_menu_result = await MenuService.edit_menu_services(query_db, edit_menu)
+    edit_menu_result = await MenuService.edit_menu_services(edit_menu)
     logger.info(edit_menu_result.message)
 
     return ResponseUtil.success(msg=edit_menu_result.message)
@@ -145,10 +138,9 @@ async def edit_system_menu(
 async def delete_system_menu(
     request: Request,
     menu_ids: Annotated[str, Path(description='需要删除的菜单ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_menu = DeleteMenuModel(menuIds=menu_ids)
-    delete_menu_result = await MenuService.delete_menu_services(query_db, delete_menu)
+    delete_menu_result = await MenuService.delete_menu_services(delete_menu)
     logger.info(delete_menu_result.message)
 
     return ResponseUtil.success(msg=delete_menu_result.message)
@@ -165,9 +157,8 @@ async def delete_system_menu(
 async def query_detail_system_menu(
     request: Request,
     menu_id: Annotated[int, Path(description='菜单ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    menu_detail_result = await MenuService.menu_detail_services(query_db, menu_id)
+    menu_detail_result = await MenuService.menu_detail_services(menu_id)
     logger.info(f'获取menu_id为{menu_id}的信息成功')
 
     return ResponseUtil.success(data=menu_detail_result)

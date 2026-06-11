@@ -35,7 +35,6 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import functools
-import inspect
 import threading
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
 from contextlib import asynccontextmanager, contextmanager
@@ -48,6 +47,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from knowledge_common.config.database import AsyncSessionLocal, SyncSessionLocal
+
+__all__ = [
+    'PropagationBehavior',
+    'TransactionException',
+    'TransactionTimeoutError',
+    'transactional',
+    'transactional_sync',
+    'get_current_session',
+    'get_current_session_sync',
+    'with_session',
+    'with_session_sync',
+    'async_session_scope',
+    'session_scope',
+    'SessionContextMiddleware',
+]
 
 # =============================================================================
 # 基础类型与枚举

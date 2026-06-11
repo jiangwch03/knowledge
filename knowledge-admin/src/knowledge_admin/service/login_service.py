@@ -8,6 +8,7 @@ from fastapi import Form, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from knowledge_common.common.constant import CommonConstant, MenuConstant
 from knowledge_common.common.enums import RedisInitKeyConfig
+from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel
 from knowledge_common.config.env import AppConfig, JwtConfig
 from knowledge_common.entity.do.dept_do import SysDept
@@ -21,7 +22,6 @@ from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.message_util import message_service
 from knowledge_common.utils.pwd_util import PwdUtil
 from sqlalchemy import Row
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.mapper.dao.login_dao import login_by_account
 from knowledge_admin.mapper.dao.user_dao import UserDao
@@ -68,13 +68,12 @@ class LoginService:
 
     @classmethod
     async def authenticate_user(
-        cls, request: Request, query_db: AsyncSession, login_user: UserLogin
+        cls, request: Request, login_user: UserLogin
     ) -> Row[tuple[SysUser, SysDept]]:
         """
         根据用户名密码校验用户登录
 
         :param request: Request对象
-        :param query_db: orm对象
         :param login_user: 登录用户对象
         :return: 校验结果
         """
@@ -99,7 +98,7 @@ class LoginService:
             pass
         else:
             await cls.__check_login_captcha(request, login_user)
-        user = await login_by_account(query_db, login_user.user_name)
+        user = await login_by_account(login_user.user_name)
         if not user:
             logger.warning('用户不存在')
             raise LoginException(data='', message='用户不存在')
@@ -187,15 +186,14 @@ class LoginService:
         return encoded_jwt
 
     @classmethod
-    async def get_current_user_routers(cls, user_id: int, query_db: AsyncSession) -> list[dict[str, Any]]:
+    async def get_current_user_routers(cls, user_id: int) -> list[dict[str, Any]]:
         """
         根据用户id获取当前用户路由信息
 
         :param user_id: 用户id
-        :param query_db: orm对象
         :return: 当前用户路由信息对象
         """
-        query_user = await UserDao.get_user_by_id(query_db, user_id=user_id)
+        query_user = await UserDao.get_user_by_id(user_id=user_id)
         user_router_menu = sorted(
             [
                 row
@@ -296,14 +294,14 @@ class LoginService:
         return router_list
 
     @classmethod
+    @transactional()
     async def register_user_services(
-        cls, request: Request, query_db: AsyncSession, user_register: UserRegister
+        cls, request: Request, user_register: UserRegister
     ) -> CrudResponseModel:
         """
         用户注册services
 
         :param request: Request对象
-        :param query_db: orm对象
         :param user_register: 注册用户对象
         :return: 注册结果
         """
@@ -330,25 +328,24 @@ class LoginService:
                     password=PwdUtil.get_password_hash(user_register.password),
                     pwdUpdateDate=datetime.now(),
                 )
-                result = await UserService.add_user_services(query_db, add_user)
+                result = await UserService.add_user_services(add_user)
                 return result
             raise ServiceException(message='注册程序已关闭，禁止注册')
         raise ServiceException(message='两次输入的密码不一致')
 
     @classmethod
-    async def get_sms_code_services(cls, request: Request, query_db: AsyncSession, user: ResetUserModel) -> SmsCode:
+    async def get_sms_code_services(cls, request: Request, user: ResetUserModel) -> SmsCode:
         """
         获取短信验证码service
 
         :param request: Request对象
-        :param query_db: orm对象
         :param user: 用户对象
         :return: 短信验证码对象
         """
         redis_sms_result = await request.app.state.redis.get(f'{RedisInitKeyConfig.SMS_CODE.key}:{user.session_id}')
         if redis_sms_result:
             return SmsCode(is_success=False, sms_code='', session_id='', message='短信验证码仍在有效期内')
-        is_user = await UserDao.get_user_by_name(query_db, user.user_name)
+        is_user = await UserDao.get_user_by_name(user.user_name)
         if is_user:
             sms_code = str(random.randint(100000, 999999))
             session_id = str(uuid.uuid4())
@@ -363,14 +360,14 @@ class LoginService:
         return SmsCode(is_success=False, sms_code='', session_id='', message='用户不存在')
 
     @classmethod
+    @transactional()
     async def forget_user_services(
-        cls, request: Request, query_db: AsyncSession, forget_user: ResetUserModel
+        cls, request: Request, forget_user: ResetUserModel
     ) -> CrudResponseModel:
         """
         用户忘记密码services
 
         :param request: Request对象
-        :param query_db: orm对象
         :param forget_user: 重置用户对象
         :return: 重置结果
         """
@@ -379,8 +376,8 @@ class LoginService:
         )
         if forget_user.sms_code == redis_sms_result:
             forget_user.password = PwdUtil.get_password_hash(forget_user.password)
-            forget_user.user_id = (await UserDao.get_user_by_name(query_db, forget_user.user_name)).user_id
-            edit_result = await UserService.reset_user_services(query_db, forget_user)
+            forget_user.user_id = (await UserDao.get_user_by_name(forget_user.user_name)).user_id
+            edit_result = await UserService.reset_user_services(forget_user)
             result = edit_result.dict()
         elif not redis_sms_result:
             result = {'is_success': False, 'message': '短信验证码已过期'}

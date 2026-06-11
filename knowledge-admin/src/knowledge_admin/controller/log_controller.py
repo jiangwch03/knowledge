@@ -4,7 +4,6 @@ from fastapi import Form, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import PreAuthDependency
 from knowledge_common.common.constant import ApiNamespace
@@ -24,7 +23,6 @@ from knowledge_common.service.log_service import LoginLogService, OperationLogSe
 from knowledge_common.utils.common_util import bytes2file_response
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
-from sqlalchemy.ext.asyncio import AsyncSession
 
 log_controller = APIRouterPro(
     prefix='/monitor', order_num=11, tags=['系统管理-日志管理'], dependencies=[PreAuthDependency()]
@@ -41,11 +39,10 @@ log_controller = APIRouterPro(
 async def get_system_operation_log_list(
     request: Request,
     operation_log_page_query: Annotated[OperLogPageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
     operation_log_page_query_result = await OperationLogService.get_operation_log_list_services(
-        query_db, operation_log_page_query, is_page=True
+        operation_log_page_query, is_page=True
     )
     logger.info('获取成功')
 
@@ -62,9 +59,9 @@ async def get_system_operation_log_list(
 @ApiRateLimit(namespace=ApiNamespace.MONITOR_OPERLOG_CLEAN, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='操作日志', business_type=BusinessType.CLEAN)
 async def clear_system_operation_log(
-    request: Request, query_db: Annotated[AsyncSession, DBSessionDependency()]
+    request: Request,
 ) -> Response:
-    clear_operation_log_result = await OperationLogService.clear_operation_log_services(query_db)
+    clear_operation_log_result = await OperationLogService.clear_operation_log_services()
     logger.info(clear_operation_log_result.message)
 
     return ResponseUtil.success(msg=clear_operation_log_result.message)
@@ -82,11 +79,10 @@ async def clear_system_operation_log(
 async def delete_system_operation_log(
     request: Request,
     oper_ids: Annotated[str, Path(description='需要删除的日志主键')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_operation_log = DeleteOperLogModel(operIds=oper_ids)
     delete_operation_log_result = await OperationLogService.delete_operation_log_services(
-        query_db, delete_operation_log
+        delete_operation_log
     )
     logger.info(delete_operation_log_result.message)
 
@@ -113,11 +109,10 @@ async def delete_system_operation_log(
 async def export_system_operation_log_list(
     request: Request,
     operation_log_page_query: Annotated[OperLogPageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
     operation_log_query_result = await OperationLogService.get_operation_log_list_services(
-        query_db, operation_log_page_query, is_page=False
+        operation_log_page_query, is_page=False
     )
     operation_log_export_result = await OperationLogService.export_operation_log_list_services(
         request, operation_log_query_result
@@ -137,11 +132,10 @@ async def export_system_operation_log_list(
 async def get_system_login_log_list(
     request: Request,
     login_log_page_query: Annotated[LoginLogPageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
     login_log_page_query_result = await LoginLogService.get_login_log_list_services(
-        query_db, login_log_page_query, is_page=True
+        login_log_page_query, is_page=True
     )
     logger.info('获取成功')
 
@@ -158,9 +152,9 @@ async def get_system_login_log_list(
 @ApiRateLimit(namespace=ApiNamespace.MONITOR_LOGININFO_CLEAN, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='登录日志', business_type=BusinessType.CLEAN)
 async def clear_system_login_log(
-    request: Request, query_db: Annotated[AsyncSession, DBSessionDependency()]
+    request: Request,
 ) -> Response:
-    clear_login_log_result = await LoginLogService.clear_login_log_services(query_db)
+    clear_login_log_result = await LoginLogService.clear_login_log_services()
     logger.info(clear_login_log_result.message)
 
     return ResponseUtil.success(msg=clear_login_log_result.message)
@@ -178,10 +172,9 @@ async def clear_system_login_log(
 async def delete_system_login_log(
     request: Request,
     info_ids: Annotated[str, Path(description='需要删除的访问ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_login_log = DeleteLoginLogModel(infoIds=info_ids)
-    delete_login_log_result = await LoginLogService.delete_login_log_services(query_db, delete_login_log)
+    delete_login_log_result = await LoginLogService.delete_login_log_services(delete_login_log)
     logger.info(delete_login_log_result.message)
 
     return ResponseUtil.success(msg=delete_login_log_result.message)
@@ -199,7 +192,6 @@ async def delete_system_login_log(
 async def unlock_system_user(
     request: Request,
     user_name: Annotated[str, Path(description='用户名称')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     unlock_user = UnlockUser(userName=user_name)
     unlock_user_result = await LoginLogService.unlock_user_services(request, unlock_user)
@@ -228,11 +220,10 @@ async def unlock_system_user(
 async def export_system_login_log_list(
     request: Request,
     login_log_page_query: Annotated[LoginLogPageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
     login_log_query_result = await LoginLogService.get_login_log_list_services(
-        query_db, login_log_page_query, is_page=False
+        login_log_page_query, is_page=False
     )
     login_log_export_result = await LoginLogService.export_login_log_list_services(login_log_query_result)
     logger.info('导出成功')

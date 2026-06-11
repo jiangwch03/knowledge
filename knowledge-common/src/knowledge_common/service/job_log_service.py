@@ -1,10 +1,8 @@
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
-from knowledge_common.common.transactional import transactional_sync
+from knowledge_common.common.transactional import transactional, transactional_sync
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.dao.job_log_dao import JobLogDao
 from knowledge_common.entity.vo.job_vo import DeleteJobLogModel, JobLogModel, JobLogPageQueryModel
@@ -19,73 +17,57 @@ class JobLogService:
 
     @classmethod
     async def get_job_log_list_services(
-        cls, query_db: AsyncSession, query_object: JobLogPageQueryModel, is_page: bool = False
+        cls, query_object: JobLogPageQueryModel, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         获取定时任务日志列表信息service
 
-        :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 定时任务日志列表信息对象
         """
-        job_log_list_result = await JobLogDao.get_job_log_list(query_db, query_object, is_page)
+        job_log_list_result = await JobLogDao.get_job_log_list(query_object, is_page)
 
         return job_log_list_result
 
     @classmethod
     @transactional_sync()
-    def add_job_log_services(cls, query_db: Session | None = None, page_object: JobLogModel | None = None) -> CrudResponseModel:
+    def add_job_log_services(cls, page_object: JobLogModel | None = None) -> CrudResponseModel:
         """
         新增定时任务日志信息service
 
-        :param query_db: orm对象（兼容旧调用方式，新方式可不传）
         :param page_object: 新增定时任务日志对象
         :return: 新增定时任务日志校验结果
         """
-        JobLogDao.add_job_log_dao(query_db, page_object)
+        JobLogDao.add_job_log_dao(page_object)
         return CrudResponseModel(is_success=True, message='新增成功')
 
     @classmethod
-    async def delete_job_log_services(cls, query_db: AsyncSession, page_object: DeleteJobLogModel) -> CrudResponseModel:
+    @transactional()
+    async def delete_job_log_services(cls, page_object: DeleteJobLogModel) -> CrudResponseModel:
         """
         删除定时任务日志信息service
 
-        :param query_db: orm对象
         :param page_object: 删除定时任务日志对象
         :return: 删除定时任务日志校验结果
         """
         if page_object.job_log_ids:
             job_log_id_list = page_object.job_log_ids.split(',')
-            try:
-                for job_log_id in job_log_id_list:
-                    await JobLogDao.delete_job_log_dao(query_db, JobLogModel(jobLogId=job_log_id))
-                await query_db.commit()
-                result = {'is_success': True, 'message': '删除成功'}
-            except Exception as e:
-                await query_db.rollback()
-                raise e
-        else:
-            result = {'is_success': False, 'message': '传入定时任务日志id为空'}
-        return CrudResponseModel(**result)
+            for job_log_id in job_log_id_list:
+                await JobLogDao.delete_job_log_dao(JobLogModel(jobLogId=job_log_id))
+            return CrudResponseModel(is_success=True, message='删除成功')
+        return CrudResponseModel(is_success=False, message='传入定时任务日志id为空')
 
     @classmethod
-    async def clear_job_log_services(cls, query_db: AsyncSession) -> CrudResponseModel:
+    @transactional()
+    async def clear_job_log_services(cls) -> CrudResponseModel:
         """
         清除定时任务日志信息service
 
-        :param query_db: orm对象
         :return: 清除定时任务日志校验结果
         """
-        try:
-            await JobLogDao.clear_job_log_dao(query_db)
-            await query_db.commit()
-            result = {'is_success': True, 'message': '清除成功'}
-        except Exception as e:
-            await query_db.rollback()
-            raise e
-
-        return CrudResponseModel(**result)
+        await JobLogDao.clear_job_log_dao()
+        return CrudResponseModel(is_success=True, message='清除成功')
 
     @staticmethod
     async def export_job_log_list_services(request: Request, job_log_list: list) -> bytes:

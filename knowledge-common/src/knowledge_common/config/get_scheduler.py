@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 # import module_task  # noqa: F401
 from knowledge_common.common.constant import LockConstant
+from knowledge_common.common.transactional import async_session_scope, session_scope
 from knowledge_common.config.database import (
     SYNC_SQLALCHEMY_DATABASE_URL,
     create_async_db_engine,
@@ -235,8 +236,8 @@ class SchedulerUtil:
         scheduler.start()
 
         # 加载数据库中的定时任务（只加载属于当前应用的任务）
-        async with cls._get_sync_async_session() as session:
-            job_list = await JobDao.get_job_list_for_scheduler(session, app_scope=cls._app_scope)
+        async with async_session_scope():
+            job_list = await JobDao.get_job_list_for_scheduler(app_scope=cls._app_scope)
             for item in job_list:
                 cls._add_job_to_scheduler(item)
 
@@ -303,8 +304,9 @@ class SchedulerUtil:
             return
 
         try:
-            async with cls._get_sync_async_session() as session:
-                db_jobs_all = await JobDao.get_all_job_list_for_scheduler(session, app_scope=cls._app_scope)
+            async with async_session_scope():
+                db_jobs_all = await JobDao.get_all_job_list_for_scheduler(app_scope=cls._app_scope)
+
                 db_jobs_enabled = [job for job in db_jobs_all if job.status == '0']
                 db_enabled_ids = {str(job.job_id) for job in db_jobs_enabled}
                 db_job_map = {str(job.job_id): job for job in db_jobs_enabled}
@@ -515,8 +517,8 @@ class SchedulerUtil:
         :return: None
         """
         try:
-            async with cls._get_sync_async_session() as session:
-                job_orm = await JobDao.get_job_detail_by_id(session, job_id=int(job_id))
+            async with async_session_scope():
+                job_orm = await JobDao.get_job_detail_by_id(job_id=int(job_id))
                 if job_orm:
                     job_info = JobModel(**CamelCaseUtil.transform_result(job_orm))
                     cls.execute_scheduler_job_once(job_info)
@@ -713,11 +715,8 @@ class SchedulerUtil:
                 exceptionInfo=exception_info,
                 createTime=datetime.now(),
             )
-            session = cls._get_session_local()()
-            try:
-                JobLogService.add_job_log_services(session, job_log)
-            finally:
-                session.close()
+            with session_scope():
+                JobLogService.add_job_log_services(job_log)
         except Exception as e:
             logger.error(f'❌ 记录任务执行日志失败: {e}')
 
@@ -965,10 +964,7 @@ class SchedulerUtil:
                         exceptionInfo=exception_info,
                         createTime=datetime.now(),
                     )
-                    session = cls._get_session_local()()
-                    try:
-                        JobLogService.add_job_log_services(session, job_log)
-                    finally:
-                        session.close()
+                    with session_scope():
+                        JobLogService.add_job_log_services(job_log)
         except Exception as e:
             logger.error(f'❌ 调度任务事件监听器异常: {e}')

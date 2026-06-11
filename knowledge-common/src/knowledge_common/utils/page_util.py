@@ -2,8 +2,8 @@ import math
 from typing import Any
 
 from sqlalchemy import Row, Select, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
 from knowledge_common.utils.common_util import CamelCaseUtil
 
@@ -39,18 +39,18 @@ class PageUtil:
 
     @classmethod
     async def paginate(
-        cls, db: AsyncSession, query: Select, page_num: int, page_size: int, is_page: bool = False
+        cls, query: Select, page_num: int, page_size: int, is_page: bool = False
     ) -> PageModel | list[dict[str, Any] | list[dict[Any, Any]]]:
         """
         输入查询语句和分页信息，返回分页数据列表结果
 
-        :param db: orm对象
         :param query: sqlalchemy查询语句
         :param page_num: 当前页码
         :param page_size: 当前页面数据量
         :param is_page: 是否开启分页
         :return: 分页数据对象
         """
+        db = get_current_session()
         if is_page:
             total = (await db.execute(select(func.count('*')).select_from(query.subquery()))).scalar()
             query_result = await db.execute(query.offset((page_num - 1) * page_size).limit(page_size))

@@ -5,7 +5,6 @@ from fastapi.responses import StreamingResponse
 from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
@@ -14,7 +13,6 @@ from knowledge_common.common.vo import DataResponseModel, ResponseBaseModel
 from knowledge_common.entity.vo.user_vo import CurrentUserModel
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.service.ai_chat_service import AiChatService
 from knowledge_admin.vo.ai_chat_vo import (
@@ -47,11 +45,10 @@ ai_chat_controller = APIRouterPro(
 async def send_chat_message(
     request: Request,
     chat_req: AiChatRequestModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> StreamingResponse:
     user_id = current_user.user.user_id if current_user and current_user.user else 1
-    chat_stream = AiChatService.chat_services(query_db, chat_req, user_id)
+    chat_stream = AiChatService.chat_services(chat_req, user_id)
     logger.info(f'用户{user_id}发送对话消息成功')
 
     return StreamingResponse(content=chat_stream, media_type='text/event-stream')
@@ -66,11 +63,10 @@ async def send_chat_message(
 @ApiCache(namespace=ApiNamespace.AI_CHAT_CONFIG)
 async def get_user_chat_config(
     request: Request,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     user_id = current_user.user.user_id
-    ai_chat_config_detail_result = await AiChatService.ai_chat_config_detail_services(query_db, user_id)
+    ai_chat_config_detail_result = await AiChatService.ai_chat_config_detail_services(user_id)
     logger.info(f'获取user_id为{user_id}的对话配置成功')
 
     return ResponseUtil.success(data=ai_chat_config_detail_result)
@@ -87,11 +83,10 @@ async def get_user_chat_config(
 async def save_user_chat_config(
     request: Request,
     ai_chat_config: AiChatConfigModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     user_id = current_user.user.user_id if current_user and current_user.user else 1
-    save_ai_chat_config_result = await AiChatService.save_ai_chat_config_services(query_db, user_id, ai_chat_config)
+    save_ai_chat_config_result = await AiChatService.save_ai_chat_config_services(user_id, ai_chat_config)
     logger.info(save_ai_chat_config_result.message)
 
     return ResponseUtil.success(msg=save_ai_chat_config_result.message)
@@ -123,7 +118,6 @@ async def get_chat_session_list(
 async def delete_chat_session(
     request: Request,
     session_id: Annotated[str, Path(description='会话ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_chat_session_result = await AiChatService.delete_chat_session_services(session_id)
     logger.info(delete_chat_session_result.message)

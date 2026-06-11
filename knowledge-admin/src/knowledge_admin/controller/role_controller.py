@@ -7,7 +7,6 @@ from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCac
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from knowledge_common.common.aspect.data_scope import DataScopeDependency
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
@@ -35,7 +34,6 @@ from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.service.dept_service import DeptService
 from knowledge_admin.service.role_service import RoleService
@@ -57,11 +55,10 @@ role_controller = APIRouterPro(
 async def get_system_role_dept_tree(
     request: Request,
     role_id: Annotated[int, Path(description='角色ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
-    dept_query_result = await DeptService.get_dept_tree_services(query_db, DeptModel(), data_scope_sql)
-    role_dept_query_result = await RoleService.get_role_dept_tree_services(query_db, role_id)
+    dept_query_result = await DeptService.get_dept_tree_services(DeptModel(), data_scope_sql)
+    role_dept_query_result = await RoleService.get_role_dept_tree_services(role_id)
     role_dept_query_result.depts = dept_query_result
     logger.info('获取成功')
 
@@ -79,11 +76,10 @@ async def get_system_role_dept_tree(
 async def get_system_role_list(
     request: Request,
     role_page_query: Annotated[RolePageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     role_page_query_result = await RoleService.get_role_list_services(
-        query_db, role_page_query, data_scope_sql, is_page=True
+        role_page_query, data_scope_sql, is_page=True
     )
     logger.info('获取成功')
 
@@ -103,14 +99,13 @@ async def get_system_role_list(
 async def add_system_role(
     request: Request,
     add_role: AddRoleModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_role.create_by = current_user.user.user_name
     add_role.create_time = datetime.now()
     add_role.update_by = current_user.user.user_name
     add_role.update_time = datetime.now()
-    add_role_result = await RoleService.add_role_services(query_db, add_role)
+    add_role_result = await RoleService.add_role_services(add_role)
     logger.info(add_role_result.message)
 
     return ResponseUtil.success(msg=add_role_result.message)
@@ -129,16 +124,15 @@ async def add_system_role(
 async def edit_system_role(
     request: Request,
     edit_role: AddRoleModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     await RoleService.check_role_allowed_services(edit_role)
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, str(edit_role.role_id), data_scope_sql)
+        await RoleService.check_role_data_scope_services(str(edit_role.role_id), data_scope_sql)
     edit_role.update_by = current_user.user.user_name
     edit_role.update_time = datetime.now()
-    edit_role_result = await RoleService.edit_role_services(query_db, edit_role)
+    edit_role_result = await RoleService.edit_role_services(edit_role)
     logger.info(edit_role_result.message)
 
     return ResponseUtil.success(msg=edit_role_result.message)
@@ -156,13 +150,12 @@ async def edit_system_role(
 async def edit_system_role_datascope(
     request: Request,
     role_data_scope: AddRoleModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     await RoleService.check_role_allowed_services(role_data_scope)
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, str(role_data_scope.role_id), data_scope_sql)
+        await RoleService.check_role_data_scope_services(str(role_data_scope.role_id), data_scope_sql)
     edit_role = AddRoleModel(
         roleId=role_data_scope.role_id,
         dataScope=role_data_scope.data_scope,
@@ -171,7 +164,7 @@ async def edit_system_role_datascope(
         updateBy=current_user.user.user_name,
         updateTime=datetime.now(),
     )
-    role_data_scope_result = await RoleService.role_datascope_services(query_db, edit_role)
+    role_data_scope_result = await RoleService.role_datascope_services(edit_role)
     logger.info(role_data_scope_result.message)
 
     return ResponseUtil.success(msg=role_data_scope_result.message)
@@ -189,7 +182,6 @@ async def edit_system_role_datascope(
 async def delete_system_role(
     request: Request,
     role_ids: Annotated[str, Path(description='需要删除的角色ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
@@ -198,9 +190,9 @@ async def delete_system_role(
         for role_id in role_id_list:
             await RoleService.check_role_allowed_services(RoleModel(roleId=int(role_id)))
             if not current_user.user.admin:
-                await RoleService.check_role_data_scope_services(query_db, role_id, data_scope_sql)
+                await RoleService.check_role_data_scope_services(role_id, data_scope_sql)
     delete_role = DeleteRoleModel(roleIds=role_ids, updateBy=current_user.user.user_name, updateTime=datetime.now())
-    delete_role_result = await RoleService.delete_role_services(query_db, delete_role)
+    delete_role_result = await RoleService.delete_role_services(delete_role)
     logger.info(delete_role_result.message)
 
     return ResponseUtil.success(msg=delete_role_result.message)
@@ -217,13 +209,12 @@ async def delete_system_role(
 async def query_detail_system_role(
     request: Request,
     role_id: Annotated[int, Path(description='角色ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, str(role_id), data_scope_sql)
-    role_detail_result = await RoleService.role_detail_services(query_db, role_id)
+        await RoleService.check_role_data_scope_services(str(role_id), data_scope_sql)
+    role_detail_result = await RoleService.role_detail_services(role_id)
     logger.info(f'获取role_id为{role_id}的信息成功')
 
     return ResponseUtil.success(data=role_detail_result.model_dump(by_alias=True))
@@ -249,12 +240,11 @@ async def query_detail_system_role(
 async def export_system_role_list(
     request: Request,
     role_page_query: Annotated[RolePageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     # 获取全量数据
     role_query_result = await RoleService.get_role_list_services(
-        query_db, role_page_query, data_scope_sql, is_page=False
+        role_page_query, data_scope_sql, is_page=False
     )
     role_export_result = await RoleService.export_role_list_services(role_query_result)
     logger.info('导出成功')
@@ -274,13 +264,12 @@ async def export_system_role_list(
 async def reset_system_role_status(
     request: Request,
     change_role: AddRoleModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     await RoleService.check_role_allowed_services(change_role)
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, str(change_role.role_id), data_scope_sql)
+        await RoleService.check_role_data_scope_services(str(change_role.role_id), data_scope_sql)
     edit_role = AddRoleModel(
         roleId=change_role.role_id,
         status=change_role.status,
@@ -288,7 +277,7 @@ async def reset_system_role_status(
         updateTime=datetime.now(),
         type='status',
     )
-    edit_role_result = await RoleService.edit_role_services(query_db, edit_role)
+    edit_role_result = await RoleService.edit_role_services(edit_role)
     logger.info(edit_role_result.message)
 
     return ResponseUtil.success(msg=edit_role_result.message)
@@ -305,11 +294,10 @@ async def reset_system_role_status(
 async def get_system_allocated_user_list(
     request: Request,
     user_role: Annotated[UserRolePageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
 ) -> Response:
     role_user_allocated_page_query_result = await RoleService.get_role_user_allocated_list_services(
-        query_db, user_role, data_scope_sql, is_page=True
+        user_role, data_scope_sql, is_page=True
     )
     logger.info('获取成功')
 
@@ -327,11 +315,10 @@ async def get_system_allocated_user_list(
 async def get_system_unallocated_user_list(
     request: Request,
     user_role: Annotated[UserRolePageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
 ) -> Response:
     role_user_unallocated_page_query_result = await RoleService.get_role_user_unallocated_list_services(
-        query_db, user_role, data_scope_sql, is_page=True
+        user_role, data_scope_sql, is_page=True
     )
     logger.info('获取成功')
 
@@ -351,13 +338,12 @@ async def get_system_unallocated_user_list(
 async def add_system_role_user(
     request: Request,
     add_role_user: Annotated[CrudUserRoleModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, str(add_role_user.role_id), data_scope_sql)
-    add_role_user_result = await UserService.add_user_role_services(query_db, add_role_user)
+        await RoleService.check_role_data_scope_services(str(add_role_user.role_id), data_scope_sql)
+    add_role_user_result = await UserService.add_user_role_services(add_role_user)
     logger.info(add_role_user_result.message)
 
     return ResponseUtil.success(msg=add_role_user_result.message)
@@ -376,9 +362,8 @@ async def add_system_role_user(
 async def cancel_system_role_user(
     request: Request,
     cancel_user_role: CrudUserRoleModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    cancel_user_role_result = await UserService.delete_user_role_services(query_db, cancel_user_role)
+    cancel_user_role_result = await UserService.delete_user_role_services(cancel_user_role)
     logger.info(cancel_user_role_result.message)
 
     return ResponseUtil.success(msg=cancel_user_role_result.message)
@@ -397,9 +382,8 @@ async def cancel_system_role_user(
 async def batch_cancel_system_role_user(
     request: Request,
     batch_cancel_user_role: Annotated[CrudUserRoleModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    batch_cancel_user_role_result = await UserService.delete_user_role_services(query_db, batch_cancel_user_role)
+    batch_cancel_user_role_result = await UserService.delete_user_role_services(batch_cancel_user_role)
     logger.info(batch_cancel_user_role_result.message)
 
     return ResponseUtil.success(msg=batch_cancel_user_role_result.message)

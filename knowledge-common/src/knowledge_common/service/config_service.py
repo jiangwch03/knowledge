@@ -2,11 +2,10 @@ from typing import Any
 
 from fastapi import Request
 from redis import asyncio as aioredis
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.enums import RedisInitKeyConfig
-from knowledge_common.common.transactional import get_current_session, transactional
+from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.dao.config_dao import ConfigDao
@@ -22,26 +21,24 @@ class ConfigService:
 
     @classmethod
     async def get_config_list_services(
-        cls, query_db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False
+        cls, query_object: ConfigPageQueryModel, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         获取参数配置列表信息service
 
-        :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 参数配置列表信息对象
         """
-        config_list_result = await ConfigDao.get_config_list(query_db, query_object, is_page)
+        config_list_result = await ConfigDao.get_config_list(query_object, is_page)
 
         return config_list_result
 
     @classmethod
-    async def init_cache_sys_config_services(cls, query_db: AsyncSession, redis: aioredis.Redis) -> None:
+    async def init_cache_sys_config_services(cls, redis: aioredis.Redis) -> None:
         """
         应用初始化：获取所有参数配置对应的键值对信息并缓存service
 
-        :param query_db: orm对象
         :param redis: redis对象
         :return:
         """
@@ -50,7 +47,7 @@ class ConfigService:
         # 删除匹配的键
         if keys:
             await redis.delete(*keys)
-        config_all = await ConfigDao.get_config_list(query_db, ConfigPageQueryModel(), is_page=False)
+        config_all = await ConfigDao.get_config_list(ConfigPageQueryModel(), is_page=False)
         for config_obj in config_all:
             await redis.set(
                 f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_obj.get("configKey")}',
@@ -71,18 +68,15 @@ class ConfigService:
         return result
 
     @classmethod
-    async def check_config_key_unique_services(cls, query_db: AsyncSession | None = None, page_object: ConfigModel | None = None) -> bool:
+    async def check_config_key_unique_services(cls, page_object: ConfigModel | None = None) -> bool:
         """
         校验参数键名是否唯一service
 
-        :param query_db: orm对象，不传则从事务上下文获取
         :param page_object: 参数配置对象
         :return: 校验结果
         """
-        if query_db is None:
-            query_db = get_current_session()
         config_id = -1 if page_object.config_id is None else page_object.config_id
-        config = await ConfigDao.get_config_detail_by_info(query_db, ConfigModel(configKey=page_object.config_key))
+        config = await ConfigDao.get_config_detail_by_info(ConfigModel(configKey=page_object.config_key))
         if config and config.config_id != config_id:
             return CommonConstant.NOT_UNIQUE
         return CommonConstant.UNIQUE
@@ -90,102 +84,88 @@ class ConfigService:
     @classmethod
     @transactional()
     async def add_config_services(
-        cls, request: Request, query_db: AsyncSession | None = None, page_object: ConfigModel | None = None
+        cls, request: Request, page_object: ConfigModel | None = None
     ) -> CrudResponseModel:
         """
         新增参数配置信息service
 
         :param request: Request对象
-        :param query_db: orm对象（兼容旧调用方式，新方式可不传）
         :param page_object: 新增参数配置对象
         :return: 新增参数配置校验结果
         """
-        if not await cls.check_config_key_unique_services(query_db, page_object):
+        if not await cls.check_config_key_unique_services(page_object):
             raise ServiceException(message=f'新增参数{page_object.config_name}失败，参数键名已存在')
-        await ConfigDao.add_config_dao(query_db, page_object)
+        await ConfigDao.add_config_dao(page_object)
         await request.app.state.redis.set(
             f'{RedisInitKeyConfig.SYS_CONFIG.key}:{page_object.config_key}', page_object.config_value
         )
         return CrudResponseModel(is_success=True, message='新增成功')
 
     @classmethod
+    @transactional()
     async def edit_config_services(
-        cls, request: Request, query_db: AsyncSession, page_object: ConfigModel
+        cls, request: Request, page_object: ConfigModel
     ) -> CrudResponseModel:
         """
         编辑参数配置信息service
 
         :param request: Request对象
-        :param query_db: orm对象
         :param page_object: 编辑参数配置对象
         :return: 编辑参数配置校验结果
         """
         edit_config = page_object.model_dump(exclude_unset=True)
-        config_info = await cls.config_detail_services(query_db, page_object.config_id)
+        config_info = await cls.config_detail_services(page_object.config_id)
         if config_info.config_id:
-            if not await cls.check_config_key_unique_services(query_db, page_object):
+            if not await cls.check_config_key_unique_services(page_object):
                 raise ServiceException(message=f'修改参数{page_object.config_name}失败，参数键名已存在')
-            try:
-                await ConfigDao.edit_config_dao(query_db, edit_config)
-                await query_db.commit()
-                if config_info.config_key != page_object.config_key:
-                    await request.app.state.redis.delete(
-                        f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_info.config_key}'
-                    )
-                await request.app.state.redis.set(
-                    f'{RedisInitKeyConfig.SYS_CONFIG.key}:{page_object.config_key}', page_object.config_value
+            await ConfigDao.edit_config_dao(edit_config)
+            if config_info.config_key != page_object.config_key:
+                await request.app.state.redis.delete(
+                    f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_info.config_key}'
                 )
-                return CrudResponseModel(is_success=True, message='更新成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+            await request.app.state.redis.set(
+                f'{RedisInitKeyConfig.SYS_CONFIG.key}:{page_object.config_key}', page_object.config_value
+            )
+            return CrudResponseModel(is_success=True, message='更新成功')
         else:
             raise ServiceException(message='参数配置不存在')
 
     @classmethod
+    @transactional()
     async def delete_config_services(
-        cls, request: Request, query_db: AsyncSession, page_object: DeleteConfigModel
+        cls, request: Request, page_object: DeleteConfigModel
     ) -> CrudResponseModel:
         """
         删除参数配置信息service
 
         :param request: Request对象
-        :param query_db: orm对象
         :param page_object: 删除参数配置对象
         :return: 删除参数配置校验结果
         """
         if page_object.config_ids:
             config_id_list = page_object.config_ids.split(',')
-            try:
-                delete_config_key_list = []
-                for config_id in config_id_list:
-                    config_info = await cls.config_detail_services(query_db, int(config_id))
-                    if config_info.config_type == CommonConstant.YES:
-                        raise ServiceException(message=f'内置参数{config_info.config_key}不能删除')
-                    await ConfigDao.delete_config_dao(query_db, ConfigModel(configId=int(config_id)))
-                    delete_config_key_list.append(f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_info.config_key}')
-                await query_db.commit()
-                if delete_config_key_list:
-                    await request.app.state.redis.delete(*delete_config_key_list)
-                return CrudResponseModel(is_success=True, message='删除成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+            delete_config_key_list = []
+            for config_id in config_id_list:
+                config_info = await cls.config_detail_services(int(config_id))
+                if config_info.config_type == CommonConstant.YES:
+                    raise ServiceException(message=f'内置参数{config_info.config_key}不能删除')
+                await ConfigDao.delete_config_dao(ConfigModel(configId=int(config_id)))
+                delete_config_key_list.append(f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_info.config_key}')
+            if delete_config_key_list:
+                await request.app.state.redis.delete(*delete_config_key_list)
+            return CrudResponseModel(is_success=True, message='删除成功')
         else:
             raise ServiceException(message='传入参数配置id为空')
 
     @classmethod
-    async def config_detail_services(cls, query_db: AsyncSession | None = None, config_id: int | None = None) -> ConfigModel:
+    async def config_detail_services(cls, config_id: int | None = None) -> ConfigModel:
         """
         获取参数配置详细信息service
 
-        :param query_db: orm对象，不传则从事务上下文获取
         :param config_id: 参数配置id
         :return: 参数配置id对应的信息
         """
-        if query_db is None:
-            query_db = get_current_session()
-        config = await ConfigDao.get_config_detail_by_id(query_db, config_id=config_id)
+        config = await ConfigDao.get_config_detail_by_id(config_id=config_id)
         result = ConfigModel(**CamelCaseUtil.transform_result(config)) if config else ConfigModel()
 
         return result
@@ -222,14 +202,14 @@ class ConfigService:
         return binary_data
 
     @classmethod
-    async def refresh_sys_config_services(cls, request: Request, query_db: AsyncSession) -> CrudResponseModel:
+    @transactional()
+    async def refresh_sys_config_services(cls, request: Request) -> CrudResponseModel:
         """
         刷新字典缓存信息service
 
         :param request: Request对象
-        :param query_db: orm对象
         :return: 刷新字典缓存校验结果
         """
-        await cls.init_cache_sys_config_services(query_db, request.app.state.redis)
+        await cls.init_cache_sys_config_services(request.app.state.redis)
 
         return CrudResponseModel(is_success=True, message='刷新成功')

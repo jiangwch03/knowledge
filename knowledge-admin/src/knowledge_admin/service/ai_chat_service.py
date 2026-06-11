@@ -10,13 +10,13 @@ from agno.db.base import SessionType
 from agno.media import Image
 from agno.run.agent import RunEvent, RunOutput, RunOutputEvent
 from agno.run.cancel import acancel_run
+from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel
 from knowledge_common.config.env import UploadConfig
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.utils.ai_util import AiUtil
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.crypto_util import CryptoUtil
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.mapper.dao.ai_chat_dao import AiChatConfigDao
 from knowledge_admin.mapper.dao.ai_model_dao import AiModelDao
@@ -256,22 +256,21 @@ class AiChatService:
 
     @classmethod
     async def chat_services(
-        cls, query_db: AsyncSession, chat_req: AiChatRequestModel, user_id: int
+        cls, chat_req: AiChatRequestModel, user_id: int
     ) -> AsyncGenerator[str, None]:
         """
         流式对话
 
-        :param query_db: orm对象
         :param chat_req: 对话请求对象
         :param user_id: 用户ID
         :return: 对话响应流
         """
-        ai_model = await AiModelDao.get_ai_model_detail_by_id(query_db, chat_req.model_id)
+        ai_model = await AiModelDao.get_ai_model_detail_by_id(chat_req.model_id)
         model_config = AiModelModel(**CamelCaseUtil.transform_result(ai_model)) if ai_model else AiModelModel()
         if not model_config:
             raise ServiceException(message='模型不存在')
 
-        user_config = await cls.ai_chat_config_detail_services(query_db, user_id)
+        user_config = await cls.ai_chat_config_detail_services(user_id)
 
         session_id = chat_req.session_id
         if not session_id:
@@ -302,50 +301,43 @@ class AiChatService:
             yield chunk
 
     @classmethod
-    async def ai_chat_config_detail_services(cls, query_db: AsyncSession, user_id: int) -> AiChatConfigModel:
+    async def ai_chat_config_detail_services(cls, user_id: int) -> AiChatConfigModel:
         """
         获取用户配置
 
-        :param query_db: orm对象
         :param user_id: 用户ID
         :return: 配置模型
         """
-        chat_config = await AiChatConfigDao.get_chat_config_detail_by_user_id(query_db, user_id)
+        chat_config = await AiChatConfigDao.get_chat_config_detail_by_user_id(user_id)
         result = AiChatConfigModel(**CamelCaseUtil.transform_result(chat_config)) if chat_config else AiChatConfig()
 
         return result
 
     @classmethod
+    @transactional()
     async def save_ai_chat_config_services(
-        cls, query_db: AsyncSession, user_id: int, page_object: AiChatConfigModel
+        cls, user_id: int, page_object: AiChatConfigModel
     ) -> CrudResponseModel:
         """
         保存用户配置
 
-        :param query_db: orm对象
         :param user_id: 用户ID
         :param page_object: AI对话配置对象
         :return: 更新后的配置模型
         """
-        chat_config = await AiChatConfigDao.get_chat_config_detail_by_user_id(query_db, user_id)
+        chat_config = await AiChatConfigDao.get_chat_config_detail_by_user_id(user_id)
         if page_object.user_id is None:
             page_object.user_id = user_id
 
-        try:
-            if chat_config:
-                if chat_config.chat_config_id != page_object.chat_config_id:
-                    raise ServiceException(message='只允许修改当前用户的配置')
-                page_object.update_time = datetime.now()
-                edit_ai_chat_config = page_object.model_dump(exclude_unset=True)
-                await AiChatConfigDao.edit_chat_config_dao(query_db, edit_ai_chat_config)
-            else:
-                page_object.create_time = datetime.now()
-                await AiChatConfigDao.add_chat_config_dao(query_db, page_object)
-
-            await query_db.commit()
-        except Exception as e:
-            await query_db.rollback()
-            raise e
+        if chat_config:
+            if chat_config.chat_config_id != page_object.chat_config_id:
+                raise ServiceException(message='只允许修改当前用户的配置')
+            page_object.update_time = datetime.now()
+            edit_ai_chat_config = page_object.model_dump(exclude_unset=True)
+            await AiChatConfigDao.edit_chat_config_dao(edit_ai_chat_config)
+        else:
+            page_object.create_time = datetime.now()
+            await AiChatConfigDao.add_chat_config_dao(page_object)
 
         return CrudResponseModel(is_success=True, message='保存成功')
 

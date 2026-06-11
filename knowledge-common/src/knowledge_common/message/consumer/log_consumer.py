@@ -12,17 +12,19 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
+from knowledge_common.common.transactional import transactional
 from knowledge_common.config.env import AppConfig
 from knowledge_common.dao.log_dao import LoginLogDao, OperationLogDao
 from knowledge_common.entity.vo.log_vo import LogininforModel, OperLogModel
 from knowledge_common.message_stream import Message, consumer
 from knowledge_common.service.log_service import LogDedupHelper
-from knowledge_common.config.database import AsyncSessionLocal
 
 TOPIC_OPERATION = f'log:operation:{AppConfig.app_name}'
 TOPIC_LOGIN = f'log:login:{AppConfig.app_name}'
 GROUP_ID = f'log_writer:{AppConfig.app_name}'
 
+
+@transactional()
 async def _persist_log(
     msg: Message,
     default_app: str,
@@ -35,19 +37,19 @@ async def _persist_log(
     async with LogDedupHelper.acquire(event_id, app_name) as ok:
         if not ok:
             return
-        async with AsyncSessionLocal() as session:
-            log_entry = model_cls(**msg.value)
-            await dao_method(session, log_entry)
-            await session.commit()
+        log_entry = model_cls(**msg.value)
+        await dao_method(log_entry)
 
-@consumer(topic = TOPIC_LOGIN, group_id = GROUP_ID)
+
+@consumer(topic=TOPIC_LOGIN, group_id=GROUP_ID)
 async def handle_login_log(msg: Message) -> None:
-    await _persist_log(msg, AppConfig.APP_NAME, LogininforModel, LoginLogDao.add_login_log_dao)
+    await _persist_log(msg, AppConfig.app_name, LogininforModel, LoginLogDao.add_login_log_dao)
 
 
-@consumer(topic =TOPIC_OPERATION, group_id = GROUP_ID)
+@consumer(topic=TOPIC_OPERATION, group_id=GROUP_ID)
 async def handle_operation_log(msg: Message) -> None:
-    await _persist_log(msg, AppConfig.APP_NAME, OperLogModel, OperationLogDao.add_operation_log_dao)
+    await _persist_log(msg, AppConfig.app_name, OperLogModel, OperationLogDao.add_operation_log_dao)
+
 
 __all__ = [
     'handle_login_log',

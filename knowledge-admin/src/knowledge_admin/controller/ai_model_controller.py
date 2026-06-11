@@ -5,7 +5,6 @@ from fastapi import Path, Query, Request, Response
 from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from knowledge_common.common.annotation.log_annotation import Log, RequestLogFieldRoot
 from knowledge_common.common.aspect.data_scope import DataScopeDependency
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
@@ -17,7 +16,6 @@ from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.mapper.do.ai_model_do import AiModels
 from knowledge_admin.service.ai_model_service import AiModelService
@@ -39,12 +37,11 @@ ai_model_controller = APIRouterPro(
 async def get_ai_model_list(
     request: Request,
     ai_model_page_query: Annotated[AiModelPageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],
 ) -> Response:
     # 获取分页数据
     result = await AiModelService.get_ai_model_list_services(
-        query_db, ai_model_page_query, data_scope_sql, is_page=True
+        ai_model_page_query, data_scope_sql, is_page=True
     )
     logger.info('获取成功')
 
@@ -60,13 +57,12 @@ async def get_ai_model_list(
 @ApiCache(namespace=ApiNamespace.AI_MODEL_ALL)
 async def get_ai_model_all(
     request: Request,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],
 ) -> Response:
     # 获取不分页数据
     ai_model_page_query = AiModelPageQueryModel(status='0')
     result = await AiModelService.get_ai_model_list_services(
-        query_db, ai_model_page_query, data_scope_sql, is_page=False
+        ai_model_page_query, data_scope_sql, is_page=False
     )
     logger.info('获取成功')
 
@@ -91,7 +87,6 @@ async def get_ai_model_all(
 async def add_ai_model(
     request: Request,
     add_ai_model: AiModelModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_ai_model.user_id = current_user.user.user_id
@@ -100,7 +95,7 @@ async def add_ai_model(
     add_ai_model.create_time = datetime.now()
     add_ai_model.update_by = current_user.user.user_name
     add_ai_model.update_time = datetime.now()
-    add_ai_model_result = await AiModelService.add_ai_model_services(query_db, add_ai_model)
+    add_ai_model_result = await AiModelService.add_ai_model_services(add_ai_model)
     logger.info(add_ai_model_result.message)
 
     return ResponseUtil.success(msg=add_ai_model_result.message)
@@ -124,15 +119,14 @@ async def add_ai_model(
 async def edit_ai_model(
     request: Request,
     edit_ai_model: AiModelModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],
 ) -> Response:
     if not current_user.user.admin:
-        await AiModelService.check_ai_model_data_scope_services(query_db, edit_ai_model.model_id, data_scope_sql)
+        await AiModelService.check_ai_model_data_scope_services(edit_ai_model.model_id, data_scope_sql)
     edit_ai_model.update_by = current_user.user.user_name
     edit_ai_model.update_time = datetime.now()
-    edit_ai_model_result = await AiModelService.edit_ai_model_services(query_db, edit_ai_model)
+    edit_ai_model_result = await AiModelService.edit_ai_model_services(edit_ai_model)
     logger.info(edit_ai_model_result.message)
 
     return ResponseUtil.success(msg=edit_ai_model_result.message)
@@ -150,16 +144,15 @@ async def edit_ai_model(
 async def delete_ai_model(
     request: Request,
     model_ids: Annotated[str, Path(description='需要删除的模型ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],
 ) -> Response:
     model_id_list = model_ids.split(',')
     for model_id in model_id_list:
         if not current_user.user.admin:
-            await AiModelService.check_ai_model_data_scope_services(query_db, int(model_id), data_scope_sql)
+            await AiModelService.check_ai_model_data_scope_services(int(model_id), data_scope_sql)
     delete_ai_model = DeleteAiModelModel(modelIds=model_ids)
-    delete_ai_model_result = await AiModelService.delete_ai_model_services(query_db, delete_ai_model)
+    delete_ai_model_result = await AiModelService.delete_ai_model_services(delete_ai_model)
     logger.info(delete_ai_model_result.message)
 
     return ResponseUtil.success(msg=delete_ai_model_result.message)
@@ -176,13 +169,12 @@ async def delete_ai_model(
 async def get_ai_model_detail(
     request: Request,
     model_id: Annotated[int, Path(description='模型ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],
 ) -> Response:
     if not current_user.user.admin:
-        await AiModelService.check_ai_model_data_scope_services(query_db, model_id, data_scope_sql)
-    ai_model_detail_result = await AiModelService.ai_model_detail_services(query_db, model_id)
+        await AiModelService.check_ai_model_data_scope_services(model_id, data_scope_sql)
+    ai_model_detail_result = await AiModelService.ai_model_detail_services(model_id)
     logger.info(f'获取model_id为{model_id}的信息成功')
 
     return ResponseUtil.success(data=ai_model_detail_result)

@@ -109,16 +109,24 @@ class RedisContext:
 
     应用启动时调用 set_redis() 注入 aioredis 客户端，
     后续任意位置可通过 get_redis() 获取。请求级别的 clear_all() 不会清除 redis。
+
+    获取优先级：ContextVar（HTTP 请求经中间件注入） → 类级别 _fallback（定时任务 / RPC 等非 HTTP 场景兜底）。
     """
+
+    # 类级别兜底引用：当 ContextVar 未设置时（如定时任务、RPC 等新 asyncio task），回退到此变量
+    _fallback: 'aioredis.Redis | None' = None
 
     @staticmethod
     def set_redis(redis: 'aioredis.Redis') -> Token:
         """
         设置当前可用的 Redis 客户端（应用启动时调用一次）
 
+        同时写入 ContextVar 和类级别 _fallback，确保非 HTTP 场景也能获取。
+
         :param redis: aioredis 客户端
         :return: 上下文变量令牌，用于重置
         """
+        RedisContext._fallback = redis
         return current_redis.set(redis)
 
     @staticmethod
@@ -126,13 +134,17 @@ class RedisContext:
         """
         获取当前可用的 Redis 客户端
 
+        优先从 ContextVar 获取（HTTP 请求路径），未命中则回退到类级别 _fallback（定时任务 / RPC 路径）。
+
         :return: aioredis 客户端
         :raises RuntimeError: 未初始化时抛出
         """
         redis = current_redis.get()
         if redis is None:
+            redis = RedisContext._fallback
+        if redis is None:
             raise RuntimeError(
-                'Redis 客户端未初始化。请在应用启动时调用 RedisContext.set_redis(redis)。'
+                'Redis 客户端未初始化。请在应用启动时调用 RedisUtil.create_redis_pool()。'
             )
         return redis
 
@@ -141,9 +153,14 @@ class RedisContext:
         """
         尝试获取当前可用的 Redis 客户端（不抛异常）
 
+        优先从 ContextVar 获取，未命中则回退到类级别 _fallback。
+
         :return: aioredis 客户端或 None
         """
-        return current_redis.get()
+        redis = current_redis.get()
+        if redis is None:
+            redis = RedisContext._fallback
+        return redis
 
     @staticmethod
     def reset_redis(token: Token) -> None:
@@ -158,5 +175,8 @@ class RedisContext:
     def clear() -> None:
         """
         清空当前 Redis 客户端（应用关闭时调用）
+
+        同时清除 ContextVar 和类级别 _fallback。
         """
+        RedisContext._fallback = None
         current_redis.set(None)

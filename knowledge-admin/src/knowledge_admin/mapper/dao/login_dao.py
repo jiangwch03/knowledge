@@ -1,17 +1,17 @@
+from knowledge_common.common.transactional import get_current_session
 from knowledge_common.entity.do.dept_do import SysDept
 from knowledge_common.entity.do.user_do import SysUser
 from sqlalchemy import Row, and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def login_by_account(db: AsyncSession, user_name: str) -> Row[tuple[SysUser, SysDept]] | None:
+async def login_by_account(user_name: str) -> Row[tuple[SysUser, SysDept]] | None:
     """
     根据用户名查询用户信息
 
-    :param db: orm对象
     :param user_name: 用户名
     :return: 用户对象
     """
+    db = get_current_session()
     user = (
         await db.execute(
             select(SysUser, SysDept)

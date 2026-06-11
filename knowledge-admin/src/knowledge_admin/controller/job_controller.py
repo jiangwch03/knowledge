@@ -6,7 +6,6 @@ from fastapi.responses import StreamingResponse
 from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
@@ -28,7 +27,6 @@ from knowledge_common.utils.common_util import bytes2file_response
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.service.job_service import JobService
 
@@ -48,10 +46,9 @@ job_controller = APIRouterPro(
 async def get_system_job_list(
     request: Request,
     job_page_query: Annotated[JobPageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
-    job_page_query_result = await JobService.get_job_list_services(query_db, job_page_query, is_page=True)
+    job_page_query_result = await JobService.get_job_list_services(job_page_query, is_page=True)
     logger.info('获取成功')
 
     return ResponseUtil.success(model_content=job_page_query_result)
@@ -70,14 +67,13 @@ async def get_system_job_list(
 async def add_system_job(
     request: Request,
     add_job: JobModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_job.create_by = current_user.user.user_name
     add_job.create_time = datetime.now()
     add_job.update_by = current_user.user.user_name
     add_job.update_time = datetime.now()
-    add_job_result = await JobService.add_job_services(query_db, add_job)
+    add_job_result = await JobService.add_job_services(add_job)
     logger.info(add_job_result.message)
 
     return ResponseUtil.success(msg=add_job_result.message)
@@ -96,12 +92,11 @@ async def add_system_job(
 async def edit_system_job(
     request: Request,
     edit_job: EditJobModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_job.update_by = current_user.user.user_name
     edit_job.update_time = datetime.now()
-    edit_job_result = await JobService.edit_job_services(query_db, edit_job)
+    edit_job_result = await JobService.edit_job_services(edit_job)
     logger.info(edit_job_result.message)
 
     return ResponseUtil.success(msg=edit_job_result.message)
@@ -119,7 +114,6 @@ async def edit_system_job(
 async def change_system_job_status(
     request: Request,
     change_job: EditJobModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_job = EditJobModel(
@@ -129,7 +123,7 @@ async def change_system_job_status(
         updateTime=datetime.now(),
         type='status',
     )
-    edit_job_result = await JobService.edit_job_services(query_db, edit_job)
+    edit_job_result = await JobService.edit_job_services(edit_job)
     logger.info(edit_job_result.message)
 
     return ResponseUtil.success(msg=edit_job_result.message)
@@ -148,9 +142,8 @@ async def change_system_job_status(
 async def execute_system_job(
     request: Request,
     execute_job: JobModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    execute_job_result = await JobService.execute_job_once_services(query_db, execute_job)
+    execute_job_result = await JobService.execute_job_once_services(execute_job)
     logger.info(execute_job_result.message)
 
     return ResponseUtil.success(msg=execute_job_result.message)
@@ -169,10 +162,9 @@ async def execute_system_job(
 async def delete_system_job(
     request: Request,
     job_ids: Annotated[str, Path(description='需要删除的定时任务ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_job = DeleteJobModel(jobIds=job_ids)
-    delete_job_result = await JobService.delete_job_services(query_db, delete_job)
+    delete_job_result = await JobService.delete_job_services(delete_job)
     logger.info(delete_job_result.message)
 
     return ResponseUtil.success(msg=delete_job_result.message)
@@ -189,9 +181,8 @@ async def delete_system_job(
 async def query_detail_system_job(
     request: Request,
     job_id: Annotated[int, Path(description='任务ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    job_detail_result = await JobService.job_detail_services(query_db, job_id)
+    job_detail_result = await JobService.job_detail_services(job_id)
     logger.info(f'获取job_id为{job_id}的信息成功')
 
     return ResponseUtil.success(data=job_detail_result)
@@ -217,10 +208,9 @@ async def query_detail_system_job(
 async def export_system_job_list(
     request: Request,
     job_page_query: Annotated[JobPageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
-    job_query_result = await JobService.get_job_list_services(query_db, job_page_query, is_page=False)
+    job_query_result = await JobService.get_job_list_services(job_page_query, is_page=False)
     job_export_result = await JobService.export_job_list_services(request, job_query_result)
     logger.info('导出成功')
 
@@ -237,11 +227,10 @@ async def export_system_job_list(
 async def get_system_job_log_list(
     request: Request,
     job_log_page_query: Annotated[JobLogPageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
     job_log_page_query_result = await JobLogService.get_job_log_list_services(
-        query_db, job_log_page_query, is_page=True
+        job_log_page_query, is_page=True
     )
     logger.info('获取成功')
 
@@ -259,9 +248,8 @@ async def get_system_job_log_list(
 @Log(title='定时任务调度日志', business_type=BusinessType.CLEAN)
 async def clear_system_job_log(
     request: Request,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    clear_job_log_result = await JobLogService.clear_job_log_services(query_db)
+    clear_job_log_result = await JobLogService.clear_job_log_services()
     logger.info(clear_job_log_result.message)
 
     return ResponseUtil.success(msg=clear_job_log_result.message)
@@ -279,10 +267,9 @@ async def clear_system_job_log(
 async def delete_system_job_log(
     request: Request,
     job_log_ids: Annotated[str, Path(description='需要删除的定时任务日志ID')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_job_log = DeleteJobLogModel(jobLogIds=job_log_ids)
-    delete_job_log_result = await JobLogService.delete_job_log_services(query_db, delete_job_log)
+    delete_job_log_result = await JobLogService.delete_job_log_services(delete_job_log)
     logger.info(delete_job_log_result.message)
 
     return ResponseUtil.success(msg=delete_job_log_result.message)
@@ -308,10 +295,9 @@ async def delete_system_job_log(
 async def export_system_job_log_list(
     request: Request,
     job_log_page_query: Annotated[JobLogPageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
-    job_log_query_result = await JobLogService.get_job_log_list_services(query_db, job_log_page_query, is_page=False)
+    job_log_query_result = await JobLogService.get_job_log_list_services(job_log_page_query, is_page=False)
     job_log_export_result = await JobLogService.export_job_log_list_services(request, job_log_query_result)
     logger.info('导出成功')
 

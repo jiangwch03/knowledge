@@ -6,7 +6,6 @@ from fastapi.responses import StreamingResponse
 from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
@@ -20,7 +19,6 @@ from knowledge_common.utils.common_util import bytes2file_response
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
-from sqlalchemy.ext.asyncio import AsyncSession
 
 config_controller = APIRouterPro(
     prefix='/system/config', order_num=9, tags=['系统管理-参数管理'], dependencies=[PreAuthDependency()]
@@ -38,10 +36,9 @@ config_controller = APIRouterPro(
 async def get_system_config_list(
     request: Request,
     config_page_query: Annotated[ConfigPageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
-    config_page_query_result = await ConfigService.get_config_list_services(query_db, config_page_query, is_page=True)
+    config_page_query_result = await ConfigService.get_config_list_services(config_page_query, is_page=True)
     logger.info('获取成功')
 
     return ResponseUtil.success(model_content=config_page_query_result)
@@ -60,14 +57,13 @@ async def get_system_config_list(
 async def add_system_config(
     request: Request,
     add_config: ConfigModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_config.create_by = current_user.user.user_name
     add_config.create_time = datetime.now()
     add_config.update_by = current_user.user.user_name
     add_config.update_time = datetime.now()
-    add_config_result = await ConfigService.add_config_services(request, query_db, add_config)
+    add_config_result = await ConfigService.add_config_services(request, add_config)
     logger.info(add_config_result.message)
 
     return ResponseUtil.success(msg=add_config_result.message)
@@ -86,12 +82,11 @@ async def add_system_config(
 async def edit_system_config(
     request: Request,
     edit_config: ConfigModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_config.update_by = current_user.user.user_name
     edit_config.update_time = datetime.now()
-    edit_config_result = await ConfigService.edit_config_services(request, query_db, edit_config)
+    edit_config_result = await ConfigService.edit_config_services(request, edit_config)
     logger.info(edit_config_result.message)
 
     return ResponseUtil.success(msg=edit_config_result.message)
@@ -108,9 +103,8 @@ async def edit_system_config(
 @Log(title='参数管理', business_type=BusinessType.UPDATE)
 async def refresh_system_config(
     request: Request,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    refresh_config_result = await ConfigService.refresh_sys_config_services(request, query_db)
+    refresh_config_result = await ConfigService.refresh_sys_config_services(request)
     logger.info(refresh_config_result.message)
 
     return ResponseUtil.success(msg=refresh_config_result.message)
@@ -128,10 +122,9 @@ async def refresh_system_config(
 async def delete_system_config(
     request: Request,
     config_ids: Annotated[str, Path(description='需要删除的参数主键')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_config = DeleteConfigModel(configIds=config_ids)
-    delete_config_result = await ConfigService.delete_config_services(request, query_db, delete_config)
+    delete_config_result = await ConfigService.delete_config_services(request, delete_config)
     logger.info(delete_config_result.message)
 
     return ResponseUtil.success(msg=delete_config_result.message)
@@ -148,9 +141,8 @@ async def delete_system_config(
 async def query_detail_system_config(
     request: Request,
     config_id: Annotated[int, Path(description='参数主键')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    config_detail_result = await ConfigService.config_detail_services(query_db, config_id)
+    config_detail_result = await ConfigService.config_detail_services(config_id)
     logger.info(f'获取config_id为{config_id}的信息成功')
 
     return ResponseUtil.success(data=config_detail_result)
@@ -190,10 +182,9 @@ async def query_system_config(request: Request, config_key: str) -> Response:
 async def export_system_config_list(
     request: Request,
     config_page_query: Annotated[ConfigPageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
-    config_query_result = await ConfigService.get_config_list_services(query_db, config_page_query, is_page=False)
+    config_query_result = await ConfigService.get_config_list_services(config_page_query, is_page=False)
     config_export_result = await ConfigService.export_config_list_services(config_query_result)
     logger.info('导出成功')
 

@@ -3,7 +3,6 @@ from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import and_, delete, func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
@@ -19,27 +18,27 @@ class DictTypeDao:
     """
 
     @classmethod
-    async def get_dict_type_detail_by_id(cls, db: AsyncSession, dict_id: int) -> SysDictType | None:
+    async def get_dict_type_detail_by_id(cls, dict_id: int) -> SysDictType | None:
         """
         根据字典类型id获取字典类型详细信息
 
-        :param db: orm对象
         :param dict_id: 字典类型id
         :return: 字典类型信息对象
         """
+        db = get_current_session()
         dict_type_info = (await db.execute(select(SysDictType).where(SysDictType.dict_id == dict_id))).scalars().first()
 
         return dict_type_info
 
     @classmethod
-    async def get_dict_type_detail_by_info(cls, db: AsyncSession, dict_type: DictTypeModel) -> SysDictType | None:
+    async def get_dict_type_detail_by_info(cls, dict_type: DictTypeModel) -> SysDictType | None:
         """
         根据字典类型参数获取字典类型信息
 
-        :param db: orm对象
         :param dict_type: 字典类型参数对象
         :return: 字典类型信息对象
         """
+        db = get_current_session()
         dict_type_info = (
             (
                 await db.execute(
@@ -56,29 +55,29 @@ class DictTypeDao:
         return dict_type_info
 
     @classmethod
-    async def get_all_dict_type(cls, db: AsyncSession) -> list[Any]:
+    async def get_all_dict_type(cls) -> list[Any]:
         """
         获取所有的字典类型信息
 
-        :param db: orm对象
         :return: 字典类型信息列表对象
         """
+        db = get_current_session()
         dict_type_info = (await db.execute(select(SysDictType))).scalars().all()
 
         return list_format_datetime(dict_type_info)
 
     @classmethod
     async def get_dict_type_list(
-        cls, db: AsyncSession, query_object: DictTypePageQueryModel, is_page: bool = False
+        cls, query_object: DictTypePageQueryModel, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取字典类型列表信息
 
-        :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 字典类型列表信息对象
         """
+        db = get_current_session()
         query = (
             select(SysDictType)
             .where(
@@ -96,20 +95,20 @@ class DictTypeDao:
             .distinct()
         )
         dict_type_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
-            db, query, query_object.page_num, query_object.page_size, is_page
+            query, query_object.page_num, query_object.page_size, is_page
         )
 
         return dict_type_list
 
     @classmethod
-    async def add_dict_type_dao(cls, db: AsyncSession, dict_type: DictTypeModel) -> SysDictType:
+    async def add_dict_type_dao(cls, dict_type: DictTypeModel) -> SysDictType:
         """
         新增字典类型数据库操作
 
-        :param db: orm对象
         :param dict_type: 字典类型对象
         :return:
         """
+        db = get_current_session()
         db_dict_type = SysDictType(**dict_type.model_dump())
         db.add(db_dict_type)
         await db.flush()
@@ -117,25 +116,25 @@ class DictTypeDao:
         return db_dict_type
 
     @classmethod
-    async def edit_dict_type_dao(cls, db: AsyncSession, dict_type: dict) -> None:
+    async def edit_dict_type_dao(cls, dict_type: dict) -> None:
         """
         编辑字典类型数据库操作
 
-        :param db: orm对象
         :param dict_type: 需要更新的字典类型字典
         :return:
         """
+        db = get_current_session()
         await db.execute(update(SysDictType), [dict_type])
 
     @classmethod
-    async def delete_dict_type_dao(cls, db: AsyncSession, dict_type: DictTypeModel) -> None:
+    async def delete_dict_type_dao(cls, dict_type: DictTypeModel) -> None:
         """
         删除字典类型数据库操作
 
-        :param db: orm对象
         :param dict_type: 字典类型对象
         :return:
         """
+        db = get_current_session()
         await db.execute(delete(SysDictType).where(SysDictType.dict_id.in_([dict_type.dict_id])))
 
 
@@ -145,16 +144,14 @@ class DictDataDao:
     """
 
     @classmethod
-    async def get_dict_data_detail_by_id(cls, db: AsyncSession | None = None, dict_code: int | None = None) -> SysDictData | None:
+    async def get_dict_data_detail_by_id(cls, dict_code: int | None = None) -> SysDictData | None:
         """
         根据字典数据id获取字典数据详细信息
 
-        :param db: orm对象，不传则从事务上下文获取
         :param dict_code: 字典数据id
         :return: 字典数据信息对象
         """
-        if db is None:
-            db = get_current_session()
+        db = get_current_session()
         dict_data_info = (
             (await db.execute(select(SysDictData).where(SysDictData.dict_code == dict_code))).scalars().first()
         )
@@ -162,14 +159,14 @@ class DictDataDao:
         return dict_data_info
 
     @classmethod
-    async def get_dict_data_detail_by_info(cls, db: AsyncSession, dict_data: DictDataModel) -> SysDictData | None:
+    async def get_dict_data_detail_by_info(cls, dict_data: DictDataModel) -> SysDictData | None:
         """
         根据字典数据参数获取字典数据信息
 
-        :param db: orm对象
         :param dict_data: 字典数据参数对象
         :return: 字典数据信息对象
         """
+        db = get_current_session()
         dict_data_info = (
             (
                 await db.execute(
@@ -188,16 +185,16 @@ class DictDataDao:
 
     @classmethod
     async def get_dict_data_list(
-        cls, db: AsyncSession, query_object: DictDataPageQueryModel, is_page: bool = False
+        cls, query_object: DictDataPageQueryModel, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取字典数据列表信息
 
-        :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 字典数据列表信息对象
         """
+        db = get_current_session()
         query = (
             select(SysDictData)
             .where(
@@ -209,20 +206,20 @@ class DictDataDao:
             .distinct()
         )
         dict_data_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
-            db, query, query_object.page_num, query_object.page_size, is_page
+            query, query_object.page_num, query_object.page_size, is_page
         )
 
         return dict_data_list
 
     @classmethod
-    async def query_dict_data_list(cls, db: AsyncSession, dict_type: str) -> Sequence[SysDictData]:
+    async def query_dict_data_list(cls, dict_type: str) -> Sequence[SysDictData]:
         """
         根据查询参数获取字典数据列表信息
 
-        :param db: orm对象
         :param dict_type: 字典类型
         :return: 字典数据列表信息对象
         """
+        db = get_current_session()
         dict_data_list = (
             (
                 await db.execute(
@@ -245,16 +242,14 @@ class DictDataDao:
         return dict_data_list
 
     @classmethod
-    async def add_dict_data_dao(cls, db: AsyncSession | None = None, dict_data: DictDataModel | None = None) -> SysDictData:
+    async def add_dict_data_dao(cls, dict_data: DictDataModel | None = None) -> SysDictData:
         """
         新增字典数据数据库操作
 
-        :param db: orm对象，不传则从事务上下文获取
         :param dict_data: 字典数据对象
         :return:
         """
-        if db is None:
-            db = get_current_session()
+        db = get_current_session()
         db_data_type = SysDictData(**dict_data.model_dump())
         db.add(db_data_type)
         await db.flush()
@@ -262,40 +257,36 @@ class DictDataDao:
         return db_data_type
 
     @classmethod
-    async def edit_dict_data_dao(cls, db: AsyncSession | None = None, dict_data: dict | None = None) -> None:
+    async def edit_dict_data_dao(cls, dict_data: dict | None = None) -> None:
         """
         编辑字典数据数据库操作
 
-        :param db: orm对象，不传则从事务上下文获取
         :param dict_data: 需要更新的字典数据字典
         :return:
         """
-        if db is None:
-            db = get_current_session()
+        db = get_current_session()
         await db.execute(update(SysDictData), [dict_data])
 
     @classmethod
-    async def delete_dict_data_dao(cls, db: AsyncSession | None = None, dict_data: DictDataModel | None = None) -> None:
+    async def delete_dict_data_dao(cls, dict_data: DictDataModel | None = None) -> None:
         """
         删除字典数据数据库操作
 
-        :param db: orm对象，不传则从事务上下文获取
         :param dict_data: 字典数据对象
         :return:
         """
-        if db is None:
-            db = get_current_session()
+        db = get_current_session()
         await db.execute(delete(SysDictData).where(SysDictData.dict_code.in_([dict_data.dict_code])))
 
     @classmethod
-    async def count_dict_data_dao(cls, db: AsyncSession, dict_type: str) -> int | None:
+    async def count_dict_data_dao(cls, dict_type: str) -> int | None:
         """
         根据字典类型查询字典类型关联的字典数据数量
 
-        :param db: orm对象
         :param dict_type: 字典类型
         :return: 字典类型关联的字典数据数量
         """
+        db = get_current_session()
         dict_data_count = (
             await db.execute(select(func.count('*')).select_from(SysDictData).where(SysDictData.dict_type == dict_type))
         ).scalar()

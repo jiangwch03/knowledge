@@ -1,16 +1,14 @@
 from datetime import timedelta, datetime
 
 import jwt
-from fastapi import Depends, Form, Request
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from knowledge_common.dao.user_login_dao import UserDao
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_common.common.context import RequestContext
 from knowledge_common.common.enums import RedisInitKeyConfig
 from knowledge_common.config.env import AppConfig, JwtConfig
-from knowledge_common.config.get_db import get_db
 from knowledge_common.entity.vo.user_vo import CurrentUserModel, TokenData, UserInfoModel
 from knowledge_common.exceptions.exception import AuthException
 from knowledge_common.utils.common_util import CamelCaseUtil
@@ -36,14 +34,13 @@ class LoginUserService:
 
     @classmethod
     async def get_current_user(
-        cls, request: Request = Request, token: str = Depends(oauth2_scheme), query_db: AsyncSession = Depends(get_db)
+        cls, request: Request = Request, token: str = Depends(oauth2_scheme)
     ) -> CurrentUserModel:
         """
         根据token获取当前用户信息
 
         :param request: Request对象
         :param token: 用户token
-        :param query_db: orm对象
         :return: 当前用户信息对象
         :raise: 令牌异常AuthException
         """
@@ -63,7 +60,7 @@ class LoginUserService:
         except InvalidTokenError as e:
             logger.warning('用户token已失效，请重新登录')
             raise AuthException(data='', message='用户token已失效，请重新登录') from e
-        query_user = await UserDao.get_user_by_id(query_db, user_id=token_data.user_id)
+        query_user = await UserDao.get_user_by_id(user_id=token_data.user_id)
         if query_user.get('user_basic_info') is None:
             logger.warning('用户token不合法')
             raise AuthException(data='', message='用户token不合法')

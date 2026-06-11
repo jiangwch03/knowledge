@@ -1,10 +1,10 @@
 from datetime import datetime, time
 from typing import Any
 
+from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
 from knowledge_common.utils.page_util import PageUtil
 from sqlalchemy import delete, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.mapper.do.notice_do import SysNotice
 from knowledge_admin.vo.notice_vo import NoticeModel, NoticePageQueryModel
@@ -16,27 +16,27 @@ class NoticeDao:
     """
 
     @classmethod
-    async def get_notice_detail_by_id(cls, db: AsyncSession, notice_id: int) -> SysNotice | None:
+    async def get_notice_detail_by_id(cls, notice_id: int) -> SysNotice | None:
         """
         根据通知公告id获取通知公告详细信息
 
-        :param db: orm对象
         :param notice_id: 通知公告id
         :return: 通知公告信息对象
         """
+        db = get_current_session()
         notice_info = (await db.execute(select(SysNotice).where(SysNotice.notice_id == notice_id))).scalars().first()
 
         return notice_info
 
     @classmethod
-    async def get_notice_detail_by_info(cls, db: AsyncSession, notice: NoticeModel) -> SysNotice | None:
+    async def get_notice_detail_by_info(cls, notice: NoticeModel) -> SysNotice | None:
         """
         根据通知公告参数获取通知公告信息
 
-        :param db: orm对象
         :param notice: 通知公告参数对象
         :return: 通知公告信息对象
         """
+        db = get_current_session()
         notice_info = (
             (
                 await db.execute(
@@ -55,16 +55,16 @@ class NoticeDao:
 
     @classmethod
     async def get_notice_list(
-        cls, db: AsyncSession, query_object: NoticePageQueryModel, is_page: bool = False
+        cls, query_object: NoticePageQueryModel, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取通知公告列表信息
 
-        :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 通知公告列表信息对象
         """
+        db = get_current_session()
         query = (
             select(SysNotice)
             .where(
@@ -82,20 +82,20 @@ class NoticeDao:
             .distinct()
         )
         notice_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
-            db, query, query_object.page_num, query_object.page_size, is_page
+            query, query_object.page_num, query_object.page_size, is_page
         )
 
         return notice_list
 
     @classmethod
-    async def add_notice_dao(cls, db: AsyncSession, notice: NoticeModel) -> SysNotice:
+    async def add_notice_dao(cls, notice: NoticeModel) -> SysNotice:
         """
         新增通知公告数据库操作
 
-        :param db: orm对象
         :param notice: 通知公告对象
         :return:
         """
+        db = get_current_session()
         db_notice = SysNotice(**notice.model_dump())
         db.add(db_notice)
         await db.flush()
@@ -103,23 +103,23 @@ class NoticeDao:
         return db_notice
 
     @classmethod
-    async def edit_notice_dao(cls, db: AsyncSession, notice: dict) -> None:
+    async def edit_notice_dao(cls, notice: dict) -> None:
         """
         编辑通知公告数据库操作
 
-        :param db: orm对象
         :param notice: 需要更新的通知公告字典
         :return:
         """
+        db = get_current_session()
         await db.execute(update(SysNotice), [notice])
 
     @classmethod
-    async def delete_notice_dao(cls, db: AsyncSession, notice: NoticeModel) -> None:
+    async def delete_notice_dao(cls, notice: NoticeModel) -> None:
         """
         删除通知公告数据库操作
 
-        :param db: orm对象
         :param notice: 通知公告对象
         :return:
         """
+        db = get_current_session()
         await db.execute(delete(SysNotice).where(SysNotice.notice_id.in_([notice.notice_id])))

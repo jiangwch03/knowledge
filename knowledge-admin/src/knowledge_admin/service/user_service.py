@@ -5,6 +5,7 @@ from typing import Any
 import pandas as pd
 from fastapi import Request, UploadFile
 from knowledge_common.common.constant import CommonConstant
+from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.entity.do.user_do import SysUserRole
 from knowledge_common.entity.vo.post_vo import PostPageQueryModel
@@ -33,7 +34,6 @@ from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.excel_util import ExcelUtil
 from knowledge_common.utils.pwd_util import PwdUtil
 from sqlalchemy import ColumnElement
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.mapper.dao.user_dao import UserDao
 from knowledge_admin.service.dept_service import DeptService
@@ -49,7 +49,6 @@ class UserService:
     @classmethod
     async def get_user_list_services(
         cls,
-        query_db: AsyncSession,
         query_object: UserPageQueryModel,
         data_scope_sql: ColumnElement,
         is_page: bool = False,
@@ -57,13 +56,12 @@ class UserService:
         """
         获取用户列表信息service
 
-        :param query_db: orm对象
         :param query_object: 查询参数对象
         :param data_scope_sql: 数据权限对应的查询sql语句
         :param is_page: 是否开启分页
         :return: 用户列表信息对象
         """
-        query_result = await UserDao.get_user_list(query_db, query_object, data_scope_sql, is_page)
+        query_result = await UserDao.get_user_list(query_object, data_scope_sql, is_page)
         if is_page:
             user_list_result = PageModel[UserRowModel](
                 **{
@@ -92,96 +90,87 @@ class UserService:
 
     @classmethod
     async def check_user_data_scope_services(
-        cls, query_db: AsyncSession, user_id: int, data_scope_sql: ColumnElement
+        cls, user_id: int, data_scope_sql: ColumnElement
     ) -> CrudResponseModel:
         """
         校验用户数据权限service
 
-        :param query_db: orm对象
         :param user_id: 用户id
         :param data_scope_sql: 数据权限对应的查询sql语句
         :return: 校验结果
         """
-        users = await UserDao.get_user_list(query_db, UserPageQueryModel(userId=user_id), data_scope_sql, is_page=False)
+        users = await UserDao.get_user_list(UserPageQueryModel(userId=user_id), data_scope_sql, is_page=False)
         if users:
             return CrudResponseModel(is_success=True, message='校验通过')
         raise ServiceException(message='没有权限访问用户数据')
 
     @classmethod
-    async def check_user_name_unique_services(cls, query_db: AsyncSession, page_object: UserModel) -> bool:
+    async def check_user_name_unique_services(cls, page_object: UserModel) -> bool:
         """
         校验用户名是否唯一service
 
-        :param query_db: orm对象
         :param page_object: 用户对象
         :return: 校验结果
         """
         user_id = -1 if page_object.user_id is None else page_object.user_id
-        user = await UserDao.get_user_by_info(query_db, UserModel(userName=page_object.user_name))
+        user = await UserDao.get_user_by_info(UserModel(userName=page_object.user_name))
         if user and user.user_id != user_id:
             return CommonConstant.NOT_UNIQUE
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def check_phonenumber_unique_services(cls, query_db: AsyncSession, page_object: UserModel) -> bool:
+    async def check_phonenumber_unique_services(cls, page_object: UserModel) -> bool:
         """
         校验用户手机号是否唯一service
 
-        :param query_db: orm对象
         :param page_object: 用户对象
         :return: 校验结果
         """
         user_id = -1 if page_object.user_id is None else page_object.user_id
-        user = await UserDao.get_user_by_info(query_db, UserModel(phonenumber=page_object.phonenumber))
+        user = await UserDao.get_user_by_info(UserModel(phonenumber=page_object.phonenumber))
         if user and user.user_id != user_id:
             return CommonConstant.NOT_UNIQUE
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def check_email_unique_services(cls, query_db: AsyncSession, page_object: UserModel) -> bool:
+    async def check_email_unique_services(cls, page_object: UserModel) -> bool:
         """
         校验用户邮箱是否唯一service
 
-        :param query_db: orm对象
         :param page_object: 用户对象
         :return: 校验结果
         """
         user_id = -1 if page_object.user_id is None else page_object.user_id
-        user = await UserDao.get_user_by_info(query_db, UserModel(email=page_object.email))
+        user = await UserDao.get_user_by_info(UserModel(email=page_object.email))
         if user and user.user_id != user_id:
             return CommonConstant.NOT_UNIQUE
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def add_user_services(cls, query_db: AsyncSession, page_object: AddUserModel) -> CrudResponseModel:
+    @transactional()
+    async def add_user_services(cls, page_object: AddUserModel) -> CrudResponseModel:
         """
         新增用户信息service
 
-        :param query_db: orm对象
         :param page_object: 新增用户对象
         :return: 新增用户校验结果
         """
         add_user = UserModel(**page_object.model_dump(by_alias=True))
-        if not await cls.check_user_name_unique_services(query_db, page_object):
+        if not await cls.check_user_name_unique_services(page_object):
             raise ServiceException(message=f'新增用户{page_object.user_name}失败，登录账号已存在')
-        if page_object.phonenumber and not await cls.check_phonenumber_unique_services(query_db, page_object):
+        if page_object.phonenumber and not await cls.check_phonenumber_unique_services(page_object):
             raise ServiceException(message=f'新增用户{page_object.user_name}失败，手机号码已存在')
-        if page_object.email and not await cls.check_email_unique_services(query_db, page_object):
+        if page_object.email and not await cls.check_email_unique_services(page_object):
             raise ServiceException(message=f'新增用户{page_object.user_name}失败，邮箱账号已存在')
-        try:
-            add_result = await UserDao.add_user_dao(query_db, add_user)
-            user_id = add_result.user_id
-            if page_object.role_ids:
-                for role in page_object.role_ids:
-                    await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=user_id, roleId=role))
-            if page_object.post_ids:
-                for post in page_object.post_ids:
-                    await UserDao.add_user_post_dao(query_db, UserPostModel(userId=user_id, postId=post))
-            await query_db.commit()
-            return CrudResponseModel(is_success=True, message='新增成功')
-        except Exception as e:
-            await query_db.rollback()
-            raise e
+        add_result = await UserDao.add_user_dao(add_user)
+        user_id = add_result.user_id
+        if page_object.role_ids:
+            for role in page_object.role_ids:
+                await UserDao.add_user_role_dao(UserRoleModel(userId=user_id, roleId=role))
+        if page_object.post_ids:
+            for post in page_object.post_ids:
+                await UserDao.add_user_post_dao(UserPostModel(userId=user_id, postId=post))
+        return CrudResponseModel(is_success=True, message='新增成功')
 
     @classmethod
     def _deal_edit_user(cls, page_object: EditUserModel, edit_user: dict[str, Any]) -> None:
@@ -200,90 +189,79 @@ class UserService:
             del edit_user['type']
 
     @classmethod
-    async def edit_user_services(cls, query_db: AsyncSession, page_object: EditUserModel) -> CrudResponseModel:
+    @transactional()
+    async def edit_user_services(cls, page_object: EditUserModel) -> CrudResponseModel:
         """
         编辑用户信息service
 
-        :param query_db: orm对象
         :param page_object: 编辑用户对象
         :return: 编辑用户校验结果
         """
         edit_user = page_object.model_dump(exclude_unset=True, exclude={'admin'})
         cls._deal_edit_user(page_object, edit_user)
-        user_info = await cls.user_detail_services(query_db, edit_user.get('user_id'))
+        user_info = await cls.user_detail_services(edit_user.get('user_id'))
         if user_info.data and user_info.data.user_id:
             if page_object.type not in ['status', 'avatar', 'pwd']:
-                if not await cls.check_user_name_unique_services(query_db, page_object):
+                if not await cls.check_user_name_unique_services(page_object):
                     raise ServiceException(message=f'修改用户{page_object.user_name}失败，登录账号已存在')
-                if page_object.phonenumber and not await cls.check_phonenumber_unique_services(query_db, page_object):
+                if page_object.phonenumber and not await cls.check_phonenumber_unique_services(page_object):
                     raise ServiceException(message=f'修改用户{page_object.user_name}失败，手机号码已存在')
-                if page_object.email and not await cls.check_email_unique_services(query_db, page_object):
+                if page_object.email and not await cls.check_email_unique_services(page_object):
                     raise ServiceException(message=f'修改用户{page_object.user_name}失败，邮箱账号已存在')
-            try:
-                await UserDao.edit_user_dao(query_db, edit_user)
-                if page_object.type not in {'status', 'avatar', 'pwd'}:
-                    await UserDao.delete_user_role_dao(query_db, UserRoleModel(userId=page_object.user_id))
-                    await UserDao.delete_user_post_dao(query_db, UserPostModel(userId=page_object.user_id))
-                    if page_object.role_ids:
-                        for role in page_object.role_ids:
-                            await UserDao.add_user_role_dao(
-                                query_db, UserRoleModel(userId=page_object.user_id, roleId=role)
-                            )
-                    if page_object.post_ids:
-                        for post in page_object.post_ids:
-                            await UserDao.add_user_post_dao(
-                                query_db, UserPostModel(userId=page_object.user_id, postId=post)
-                            )
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='更新成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+            await UserDao.edit_user_dao(edit_user)
+            if page_object.type not in {'status', 'avatar', 'pwd'}:
+                await UserDao.delete_user_role_dao(UserRoleModel(userId=page_object.user_id))
+                await UserDao.delete_user_post_dao(UserPostModel(userId=page_object.user_id))
+                if page_object.role_ids:
+                    for role in page_object.role_ids:
+                        await UserDao.add_user_role_dao(
+                            UserRoleModel(userId=page_object.user_id, roleId=role)
+                        )
+                if page_object.post_ids:
+                    for post in page_object.post_ids:
+                        await UserDao.add_user_post_dao(
+                            UserPostModel(userId=page_object.user_id, postId=post)
+                        )
+            return CrudResponseModel(is_success=True, message='更新成功')
         else:
             raise ServiceException(message='用户不存在')
 
     @classmethod
-    async def delete_user_services(cls, query_db: AsyncSession, page_object: DeleteUserModel) -> CrudResponseModel:
+    @transactional()
+    async def delete_user_services(cls, page_object: DeleteUserModel) -> CrudResponseModel:
         """
         删除用户信息service
 
-        :param query_db: orm对象
         :param page_object: 删除用户对象
         :return: 删除用户校验结果
         """
         if page_object.user_ids:
             user_id_list = page_object.user_ids.split(',')
-            try:
-                for user_id in user_id_list:
-                    user_id_dict = {
-                        'userId': user_id,
-                        'updateBy': page_object.update_by,
-                        'updateTime': page_object.update_time,
-                    }
-                    await UserDao.delete_user_role_dao(query_db, UserRoleModel(**user_id_dict))
-                    await UserDao.delete_user_post_dao(query_db, UserPostModel(**user_id_dict))
-                    await UserDao.delete_user_dao(query_db, UserModel(**user_id_dict))
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='删除成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+            for user_id in user_id_list:
+                user_id_dict = {
+                    'userId': user_id,
+                    'updateBy': page_object.update_by,
+                    'updateTime': page_object.update_time,
+                }
+                await UserDao.delete_user_role_dao(UserRoleModel(**user_id_dict))
+                await UserDao.delete_user_post_dao(UserPostModel(**user_id_dict))
+                await UserDao.delete_user_dao(UserModel(**user_id_dict))
+            return CrudResponseModel(is_success=True, message='删除成功')
         else:
             raise ServiceException(message='传入用户id为空')
 
     @classmethod
-    async def user_detail_services(cls, query_db: AsyncSession, user_id: int | str) -> UserDetailModel:
+    async def user_detail_services(cls, user_id: int | str) -> UserDetailModel:
         """
         获取用户详细信息service
 
-        :param query_db: orm对象
         :param user_id: 用户id
         :return: 用户id对应的信息
         """
-        posts = await PostService.get_post_list_services(query_db, PostPageQueryModel(), is_page=False)
-        roles = await RoleService.get_role_select_option_services(query_db)
+        posts = await PostService.get_post_list_services(PostPageQueryModel(), is_page=False)
+        roles = await RoleService.get_role_select_option_services()
         if user_id != '':
-            query_user = await UserDao.get_user_detail_by_id(query_db, user_id=user_id)
+            query_user = await UserDao.get_user_detail_by_id(user_id=user_id)
             post_ids = ','.join([str(row.post_id) for row in query_user.get('user_post_info')])
             post_ids_list = [row.post_id for row in query_user.get('user_post_info')]
             role_ids = ','.join([str(row.role_id) for row in query_user.get('user_role_info')])
@@ -306,15 +284,14 @@ class UserService:
         return UserDetailModel(posts=posts, roles=roles)
 
     @classmethod
-    async def user_profile_services(cls, query_db: AsyncSession, user_id: int) -> UserProfileModel:
+    async def user_profile_services(cls, user_id: int) -> UserProfileModel:
         """
         获取用户个人详细信息service
 
-        :param query_db: orm对象
         :param user_id: 用户id
         :return: 用户id对应的信息
         """
-        query_user = await UserDao.get_user_detail_by_id(query_db, user_id=user_id)
+        query_user = await UserDao.get_user_detail_by_id(user_id=user_id)
         post_ids = ','.join([str(row.post_id) for row in query_user.get('user_post_info')])
         post_group = ','.join([row.post_name for row in query_user.get('user_post_info')])
         role_ids = ','.join([str(row.role_id) for row in query_user.get('user_role_info')])
@@ -333,17 +310,17 @@ class UserService:
         )
 
     @classmethod
-    async def reset_user_services(cls, query_db: AsyncSession, page_object: ResetUserModel) -> CrudResponseModel:
+    @transactional()
+    async def reset_user_services(cls, page_object: ResetUserModel) -> CrudResponseModel:
         """
         重置用户密码service
 
-        :param query_db: orm对象
         :param page_object: 重置用户对象
         :return: 重置用户校验结果
         """
         reset_user = page_object.model_dump(exclude_unset=True, exclude={'admin'})
         if page_object.old_password:
-            user = (await UserDao.get_user_detail_by_id(query_db, user_id=page_object.user_id)).get('user_basic_info')
+            user = (await UserDao.get_user_detail_by_id(user_id=page_object.user_id)).get('user_basic_info')
             if not PwdUtil.verify_password(page_object.old_password, user.password):
                 raise ServiceException(message='修改密码失败，旧密码错误')
             if PwdUtil.verify_password(page_object.password, user.password):
@@ -352,14 +329,9 @@ class UserService:
         if page_object.sms_code and page_object.session_id:
             del reset_user['sms_code']
             del reset_user['session_id']
-        try:
-            reset_user['password'] = PwdUtil.get_password_hash(page_object.password)
-            await UserDao.edit_user_dao(query_db, reset_user)
-            await query_db.commit()
-            return CrudResponseModel(is_success=True, message='重置成功')
-        except Exception as e:
-            await query_db.rollback()
-            raise e
+        reset_user['password'] = PwdUtil.get_password_hash(page_object.password)
+        await UserDao.edit_user_dao(reset_user)
+        return CrudResponseModel(is_success=True, message='重置成功')
 
     @classmethod
     def _set_row_sex_value(cls, row: pd.Series) -> None:
@@ -390,10 +362,10 @@ class UserService:
             row['status'] = '1'
 
     @classmethod
+    @transactional()
     async def batch_import_user_services(
         cls,
         request: Request,
-        query_db: AsyncSession,
         file: UploadFile,
         update_support: bool,
         current_user: CurrentUserModel,
@@ -404,7 +376,6 @@ class UserService:
         批量导入用户service
 
         :param request: Request对象
-        :param query_db: orm对象
         :param file: 用户导入文件对象
         :param update_support: 用户存在时是否更新
         :param current_user: 当前用户对象
@@ -427,69 +398,64 @@ class UserService:
         df.rename(columns=header_dict, inplace=True)
         add_error_result = []
         count = 0
-        try:
-            for _index, row in df.iterrows():
-                count = count + 1
-                cls._set_row_sex_value(row)
-                cls._set_row_status_value(row)
-                add_user = UserModel(
-                    deptId=row['dept_id'],
-                    userName=row['user_name'],
-                    password=PwdUtil.get_password_hash(
-                        await ConfigService.query_config_list_from_cache_services(
-                            request.app.state.redis, 'sys.user.initPassword'
-                        )
-                    ),
-                    nickName=row['nick_name'],
-                    email=row['email'],
-                    phonenumber=str(row['phonenumber']),
-                    sex=row['sex'],
-                    status=row['status'],
-                    createBy=current_user.user.user_name,
-                    createTime=datetime.now(),
-                    updateBy=current_user.user.user_name,
-                    updateTime=datetime.now(),
-                )
-                user_info = await UserDao.get_user_by_info(query_db, UserModel(userName=row['user_name']))
-                if user_info:
-                    if update_support:
-                        edit_user_model = UserModel(
-                            userId=user_info.user_id,
-                            deptId=row['dept_id'],
-                            userName=row['user_name'],
-                            nickName=row['nick_name'],
-                            email=row['email'],
-                            phonenumber=str(row['phonenumber']),
-                            sex=row['sex'],
-                            status=row['status'],
-                            updateBy=current_user.user.user_name,
-                            updateTime=datetime.now(),
-                        )
-                        edit_user_model.validate_fields()
-                        await cls.check_user_allowed_services(edit_user_model)
-                        if not current_user.user.admin:
-                            await cls.check_user_data_scope_services(
-                                query_db, edit_user_model.user_id, user_data_scope_sql
-                            )
-                            await DeptService.check_dept_data_scope_services(
-                                query_db, edit_user_model.dept_id, dept_data_scope_sql
-                            )
-                        edit_user = edit_user_model.model_dump(exclude_unset=True)
-                        await UserDao.edit_user_dao(query_db, edit_user)
-                    else:
-                        add_error_result.append(f'{count}.用户账号{row["user_name"]}已存在')
-                else:
-                    add_user.validate_fields()
+        for _index, row in df.iterrows():
+            count = count + 1
+            cls._set_row_sex_value(row)
+            cls._set_row_status_value(row)
+            add_user = UserModel(
+                deptId=row['dept_id'],
+                userName=row['user_name'],
+                password=PwdUtil.get_password_hash(
+                    await ConfigService.query_config_list_from_cache_services(
+                        request.app.state.redis, 'sys.user.initPassword'
+                    )
+                ),
+                nickName=row['nick_name'],
+                email=row['email'],
+                phonenumber=str(row['phonenumber']),
+                sex=row['sex'],
+                status=row['status'],
+                createBy=current_user.user.user_name,
+                createTime=datetime.now(),
+                updateBy=current_user.user.user_name,
+                updateTime=datetime.now(),
+            )
+            user_info = await UserDao.get_user_by_info(UserModel(userName=row['user_name']))
+            if user_info:
+                if update_support:
+                    edit_user_model = UserModel(
+                        userId=user_info.user_id,
+                        deptId=row['dept_id'],
+                        userName=row['user_name'],
+                        nickName=row['nick_name'],
+                        email=row['email'],
+                        phonenumber=str(row['phonenumber']),
+                        sex=row['sex'],
+                        status=row['status'],
+                        updateBy=current_user.user.user_name,
+                        updateTime=datetime.now(),
+                    )
+                    edit_user_model.validate_fields()
+                    await cls.check_user_allowed_services(edit_user_model)
                     if not current_user.user.admin:
-                        await DeptService.check_dept_data_scope_services(
-                            query_db, add_user.dept_id, dept_data_scope_sql
+                        await cls.check_user_data_scope_services(
+                            edit_user_model.user_id, user_data_scope_sql
                         )
-                    await UserDao.add_user_dao(query_db, add_user)
-            await query_db.commit()
-            return CrudResponseModel(is_success=True, message='\n'.join(add_error_result))
-        except Exception as e:
-            await query_db.rollback()
-            raise e
+                        await DeptService.check_dept_data_scope_services(
+                            edit_user_model.dept_id, dept_data_scope_sql
+                        )
+                    edit_user = edit_user_model.model_dump(exclude_unset=True)
+                    await UserDao.edit_user_dao(edit_user)
+                else:
+                    add_error_result.append(f'{count}.用户账号{row["user_name"]}已存在')
+            else:
+                add_user.validate_fields()
+                if not current_user.user.admin:
+                    await DeptService.check_dept_data_scope_services(
+                        add_user.dept_id, dept_data_scope_sql
+                    )
+                await UserDao.add_user_dao(add_user)
+        return CrudResponseModel(is_success=True, message='\n'.join(add_error_result))
 
     @staticmethod
     async def get_user_import_template_services() -> bytes:
@@ -550,16 +516,15 @@ class UserService:
 
     @classmethod
     async def get_user_role_allocated_list_services(
-        cls, query_db: AsyncSession, page_object: UserRoleQueryModel
+        cls, page_object: UserRoleQueryModel
     ) -> UserRoleResponseModel:
         """
         根据用户id获取已分配角色列表
 
-        :param query_db: orm对象
         :param page_object: 用户关联角色对象
         :return: 已分配角色列表
         """
-        query_user = await UserDao.get_user_detail_by_id(query_db, page_object.user_id)
+        query_user = await UserDao.get_user_detail_by_id(page_object.user_id)
         post_ids = ','.join([str(row.post_id) for row in query_user.get('user_post_info')])
         role_ids = ','.join([str(row.role_id) for row in query_user.get('user_role_info')])
         user = UserInfoModel(
@@ -570,7 +535,7 @@ class UserService:
             role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
         )
         query_role_list = [
-            SelectedRoleModel(**row) for row in await RoleService.get_role_select_option_services(query_db)
+            SelectedRoleModel(**row) for row in await RoleService.get_role_select_option_services()
         ]
         for model_a in query_role_list:
             for model_b in user.role:
@@ -581,99 +546,73 @@ class UserService:
         return result
 
     @classmethod
-    async def add_user_role_services(cls, query_db: AsyncSession, page_object: CrudUserRoleModel) -> CrudResponseModel:
+    @transactional()
+    async def add_user_role_services(cls, page_object: CrudUserRoleModel) -> CrudResponseModel:
         """
         新增用户关联角色信息service
 
-        :param query_db: orm对象
         :param page_object: 新增用户关联角色对象
         :return: 新增用户关联角色校验结果
         """
         if page_object.user_id and page_object.role_ids:
             role_id_list = page_object.role_ids.split(',')
-            try:
-                await UserDao.delete_user_role_by_user_and_role_dao(query_db, UserRoleModel(userId=page_object.user_id))
-                for role_id in role_id_list:
-                    await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id))
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='分配成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+            await UserDao.delete_user_role_by_user_and_role_dao(UserRoleModel(userId=page_object.user_id))
+            for role_id in role_id_list:
+                await UserDao.add_user_role_dao(UserRoleModel(userId=page_object.user_id, roleId=role_id))
+            return CrudResponseModel(is_success=True, message='分配成功')
         elif page_object.user_id and not page_object.role_ids:
-            try:
-                await UserDao.delete_user_role_by_user_and_role_dao(query_db, UserRoleModel(userId=page_object.user_id))
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='分配成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+            await UserDao.delete_user_role_by_user_and_role_dao(UserRoleModel(userId=page_object.user_id))
+            return CrudResponseModel(is_success=True, message='分配成功')
         elif page_object.user_ids and page_object.role_id:
             user_id_list = page_object.user_ids.split(',')
-            try:
-                for user_id in user_id_list:
-                    user_role = await cls.detail_user_role_services(
-                        query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id)
-                    )
-                    if user_role:
-                        continue
-                    await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id))
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='新增成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+            for user_id in user_id_list:
+                user_role = await cls.detail_user_role_services(
+                    UserRoleModel(userId=user_id, roleId=page_object.role_id)
+                )
+                if user_role:
+                    continue
+                await UserDao.add_user_role_dao(UserRoleModel(userId=user_id, roleId=page_object.role_id))
+            return CrudResponseModel(is_success=True, message='新增成功')
         else:
             raise ServiceException(message='不满足新增条件')
 
     @classmethod
+    @transactional()
     async def delete_user_role_services(
-        cls, query_db: AsyncSession, page_object: CrudUserRoleModel
+        cls, page_object: CrudUserRoleModel
     ) -> CrudResponseModel:
         """
         删除用户关联角色信息service
 
-        :param query_db: orm对象
         :param page_object: 删除用户关联角色对象
         :return: 删除用户关联角色校验结果
         """
         if (page_object.user_id and page_object.role_id) or (page_object.user_ids and page_object.role_id):
             if page_object.user_id and page_object.role_id:
-                try:
-                    await UserDao.delete_user_role_by_user_and_role_dao(
-                        query_db, UserRoleModel(userId=page_object.user_id, roleId=page_object.role_id)
-                    )
-                    await query_db.commit()
-                    return CrudResponseModel(is_success=True, message='删除成功')
-                except Exception as e:
-                    await query_db.rollback()
-                    raise e
+                await UserDao.delete_user_role_by_user_and_role_dao(
+                    UserRoleModel(userId=page_object.user_id, roleId=page_object.role_id)
+                )
+                return CrudResponseModel(is_success=True, message='删除成功')
             elif page_object.user_ids and page_object.role_id:
                 user_id_list = page_object.user_ids.split(',')
-                try:
-                    for user_id in user_id_list:
-                        await UserDao.delete_user_role_by_user_and_role_dao(
-                            query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id)
-                        )
-                    await query_db.commit()
-                    return CrudResponseModel(is_success=True, message='删除成功')
-                except Exception as e:
-                    await query_db.rollback()
-                    raise e
+                for user_id in user_id_list:
+                    await UserDao.delete_user_role_by_user_and_role_dao(
+                        UserRoleModel(userId=user_id, roleId=page_object.role_id)
+                    )
+                return CrudResponseModel(is_success=True, message='删除成功')
             else:
                 raise ServiceException(message='不满足删除条件')
         else:
             raise ServiceException(message='传入用户角色关联信息为空')
 
     @classmethod
-    async def detail_user_role_services(cls, query_db: AsyncSession, page_object: UserRoleModel) -> SysUserRole | None:
+    async def detail_user_role_services(cls, page_object: UserRoleModel) -> SysUserRole | None:
         """
         获取用户关联角色详细信息service
 
-        :param query_db: orm对象
         :param page_object: 用户关联角色对象
         :return: 用户关联角色详细信息
         """
-        user_role = await UserDao.get_user_role_detail(query_db, page_object)
+        user_role = await UserDao.get_user_role_detail(page_object)
 
         return user_role

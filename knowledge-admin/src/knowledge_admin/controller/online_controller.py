@@ -3,7 +3,6 @@ from typing import Annotated
 from fastapi import Path, Query, Request, Response
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import PreAuthDependency
 from knowledge_common.common.constant import ApiNamespace
@@ -12,7 +11,6 @@ from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import ResponseBaseModel
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.service.online_service import OnlineService
 from knowledge_admin.vo.online_vo import DeleteOnlineModel, OnlinePageResponseModel, OnlineQueryModel
@@ -54,7 +52,6 @@ async def get_monitor_online_list(
 async def delete_monitor_online(
     request: Request,
     token_ids: Annotated[str, Path(description='需要强退的会话编号')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_online = DeleteOnlineModel(tokenIds=token_ids)
     delete_online_result = await OnlineService.delete_online_services(request, delete_online)

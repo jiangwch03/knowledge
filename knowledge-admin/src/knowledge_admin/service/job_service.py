@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import Request
 from knowledge_common.common.constant import CommonConstant, JobConstant
+from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.config.get_scheduler import SchedulerUtil
 from knowledge_common.dao.job_dao import JobDao
@@ -12,7 +13,6 @@ from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.cron_util import CronUtil
 from knowledge_common.utils.excel_util import ExcelUtil
 from knowledge_common.utils.string_util import StringUtil
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class JobService:
@@ -22,41 +22,39 @@ class JobService:
 
     @classmethod
     async def get_job_list_services(
-        cls, query_db: AsyncSession, query_object: JobPageQueryModel, is_page: bool = False
+        cls, query_object: JobPageQueryModel, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         获取定时任务列表信息service
 
-        :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 定时任务列表信息对象
         """
-        job_list_result = await JobDao.get_job_list(query_db, query_object, is_page)
+        job_list_result = await JobDao.get_job_list(query_object, is_page)
 
         return job_list_result
 
     @classmethod
-    async def check_job_unique_services(cls, query_db: AsyncSession, page_object: JobModel) -> bool:
+    async def check_job_unique_services(cls, page_object: JobModel) -> bool:
         """
         校验定时任务是否存在service
 
-        :param query_db: orm对象
         :param page_object: 定时任务对象
         :return: 校验结果
         """
         job_id = -1 if page_object.job_id is None else page_object.job_id
-        job = await JobDao.get_job_detail_by_info(query_db, page_object)
+        job = await JobDao.get_job_detail_by_info(page_object)
         if job and job.job_id != job_id:
             return CommonConstant.NOT_UNIQUE
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def add_job_services(cls, query_db: AsyncSession, page_object: JobModel) -> CrudResponseModel:
+    @transactional()
+    async def add_job_services(cls, page_object: JobModel) -> CrudResponseModel:
         """
         新增定时任务信息service
 
-        :param query_db: orm对象
         :param page_object: 新增定时任务对象
         :return: 新增定时任务校验结果
         """
@@ -74,19 +72,13 @@ class JobService:
             raise ServiceException(message=f'新增定时任务{page_object.job_name}失败，目标字符串存在违规')
         if not StringUtil.startswith_any_case(page_object.invoke_target, JobConstant.JOB_WHITE_LIST):
             raise ServiceException(message=f'新增定时任务{page_object.job_name}失败，目标字符串不在白名单内')
-        if not await cls.check_job_unique_services(query_db, page_object):
+        if not await cls.check_job_unique_services(page_object):
             raise ServiceException(message=f'新增定时任务{page_object.job_name}失败，定时任务已存在')
-        try:
-            add_job = await JobDao.add_job_dao(query_db, page_object)
-            job_info = await cls.job_detail_services(query_db, add_job.job_id)
-            await query_db.commit()
-            await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
-            result = {'is_success': True, 'message': '新增成功'}
-        except Exception as e:
-            await query_db.rollback()
-            raise e
+        add_job = await JobDao.add_job_dao(page_object)
+        job_info = await cls.job_detail_services(add_job.job_id)
+        await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
 
-        return CrudResponseModel(**result)
+        return CrudResponseModel(is_success=True, message='新增成功')
 
     @classmethod
     def _deal_edit_job(cls, page_object: EditJobModel, edit_job: dict[str, Any]) -> None:
@@ -100,17 +92,17 @@ class JobService:
             del edit_job['type']
 
     @classmethod
-    async def edit_job_services(cls, query_db: AsyncSession, page_object: EditJobModel) -> CrudResponseModel:
+    @transactional()
+    async def edit_job_services(cls, page_object: EditJobModel) -> CrudResponseModel:
         """
         编辑定时任务信息service
 
-        :param query_db: orm对象
         :param page_object: 编辑定时任务对象
         :return: 编辑定时任务校验结果
         """
         edit_job = page_object.model_dump(exclude_unset=True)
         cls._deal_edit_job(page_object, edit_job)
-        job_info = await cls.job_detail_services(query_db, page_object.job_id)
+        job_info = await cls.job_detail_services(page_object.job_id)
         if job_info:
             if page_object.type != 'status':
                 if not CronUtil.validate_cron_expression(page_object.cron_expression):
@@ -133,68 +125,56 @@ class JobService:
                     raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，目标字符串存在违规')
                 if not StringUtil.startswith_any_case(page_object.invoke_target, JobConstant.JOB_WHITE_LIST):
                     raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，目标字符串不在白名单内')
-                if not await cls.check_job_unique_services(query_db, page_object):
+                if not await cls.check_job_unique_services(page_object):
                     raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，定时任务已存在')
-            try:
-                await JobDao.edit_job_dao(query_db, edit_job, job_info)
-                await query_db.commit()
-                await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
-                return CrudResponseModel(is_success=True, message='更新成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+            await JobDao.edit_job_dao(edit_job, job_info)
+            await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
+            return CrudResponseModel(is_success=True, message='更新成功')
         else:
             raise ServiceException(message='定时任务不存在')
 
     @classmethod
-    async def execute_job_once_services(cls, query_db: AsyncSession, page_object: JobModel) -> CrudResponseModel:
+    async def execute_job_once_services(cls, page_object: JobModel) -> CrudResponseModel:
         """
         执行一次定时任务service
 
-        :param query_db: orm对象
         :param page_object: 定时任务对象
         :return: 执行一次定时任务结果
         """
-        job_info = await cls.job_detail_services(query_db, page_object.job_id)
+        job_info = await cls.job_detail_services(page_object.job_id)
         if job_info:
             await SchedulerUtil.broadcast_execute_job_once(job_id=page_object.job_id, app_scope=job_info.app_scope)
             return CrudResponseModel(is_success=True, message='执行成功')
         raise ServiceException(message='定时任务不存在')
 
     @classmethod
-    async def delete_job_services(cls, query_db: AsyncSession, page_object: DeleteJobModel) -> CrudResponseModel:
+    @transactional()
+    async def delete_job_services(cls, page_object: DeleteJobModel) -> CrudResponseModel:
         """
         删除定时任务信息service
 
-        :param query_db: orm对象
         :param page_object: 删除定时任务对象
         :return: 删除定时任务校验结果
         """
         if page_object.job_ids:
             job_id_list = page_object.job_ids.split(',')
-            try:
-                for job_id in job_id_list:
-                    job_info = await cls.job_detail_services(query_db, int(job_id))
-                    await JobDao.delete_job_dao(query_db, JobModel(jobId=job_id))
-                    await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='删除成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+            for job_id in job_id_list:
+                job_info = await cls.job_detail_services(int(job_id))
+                await JobDao.delete_job_dao(JobModel(jobId=job_id))
+                await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
+            return CrudResponseModel(is_success=True, message='删除成功')
         else:
             raise ServiceException(message='传入定时任务id为空')
 
     @classmethod
-    async def job_detail_services(cls, query_db: AsyncSession, job_id: int) -> JobModel:
+    async def job_detail_services(cls, job_id: int) -> JobModel:
         """
         获取定时任务详细信息service
 
-        :param query_db: orm对象
         :param job_id: 定时任务id
         :return: 定时任务id对应的信息
         """
-        job = await JobDao.get_job_detail_by_id(query_db, job_id=job_id)
+        job = await JobDao.get_job_detail_by_id(job_id=job_id)
         result = JobModel(**CamelCaseUtil.transform_result(job)) if job else JobModel()
 
         return result

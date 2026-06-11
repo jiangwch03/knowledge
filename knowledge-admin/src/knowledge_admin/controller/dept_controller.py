@@ -5,7 +5,6 @@ from fastapi import Path, Query, Request, Response
 from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.aspect.data_scope import DataScopeDependency
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
@@ -19,7 +18,6 @@ from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.service.dept_service import DeptService
 
@@ -39,11 +37,10 @@ dept_controller = APIRouterPro(
 async def get_system_dept_tree_for_edit_option(
     request: Request,
     dept_id: Annotated[int, Path(description='部门id')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     dept_query = DeptModel(deptId=dept_id)
-    dept_query_result = await DeptService.get_dept_for_edit_option_services(query_db, dept_query, data_scope_sql)
+    dept_query_result = await DeptService.get_dept_for_edit_option_services(dept_query, data_scope_sql)
     logger.info('获取成功')
 
     return ResponseUtil.success(data=dept_query_result)
@@ -60,10 +57,9 @@ async def get_system_dept_tree_for_edit_option(
 async def get_system_dept_list(
     request: Request,
     dept_query: Annotated[DeptQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
-    dept_query_result = await DeptService.get_dept_list_services(query_db, dept_query, data_scope_sql)
+    dept_query_result = await DeptService.get_dept_list_services(dept_query, data_scope_sql)
     logger.info('获取成功')
 
     return ResponseUtil.success(data=dept_query_result)
@@ -82,14 +78,13 @@ async def get_system_dept_list(
 async def add_system_dept(
     request: Request,
     add_dept: DeptModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_dept.create_by = current_user.user.user_name
     add_dept.create_time = datetime.now()
     add_dept.update_by = current_user.user.user_name
     add_dept.update_time = datetime.now()
-    add_dept_result = await DeptService.add_dept_services(query_db, add_dept)
+    add_dept_result = await DeptService.add_dept_services(add_dept)
     logger.info(add_dept_result.message)
 
     return ResponseUtil.success(msg=add_dept_result.message)
@@ -108,15 +103,14 @@ async def add_system_dept(
 async def edit_system_dept(
     request: Request,
     edit_dept: DeptModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     if not current_user.user.admin:
-        await DeptService.check_dept_data_scope_services(query_db, edit_dept.dept_id, data_scope_sql)
+        await DeptService.check_dept_data_scope_services(edit_dept.dept_id, data_scope_sql)
     edit_dept.update_by = current_user.user.user_name
     edit_dept.update_time = datetime.now()
-    edit_dept_result = await DeptService.edit_dept_services(query_db, edit_dept)
+    edit_dept_result = await DeptService.edit_dept_services(edit_dept)
     logger.info(edit_dept_result.message)
 
     return ResponseUtil.success(msg=edit_dept_result.message)
@@ -134,7 +128,6 @@ async def edit_system_dept(
 async def delete_system_dept(
     request: Request,
     dept_ids: Annotated[str, Path(description='需要删除的部门id')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
@@ -142,11 +135,11 @@ async def delete_system_dept(
     if dept_id_list:
         for dept_id in dept_id_list:
             if not current_user.user.admin:
-                await DeptService.check_dept_data_scope_services(query_db, int(dept_id), data_scope_sql)
+                await DeptService.check_dept_data_scope_services(int(dept_id), data_scope_sql)
     delete_dept = DeleteDeptModel(deptIds=dept_ids)
     delete_dept.update_by = current_user.user.user_name
     delete_dept.update_time = datetime.now()
-    delete_dept_result = await DeptService.delete_dept_services(query_db, delete_dept)
+    delete_dept_result = await DeptService.delete_dept_services(delete_dept)
     logger.info(delete_dept_result.message)
 
     return ResponseUtil.success(msg=delete_dept_result.message)
@@ -163,13 +156,12 @@ async def delete_system_dept(
 async def query_detail_system_dept(
     request: Request,
     dept_id: Annotated[int, Path(description='部门id')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     if not current_user.user.admin:
-        await DeptService.check_dept_data_scope_services(query_db, dept_id, data_scope_sql)
-    detail_dept_result = await DeptService.dept_detail_services(query_db, dept_id)
+        await DeptService.check_dept_data_scope_services(dept_id, data_scope_sql)
+    detail_dept_result = await DeptService.dept_detail_services(dept_id)
     logger.info(f'获取dept_id为{dept_id}的信息成功')
 
     return ResponseUtil.success(data=detail_dept_result)

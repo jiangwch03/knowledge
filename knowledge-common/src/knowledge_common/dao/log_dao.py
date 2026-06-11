@@ -2,8 +2,8 @@ from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import asc, delete, desc, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
 from knowledge_common.entity.do.log_do import SysLogininfor, SysOperLog
 from knowledge_common.entity.vo.log_vo import LogininforModel, LoginLogPageQueryModel, OperLogModel, OperLogPageQueryModel
@@ -19,16 +19,16 @@ class OperationLogDao:
 
     @classmethod
     async def get_operation_log_list(
-        cls, db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False
+        cls, query_object: OperLogPageQueryModel, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取操作日志列表信息
 
-        :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 操作日志列表信息对象
         """
+        db = get_current_session()
         if query_object.is_asc == 'ascending':
             order_by_column = asc(getattr(SysOperLog, SnakeCaseUtil.camel_to_snake(query_object.order_by_column), None))
         elif query_object.is_asc == 'descending':
@@ -55,20 +55,20 @@ class OperationLogDao:
             .order_by(order_by_column)
         )
         operation_log_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
-            db, query, query_object.page_num, query_object.page_size, is_page
+            query, query_object.page_num, query_object.page_size, is_page
         )
 
         return operation_log_list
 
     @classmethod
-    async def add_operation_log_dao(cls, db: AsyncSession, operation_log: OperLogModel) -> SysOperLog:
+    async def add_operation_log_dao(cls, operation_log: OperLogModel) -> SysOperLog:
         """
         新增操作日志数据库操作
 
-        :param db: orm对象
         :param operation_log: 操作日志对象
         :return: 新增校验结果
         """
+        db = get_current_session()
         db_operation_log = SysOperLog(**operation_log.model_dump())
         db.add(db_operation_log)
         await db.flush()
@@ -76,24 +76,24 @@ class OperationLogDao:
         return db_operation_log
 
     @classmethod
-    async def delete_operation_log_dao(cls, db: AsyncSession, operation_log: OperLogModel) -> None:
+    async def delete_operation_log_dao(cls, operation_log: OperLogModel) -> None:
         """
         删除操作日志数据库操作
 
-        :param db: orm对象
         :param operation_log: 操作日志对象
         :return:
         """
+        db = get_current_session()
         await db.execute(delete(SysOperLog).where(SysOperLog.oper_id.in_([operation_log.oper_id])))
 
     @classmethod
-    async def clear_operation_log_dao(cls, db: AsyncSession) -> None:
+    async def clear_operation_log_dao(cls) -> None:
         """
         清除操作日志数据库操作
 
-        :param db: orm对象
         :return:
         """
+        db = get_current_session()
         await db.execute(delete(SysOperLog))
 
 
@@ -104,16 +104,16 @@ class LoginLogDao:
 
     @classmethod
     async def get_login_log_list(
-        cls, db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False
+        cls, query_object: LoginLogPageQueryModel, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取登录日志列表信息
 
-        :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 登录日志列表信息对象
         """
+        db = get_current_session()
         if query_object.is_asc == 'ascending':
             order_by_column = asc(
                 getattr(SysLogininfor, SnakeCaseUtil.camel_to_snake(query_object.order_by_column), None)
@@ -141,20 +141,20 @@ class LoginLogDao:
             .order_by(order_by_column)
         )
         login_log_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
-            db, query, query_object.page_num, query_object.page_size, is_page
+            query, query_object.page_num, query_object.page_size, is_page
         )
 
         return login_log_list
 
     @classmethod
-    async def add_login_log_dao(cls, db: AsyncSession, login_log: LogininforModel) -> SysLogininfor:
+    async def add_login_log_dao(cls, login_log: LogininforModel) -> SysLogininfor:
         """
         新增登录日志数据库操作
 
-        :param db: orm对象
         :param login_log: 登录日志对象
         :return: 新增校验结果
         """
+        db = get_current_session()
         db_login_log = SysLogininfor(**login_log.model_dump())
         db.add(db_login_log)
         await db.flush()
@@ -162,22 +162,22 @@ class LoginLogDao:
         return db_login_log
 
     @classmethod
-    async def delete_login_log_dao(cls, db: AsyncSession, login_log: LogininforModel) -> None:
+    async def delete_login_log_dao(cls, login_log: LogininforModel) -> None:
         """
         删除登录日志数据库操作
 
-        :param db: orm对象
         :param login_log: 登录日志对象
         :return:
         """
+        db = get_current_session()
         await db.execute(delete(SysLogininfor).where(SysLogininfor.info_id.in_([login_log.info_id])))
 
     @classmethod
-    async def clear_login_log_dao(cls, db: AsyncSession) -> None:
+    async def clear_login_log_dao(cls) -> None:
         """
         清除登录日志数据库操作
 
-        :param db: orm对象
         :return:
         """
+        db = get_current_session()
         await db.execute(delete(SysLogininfor))

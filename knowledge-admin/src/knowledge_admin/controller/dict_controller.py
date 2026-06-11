@@ -6,7 +6,6 @@ from fastapi.responses import StreamingResponse
 from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
@@ -27,7 +26,6 @@ from knowledge_common.utils.common_util import bytes2file_response
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
-from sqlalchemy.ext.asyncio import AsyncSession
 
 dict_controller = APIRouterPro(
     prefix='/system/dict', order_num=8, tags=['系统管理-字典管理'], dependencies=[PreAuthDependency()]
@@ -45,11 +43,10 @@ dict_controller = APIRouterPro(
 async def get_system_dict_type_list(
     request: Request,
     dict_type_page_query: Annotated[DictTypePageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
     dict_type_page_query_result = await DictTypeService.get_dict_type_list_services(
-        query_db, dict_type_page_query, is_page=True
+        dict_type_page_query, is_page=True
     )
     logger.info('获取成功')
 
@@ -69,14 +66,13 @@ async def get_system_dict_type_list(
 async def add_system_dict_type(
     request: Request,
     add_dict_type: DictTypeModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_dict_type.create_by = current_user.user.user_name
     add_dict_type.create_time = datetime.now()
     add_dict_type.update_by = current_user.user.user_name
     add_dict_type.update_time = datetime.now()
-    add_dict_type_result = await DictTypeService.add_dict_type_services(request, query_db, add_dict_type)
+    add_dict_type_result = await DictTypeService.add_dict_type_services(request, add_dict_type)
     logger.info(add_dict_type_result.message)
 
     return ResponseUtil.success(msg=add_dict_type_result.message)
@@ -95,12 +91,11 @@ async def add_system_dict_type(
 async def edit_system_dict_type(
     request: Request,
     edit_dict_type: DictTypeModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_dict_type.update_by = current_user.user.user_name
     edit_dict_type.update_time = datetime.now()
-    edit_dict_type_result = await DictTypeService.edit_dict_type_services(request, query_db, edit_dict_type)
+    edit_dict_type_result = await DictTypeService.edit_dict_type_services(request, edit_dict_type)
     logger.info(edit_dict_type_result.message)
 
     return ResponseUtil.success(msg=edit_dict_type_result.message)
@@ -115,8 +110,8 @@ async def edit_system_dict_type(
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_DICT_REFRESH_CACHE, preset=ApiRateLimitPreset.USER_COMMON_MUTATION)
 @Log(title='字典类型', business_type=BusinessType.UPDATE)
-async def refresh_system_dict(request: Request, query_db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
-    refresh_dict_result = await DictTypeService.refresh_sys_dict_services(request, query_db)
+async def refresh_system_dict(request: Request) -> Response:
+    refresh_dict_result = await DictTypeService.refresh_sys_dict_services(request)
     logger.info(refresh_dict_result.message)
 
     return ResponseUtil.success(msg=refresh_dict_result.message)
@@ -134,10 +129,9 @@ async def refresh_system_dict(request: Request, query_db: Annotated[AsyncSession
 async def delete_system_dict_type(
     request: Request,
     dict_ids: Annotated[str, Path(description='需要删除的字典主键')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_dict_type = DeleteDictTypeModel(dictIds=dict_ids)
-    delete_dict_type_result = await DictTypeService.delete_dict_type_services(request, query_db, delete_dict_type)
+    delete_dict_type_result = await DictTypeService.delete_dict_type_services(request, delete_dict_type)
     logger.info(delete_dict_type_result.message)
 
     return ResponseUtil.success(msg=delete_dict_type_result.message)
@@ -151,10 +145,10 @@ async def delete_system_dict_type(
 )
 @ApiCache(namespace=ApiNamespace.SYSTEM_DICT_TYPE_OPTIONS)
 async def query_system_dict_type_options(
-    request: Request, query_db: Annotated[AsyncSession, DBSessionDependency()]
+    request: Request,
 ) -> Response:
     dict_type_query_result = await DictTypeService.get_dict_type_list_services(
-        query_db, DictTypePageQueryModel(), is_page=False
+        DictTypePageQueryModel(), is_page=False
     )
     logger.info('获取成功')
 
@@ -172,9 +166,8 @@ async def query_system_dict_type_options(
 async def query_detail_system_dict_type(
     request: Request,
     dict_id: Annotated[int, Path(description='字典主键')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    dict_type_detail_result = await DictTypeService.dict_type_detail_services(query_db, dict_id)
+    dict_type_detail_result = await DictTypeService.dict_type_detail_services(dict_id)
     logger.info(f'获取dict_id为{dict_id}的信息成功')
 
     return ResponseUtil.success(data=dict_type_detail_result)
@@ -200,11 +193,10 @@ async def query_detail_system_dict_type(
 async def export_system_dict_type_list(
     request: Request,
     dict_type_page_query: Annotated[DictTypePageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
     dict_type_query_result = await DictTypeService.get_dict_type_list_services(
-        query_db, dict_type_page_query, is_page=False
+        dict_type_page_query, is_page=False
     )
     dict_type_export_result = await DictTypeService.export_dict_type_list_services(dict_type_query_result)
     logger.info('导出成功')
@@ -221,7 +213,6 @@ async def export_system_dict_type_list(
 async def query_system_dict_type_data(
     request: Request,
     dict_type: Annotated[str, Path(description='字典类型')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
     dict_data_query_result = await DictDataService.query_dict_data_list_from_cache_services(
@@ -243,11 +234,10 @@ async def query_system_dict_type_data(
 async def get_system_dict_data_list(
     request: Request,
     dict_data_page_query: Annotated[DictDataPageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
     dict_data_page_query_result = await DictDataService.get_dict_data_list_services(
-        query_db, dict_data_page_query, is_page=True
+        dict_data_page_query, is_page=True
     )
     logger.info('获取成功')
 
@@ -267,14 +257,13 @@ async def get_system_dict_data_list(
 async def add_system_dict_data(
     request: Request,
     add_dict_data: DictDataModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_dict_data.create_by = current_user.user.user_name
     add_dict_data.create_time = datetime.now()
     add_dict_data.update_by = current_user.user.user_name
     add_dict_data.update_time = datetime.now()
-    add_dict_data_result = await DictDataService.add_dict_data_services(request, query_db, add_dict_data)
+    add_dict_data_result = await DictDataService.add_dict_data_services(request, add_dict_data)
     logger.info(add_dict_data_result.message)
 
     return ResponseUtil.success(msg=add_dict_data_result.message)
@@ -293,12 +282,11 @@ async def add_system_dict_data(
 async def edit_system_dict_data(
     request: Request,
     edit_dict_data: DictDataModel,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_dict_data.update_by = current_user.user.user_name
     edit_dict_data.update_time = datetime.now()
-    edit_dict_data_result = await DictDataService.edit_dict_data_services(request, query_db, edit_dict_data)
+    edit_dict_data_result = await DictDataService.edit_dict_data_services(request, edit_dict_data)
     logger.info(edit_dict_data_result.message)
 
     return ResponseUtil.success(msg=edit_dict_data_result.message)
@@ -316,10 +304,9 @@ async def edit_system_dict_data(
 async def delete_system_dict_data(
     request: Request,
     dict_codes: Annotated[str, Path(description='需要删除的字典编码')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_dict_data = DeleteDictDataModel(dictCodes=dict_codes)
-    delete_dict_data_result = await DictDataService.delete_dict_data_services(request, query_db, delete_dict_data)
+    delete_dict_data_result = await DictDataService.delete_dict_data_services(request, delete_dict_data)
     logger.info(delete_dict_data_result.message)
 
     return ResponseUtil.success(msg=delete_dict_data_result.message)
@@ -336,9 +323,8 @@ async def delete_system_dict_data(
 async def query_detail_system_dict_data(
     request: Request,
     dict_code: Annotated[int, Path(description='字典编码')],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    detail_dict_data_result = await DictDataService.dict_data_detail_services(query_db, dict_code)
+    detail_dict_data_result = await DictDataService.dict_data_detail_services(dict_code)
     logger.info(f'获取dict_code为{dict_code}的信息成功')
 
     return ResponseUtil.success(data=detail_dict_data_result)
@@ -364,11 +350,10 @@ async def query_detail_system_dict_data(
 async def export_system_dict_data_list(
     request: Request,
     dict_data_page_query: Annotated[DictDataPageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
     dict_data_query_result = await DictDataService.get_dict_data_list_services(
-        query_db, dict_data_page_query, is_page=False
+        dict_data_page_query, is_page=False
     )
     dict_data_export_result = await DictDataService.export_dict_data_list_services(dict_data_query_result)
     logger.info('导出成功')

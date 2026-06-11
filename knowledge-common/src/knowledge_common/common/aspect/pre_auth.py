@@ -3,11 +3,9 @@ from typing import Literal, TypedDict
 
 from fastapi import Depends, Request, params
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_common.common.context import RequestContext
 from knowledge_common.config.env import AppConfig
-from knowledge_common.config.get_db import get_db
 from knowledge_common.exceptions.exception import AuthException
 from knowledge_common.entity.vo.user_vo import CurrentUserModel
 from knowledge_common.service.login_user_service import LoginUserService as LoginService
@@ -80,12 +78,11 @@ class PreAuth:
         # 添加开始和结束锚点，确保精确匹配
         return re.compile(f'^{pattern_str}$')
 
-    async def __call__(self, request: Request, db: AsyncSession = Depends(get_db)) -> CurrentUserModel | None:
+    async def __call__(self, request: Request) -> CurrentUserModel | None:
         """
         执行登录认证校验
 
         :param request: 当前请求对象
-        :param db: 数据库会话
         :return: 当前用户信息
         """
         # 获取当前请求路径和方法
@@ -121,7 +118,7 @@ class PreAuth:
         token = request.headers.get('Authorization')
         if not token:
             raise AuthException(data='', message='用户未登录，请先完成登录')
-        current_user = await LoginService.get_current_user(request, token, db)
+        current_user = await LoginService.get_current_user(request, token)
         return current_user
 
 

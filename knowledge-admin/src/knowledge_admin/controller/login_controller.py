@@ -7,7 +7,6 @@ from fastapi import Depends, Request, Response
 from knowledge_common.common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from knowledge_common.common.aspect.db_seesion import DBSessionDependency
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType, RedisInitKeyConfig
@@ -17,7 +16,6 @@ from knowledge_common.config.env import AppConfig, JwtConfig
 from knowledge_common.entity.vo.user_vo import CurrentUserModel, EditUserModel
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from knowledge_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
 from knowledge_admin.service.user_service import UserService
@@ -38,7 +36,6 @@ login_controller = APIRouterPro(order_num=1, tags=['登录模块'])
 async def login(
     request: Request,
     form_data: Annotated[CustomOAuth2PasswordRequestForm, Depends()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     captcha_enabled = (
         await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled') == 'true'
@@ -51,7 +48,7 @@ async def login(
         loginInfo=form_data.login_info,
         captchaEnabled=captcha_enabled,
     )
-    result = await LoginService.authenticate_user(request, query_db, user)
+    result = await LoginService.authenticate_user(request, user)
     access_token_expires = timedelta(minutes=JwtConfig.jwt_expire_minutes)
     session_id = str(uuid.uuid4())
     access_token = await LoginService.create_access_token(
@@ -78,7 +75,7 @@ async def login(
             ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
         )
     await UserService.edit_user_services(
-        query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status')
+        EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status')
     )
     logger.info('登录成功')
     # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug
@@ -114,10 +111,9 @@ async def get_login_user_info(
 async def get_login_user_routers(
     request: Request,
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     logger.info('获取成功')
-    user_routers = await LoginService.get_current_user_routers(current_user.user.user_id, query_db)
+    user_routers = await LoginService.get_current_user_routers(current_user.user.user_id)
 
     return ResponseUtil.success(data=user_routers)
 
@@ -133,18 +129,17 @@ async def get_login_user_routers(
 async def register_user(
     request: Request,
     user_register: UserRegister,
-    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    user_register_result = await LoginService.register_user_services(request, query_db, user_register)
+    user_register_result = await LoginService.register_user_services(request, user_register)
     logger.info(user_register_result.message)
 
     return ResponseUtil.success(data=user_register_result, msg=user_register_result.message)
 
 
 # @login_controller.post("/getSmsCode", response_model=SmsCode)
-# async def get_sms_code(request: Request, user: ResetUserModel, query_db: AsyncSession = DBSessionDependency()):
+# async def get_sms_code(request: Request, user: ResetUserModel):
 #     try:
-#         sms_result = await LoginService.get_sms_code_services(request, query_db, user)
+#         sms_result = await LoginService.get_sms_code_services(request, user)
 #         if sms_result.is_success:
 #             logger.info('获取成功')
 #             return ResponseUtil.success(data=sms_result)
@@ -157,9 +152,9 @@ async def register_user(
 #
 #
 # @login_controller.post("/forgetPwd", response_model=CrudResponseModel)
-# async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_db: AsyncSession = DBSessionDependency()):
+# async def forget_user_pwd(request: Request, forget_user: ResetUserModel):
 #     try:
-#         forget_user_result = await LoginService.forget_user_services(request, query_db, forget_user)
+#         forget_user_result = await LoginService.forget_user_services(request, forget_user)
 #         if forget_user_result.is_success:
 #             logger.info(forget_user_result.message)
 #             return ResponseUtil.success(data=forget_user_result, msg=forget_user_result.message)

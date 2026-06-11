@@ -1,26 +1,26 @@
 from typing import Any
 
+from sqlalchemy import and_, select
+
+from knowledge_common.common.transactional import get_current_session
+from knowledge_common.entity.do.dept_do import SysDept
 from knowledge_common.entity.do.menu_do import SysMenu
 from knowledge_common.entity.do.post_do import SysPost
-from knowledge_common.entity.do.user_do import SysUser, SysUserPost, SysUserRole
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from knowledge_common.entity.do.dept_do import SysDept
 from knowledge_common.entity.do.role_do import SysRole, SysRoleMenu
+from knowledge_common.entity.do.user_do import SysUser, SysUserPost, SysUserRole
 
 
 class UserDao:
 
     @classmethod
-    async def get_user_by_id(cls, db: AsyncSession, user_id: int) -> dict[str, Any]:
+    async def get_user_by_id(cls, user_id: int) -> dict[str, Any]:
         """
         根据user_id获取用户信息
 
-        :param db: orm对象
         :param user_id: 用户id
         :return: 当前user_id的用户信息对象
         """
+        db = get_current_session()
         query_user_basic_info = (
             (
                 await db.execute(
