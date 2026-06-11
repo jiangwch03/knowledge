@@ -426,20 +426,20 @@ class TestLifespanStaticVerification:
         assert 'BroadcastService.discover_and_start()' in text
         assert 'BroadcastService.shutdown()' in text
 
-    def test_admin_registers_common_and_admin_subscribers(self):
+    def test_admin_registers_admin_subscribers(self):
+        """knowledge_common.message.subscriber 是 BroadcastService 内置默认路径，无需显式注册"""
         server_py = (
             _PROJECT_ROOT
             / 'knowledge-admin' / 'src' / 'knowledge_admin' / 'server' / 'server.py'
         )
         text = server_py.read_text(encoding='utf-8')
-        assert 'knowledge_common.message.subscriber' in text
         assert 'knowledge_admin.message.subscriber' in text
 
-    def test_rag_registers_common_and_rag_subscribers(self):
+    def test_rag_registers_rag_subscribers(self):
+        """knowledge_common.message.subscriber 是 BroadcastService 内置默认路径，无需显式注册"""
         server_py = (
             _PROJECT_ROOT
             / 'knowledge-rag' / 'src' / 'knowledge_rag' / 'server' / 'server.py'
         )
         text = server_py.read_text(encoding='utf-8')
-        assert 'knowledge_common.message.subscriber' in text
         assert 'knowledge_rag.message.subscriber' in text
