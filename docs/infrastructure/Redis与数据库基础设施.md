@@ -1,6 +1,6 @@
 # Redis 与数据库基础设施
 
-> 模块位置：`knowledge-common/src/knowledge_common/config/`
+> 模块位置：`knowledge-common/src/knowledge_common/redis/`
 
 ## 1. 上下文体系总览
 
@@ -26,14 +26,14 @@ graph TB
 
     Handler -->|"get_current_session"| SessCtx
     Handler -->|"get_current_session"| TxStack
-    Handler -->|"RedisUtil.get_redis"| RedisCtx
+    Handler -->|"RedisConnection.get_redis"| RedisCtx
 ```
 
 ---
 
 ## 2. Redis 基础设施
 
-### 2.1 RedisUtil 单例连接池
+### 2.1 RedisConnection 单例连接池
 
 ```mermaid
 graph TD
@@ -63,7 +63,7 @@ graph TD
 
 ```mermaid
 graph TD
-    GetRedis["RedisUtil.get_redis()"] --> CallCtx["RedisContext.get_redis()"]
+    GetRedis["RedisConnection.get_redis()"] --> CallCtx["RedisContext.get_redis()"]
     CallCtx --> CheckCV{"ContextVar<br/>有值?"}
     CheckCV -->|是| ReturnCV["返回 ContextVar 值"]
     CheckCV -->|否| CheckFB{"类级别 _fallback<br/>有值?"}
@@ -82,16 +82,58 @@ graph TD
 
 ```mermaid
 graph LR
-    Start["应用启动"] --> Dict["RedisUtil.init_sys_dict(redis)<br/>缓存字典表到 Redis"]
-    Dict --> Config["RedisUtil.init_sys_config(redis)<br/>缓存参数配置到 Redis"]
+    Start["应用启动"] --> Dict["DictDataService.init_cache(redis)<br/>缓存字典表到 Redis"]
+    Dict --> Config["ConfigService.init_cache(redis)<br/>缓存参数配置到 Redis"]
 ```
 
-- 字典表：系统字典数据预热到 Redis，避免每次查询数据库
-- 参数配置：系统参数配置预热，支持运行时动态修改
+- 字典表：`DictDataService.init_cache()` 将系统字典数据预热到 Redis，避免每次查询数据库
+- 参数配置：`ConfigService.init_cache()` 将系统参数配置预热，支持运行时动态修改
 
-### 2.4 RedisPubSubUtil 工具类
+### 2.4 RedisClient CRUD 封装
 
-**位置**：`knowledge_common/utils/redis_pubsub_util.py`
+**位置**：`knowledge_common/redis/client.py`
+
+对 aioredis 原生 API 的二次封装，核心特性：
+
+- **透明序列化**：存入时自动将 Pydantic Model / dict / list 序列化为 JSON 字符串；取出时自动反序列化，支持通过 `model` 参数直接映射为 Pydantic 实例
+- **自动获取客户端**：所有方法均为 `@classmethod`，Redis 客户端自动从 `RedisContext` 获取，无需手动传入
+- **五大数据类型全覆盖**：String / Hash / List / Set / ZSet + 通用操作
+
+| 数据类型 | 代表方法 | 说明 |
+|---------|---------|------|
+| **String（透明序列化）** | `set(key, value)` / `get(key, model=...)` / `get_many(keys)` / `set_many(mapping)` | 自动 JSON 序列化/反序列化 |
+| **String（原生）** | `set_str(key, value)` / `get_str(key)` / `incr(key, amount)` | 不经过序列化，直接存取字符串 |
+| **Hash** | `hset(name, mapping=...)` / `hget(name, key)` / `hgetall(name)` / `hdel(name, *keys)` | value 自动 JSON 序列化 |
+| **List** | `lpush(name, *values)` / `rpush(name, *values)` / `lpop(name)` / `rpop(name)` / `lrange(name, start, end)` | value 自动 JSON 序列化 |
+| **Set** | `sadd(name, *values)` / `srem(name, *values)` / `smembers(name)` / `sismember(name, value)` | value 自动 JSON 序列化 |
+| **ZSet** | `zadd(name, mapping)` / `zrem(name, *members)` / `zrange(name, start, end)` / `zrangebyscore(name, min, max)` | member 自动 JSON 序列化 |
+| **通用操作** | `delete(*keys)` / `exists(*keys)` / `expire(key, seconds)` / `ttl(key)` / `keys(pattern)` / `scan_iter(match)` / `type(key)` | — |
+
+**典型用法**：
+
+```python
+from knowledge_common.redis import RedisClient
+
+# String（透明序列化）
+await RedisClient.set('user:1', {'name': '张三', 'age': 25})
+data: dict = await RedisClient.get('user:1')
+
+# String（原生，不序列化）
+await RedisClient.set_str('token:abc', 'some_token_value', ex=3600)
+token: str = await RedisClient.get_str('token:abc')
+
+# Hash
+await RedisClient.hset('user:1:profile', mapping={'name': '张三', 'age': '25'})
+profile: dict = await RedisClient.hgetall('user:1:profile')
+
+# 通用操作
+await RedisClient.delete('user:1')
+await RedisClient.expire('user:1', 3600)
+```
+
+### 2.5 RedisPubSub 工具类
+
+**位置**：`knowledge_common/redis/pubsub.py`
 
 | 方法 | 用途 |
 |------|------|
