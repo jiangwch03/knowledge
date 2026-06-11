@@ -13,7 +13,6 @@ from knowledge_common.config.get_scheduler import SchedulerUtil
 from knowledge_common.exceptions.handle import handle_exception
 from knowledge_common.message_stream import MessageStreamService
 from knowledge_common.middlewares.handle import handle_middleware
-from knowledge_common.service.log_service import LogAggregatorService
 from knowledge_common.sub_applications.handle import handle_sub_applications
 from knowledge_common.utils.common_util import worship
 from knowledge_common.utils.log_util import logger
@@ -32,9 +31,6 @@ async def _start_background_tasks(app: FastAPI) -> None:
     # 将 app_name 注入到 app.state，供「自产自销」日志隔离使用
     app.state.app_name = AppConfig.app_name
     await SchedulerUtil.init_system_scheduler(app.state.redis, app_scope=app.state.app_name)
-    app.state.log_aggregator_task = asyncio.create_task(
-        LogAggregatorService.consume_stream(app.state.redis, app_name=app.state.app_name)
-    )
 
 
 async def _init_message_stream(app: FastAPI) -> None:
@@ -64,13 +60,6 @@ async def _stop_background_tasks(app: FastAPI) -> None:
     :param app: FastAPI对象
     :return: None
     """
-    log_task = getattr(app.state, 'log_aggregator_task', None)
-    if log_task:
-        log_task.cancel()
-        try:
-            await log_task
-        except asyncio.CancelledError:
-            pass
     lock_task = getattr(app.state, 'lock_renewal_task', None)
     if lock_task:
         lock_task.cancel()

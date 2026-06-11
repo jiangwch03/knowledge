@@ -22,7 +22,7 @@ create_app() 针对 Swagger UI 的访问和构建做了自定义方案处理：
 详细说明：[FastAPI 多进程](./docs/fastapi/fastapi-multiprocess.md)
 
 ## FastAPI 反向代理场景下的路由前缀处理
-详细说明：[FastAPI 多进程](./docs/fastapi/fastapi-root-path-proxy.md)
+详细说明：[FastAPI 反向代理场景下的路由前缀处理](./docs/fastapi/fastapi-root-path-proxy.md)
 
 ## 定时任务多项目运行支持优化说明
 详细说明：[定时任务多项目运行支持优化说明](./docs/rag/job-app-scope-optimization.md)
@@ -30,7 +30,11 @@ create_app() 针对 Swagger UI 的访问和构建做了自定义方案处理：
 ## 定时任务调度同步机制
 详细说明：[定时任务注册与同步调度机制](./docs/rag/scheduler-sync-flow.md)
 
+## 消息流服务设计
+把裸操作 Redis Stream 协议的耦合，变成「`@consumer` 声明 + `produce` 推送」的 Kafka 风格门面。`.env` 改 `MESSAGE_STREAM_BACKEND=redis|kafka` 即可切换后端，业务代码零行修改。
+详细说明：[消息流服务设计](./docs/rag/message-stream-service-design.md)
+
 ## 日志聚合与操作日志落库机制
-把 HTTP 业务线程里的日志写入，变成「扔进队列就走、后台协程慢慢落库」的异步解耦链路。
-覆盖生产端装饰器自动入队、消费端协程批量落库、以及按 app 自产自销隔离的设计原理。
-详细说明：[日志聚合与操作日志落库机制](./docs/rag/log-aggregator-flow.md)
+基于 `MessageStreamService` 框架实现的日志异步落库链路。推送侧用 `produce`，消费侧用 `@consumer` 装饰器，按 `app_name` 隔离，业务级去重由 `LogDedupHelper` 保证。
+详细说明：[基于 MessageStreamService 的日志聚合流程](./docs/rag/log-aggregator-flow.md)
+

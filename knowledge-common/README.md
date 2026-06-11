@@ -113,6 +113,121 @@ except MessageStreamError as e:
 - **`reset()` + `shutdown()`**:测试可重复跑,生产优雅退出
 - **lifespan 单点接入**:与 `auto_register_routers` / `SchedulerUtil` 等基础设施注入风格一致
 
+### 日志聚合接入示例
+
+日志聚合作为 `MessageStreamService` 的标准业务方，由 common 集中维护消费者代码，admin / rag 通过框架默认扫描路径自动注册，业务项目侧零代码。
+
+**消费者文件**：`knowledge_common/message/consumer/log_consumer.py`
+
+```python
+"""
+日志聚合消费者（common 集中维护，admin / rag 自动复用）
+
+通过 @consumer 装饰器声明 4 个消费函数（admin/rag × login/operation），
+由 MessageStreamService 框架自动拉起后台消费协程。
+业务侧零代码复制，admin / rag 任一进程启动时都会 import 该文件并触发装饰器注册。
+
+topic 命名：log:{event_type}:{app_name}
+group_id 命名：log_writer:{app_name}
+"""
+from __future__ import annotations
+
+from knowledge_common.dao.log_dao import LoginLogDao, OperationLogDao
+from knowledge_common.entity.vo.log_vo import LogininforModel, OperLogModel
+from knowledge_common.message_stream import Message, consumer
+from knowledge_common.service.log_service import LogDedupHelper
+from knowledge_common.config.database import AsyncSessionLocal
+
+
+@consumer(topic='log:login:knowledge-admin', group_id='log_writer:knowledge-admin')
+async def handle_admin_login_log(msg: Message) -> None:
+    """
+    admin 端登录日志消费者
+
+    从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
+    """
+    event_id = msg.headers.get('event_id')
+    app_name = msg.headers.get('app_name', 'knowledge-admin')
+    async with LogDedupHelper.acquire(event_id, app_name) as ok:
+        if not ok:
+            return
+        async with AsyncSessionLocal() as session:
+            login_log = LogininforModel(**msg.value)
+            await LoginLogDao.add_login_log_dao(session, login_log)
+            await session.commit()
+
+
+@consumer(topic='log:operation:knowledge-admin', group_id='log_writer:knowledge-admin')
+async def handle_admin_operation_log(msg: Message) -> None:
+    """
+    admin 端操作日志消费者
+
+    从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
+    """
+    event_id = msg.headers.get('event_id')
+    app_name = msg.headers.get('app_name', 'knowledge-admin')
+    async with LogDedupHelper.acquire(event_id, app_name) as ok:
+        if not ok:
+            return
+        async with AsyncSessionLocal() as session:
+            operation_log = OperLogModel(**msg.value)
+            await OperationLogDao.add_operation_log_dao(session, operation_log)
+            await session.commit()
+
+
+@consumer(topic='log:login:knowledge-rag', group_id='log_writer:knowledge-rag')
+async def handle_rag_login_log(msg: Message) -> None:
+    """
+    rag 端登录日志消费者
+
+    从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
+    """
+    event_id = msg.headers.get('event_id')
+    app_name = msg.headers.get('app_name', 'knowledge-rag')
+    async with LogDedupHelper.acquire(event_id, app_name) as ok:
+        if not ok:
+            return
+        async with AsyncSessionLocal() as session:
+            login_log = LogininforModel(**msg.value)
+            await LoginLogDao.add_login_log_dao(session, login_log)
+            await session.commit()
+
+
+@consumer(topic='log:operation:knowledge-rag', group_id='log_writer:knowledge-rag')
+async def handle_rag_operation_log(msg: Message) -> None:
+    """
+    rag 端操作日志消费者
+
+    从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
+    """
+    event_id = msg.headers.get('event_id')
+    app_name = msg.headers.get('app_name', 'knowledge-rag')
+    async with LogDedupHelper.acquire(event_id, app_name) as ok:
+        if not ok:
+            return
+        async with AsyncSessionLocal() as session:
+            operation_log = OperLogModel(**msg.value)
+            await OperationLogDao.add_operation_log_dao(session, operation_log)
+            await session.commit()
+
+
+__all__ = [
+    'handle_admin_login_log',
+    'handle_admin_operation_log',
+    'handle_rag_login_log',
+    'handle_rag_operation_log',
+]
+```
+
+**关键设计点**：
+- **common 集中维护**：消费者代码只在 `knowledge-common` 中维护一次，admin / rag 通过 uv workspace 自动引用
+- **自动注册**：`MessageStreamService._scan_paths` 默认值已含 `knowledge_common.message.consumer`，admin / rag 任一进程启动时都会 import 该文件并触发装饰器注册
+- **业务级去重**：`LogDedupHelper.acquire` 通过 Redis SET NX EX 实现，异常时自动释放，允许重试
+- **按 app_name 隔离**：topic 命名 `log:{event_type}:{app_name}`，group_id 命名 `log_writer:{app_name}`，admin / rag 各自消费自己的 topic，跨 app 不串扰
+- **框架自动 ack**：消费者函数正常返回 → 框架自动 ack；抛异常 → 框架不 ack，由后端协议兜底（PEL 接管）
+
+**业务项目侧零代码**：admin / rag 无需编写任何消费者代码，只需在 `server.py` 的 lifespan 中调用 `MessageStreamService.discover_and_start()` 即可自动发现并启动所有消费者协程。
+
 ---
 
 ## 运行测试

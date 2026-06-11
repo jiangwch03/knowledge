@@ -91,37 +91,8 @@ class LogSettings(BaseSettings):
     )
     log_partial_mask_fields: str = 'phonenumber,phone,mobile,email'
     log_config_secret_patterns: str = 'password,token,secret,key,private,credential,access,jwt,captcha,sms'
-    log_stream_key: str = 'log:stream'
-    log_stream_group: str = 'log_aggregator'
-    log_stream_consumer_prefix: str = 'worker'
-    log_stream_batch_size: int = 100
-    log_stream_block_ms: int = 2000
-    log_stream_maxlen: int = 100000
-    log_stream_claim_idle_ms: int = 60000
-    log_stream_claim_interval_ms: int = 5000
-    log_stream_claim_batch_size: int = 100
     log_stream_dedup_ttl: int = 3600
     log_stream_dedup_prefix: str = 'log:dedup'
-
-    @staticmethod
-    def get_stream_key(app_name: str) -> str:
-        """
-        根据 app_name 派生日志流 key，实现「自产自销」隔离
-
-        不同 app（admin / rag / agent）的操作日志写入不同的 Redis Stream，
-        各自消费各自的，避免跨项目日志串扰。
-        """
-        # 直接访问 LogConfig.log_stream_key（避免 pydantic-settings 的 __getattr__ 拦截 cls.xxx）
-        return f'{LogConfig.log_stream_key}:{app_name}'
-
-    @staticmethod
-    def get_stream_group(app_name: str) -> str:
-        """
-        根据 app_name 派生消费组名
-
-        不同 app 使用不同的消费组，确保彼此独立（互不抢消息）。
-        """
-        return f'{LogConfig.log_stream_group}:{app_name}'
 
     @staticmethod
     def get_dedup_prefix(app_name: str) -> str:

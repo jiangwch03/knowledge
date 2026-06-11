@@ -1,20 +1,13 @@
-import asyncio
 import hashlib
-import json
-import os
 import uuid
 from typing import Any
 
 from fastapi import Request
-from redis import asyncio as aioredis
-from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from knowledge_common.common.context import RedisContext
 from knowledge_common.common.vo import CrudResponseModel, PageModel
-from knowledge_common.config.database import AsyncSessionLocal
 from knowledge_common.config.env import AppConfig, LogConfig
-from knowledge_common.exceptions.exception import ServiceException
-from knowledge_common.middlewares.trace_middleware.ctx import TraceCtx
 from knowledge_common.dao.log_dao import LoginLogDao, OperationLogDao
 from knowledge_common.entity.vo.log_vo import (
     DeleteLoginLogModel,
@@ -25,9 +18,12 @@ from knowledge_common.entity.vo.log_vo import (
     OperLogPageQueryModel,
     UnlockUser,
 )
+from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.message_stream import MessageStreamService
+from knowledge_common.middlewares.trace_middleware.ctx import TraceCtx
 from knowledge_common.service.dict_service import DictDataService
 from knowledge_common.utils.excel_util import ExcelUtil
-from knowledge_common.utils.log_util import LogSanitizer, logger
+from knowledge_common.utils.log_util import LogSanitizer
 
 
 class OperationLogService:
@@ -277,6 +273,9 @@ class LoginLogService:
 class LogQueueService:
     """
     日志队列服务
+
+    职责：把登录日志 / 操作日志推送到 MessageStreamService（topic 按 app_name 隔离）。
+    业务幂等键 event_id 进入 headers，消费者侧由 LogDedupHelper 保证一次性落库。
     """
 
     @classmethod
@@ -295,42 +294,9 @@ class LogQueueService:
         return hashlib.md5(base.encode('utf-8')).hexdigest()
 
     @classmethod
-    async def _xadd_event(
-        cls, redis: aioredis.Redis, event_type: str, payload: dict, source: str, app_name: str
-    ) -> None:
-        """
-        写入日志事件到Redis Streams
-
-        :param redis: Redis连接对象
-        :param event_type: 事件类型
-        :param payload: 事件负载
-        :param source: 日志来源
-        :param app_name: 应用标识（用于「自产自销」隔离，不同 app 写入不同的 stream key）
-        :return: None
-        """
-        request_id = TraceCtx.get_request_id()
-        trace_id = TraceCtx.get_trace_id()
-        span_id = TraceCtx.get_span_id()
-        event_id = cls._build_event_id(request_id, event_type, source)
-        await redis.xadd(
-            LogConfig.get_stream_key(app_name),
-            {
-                'event_id': event_id,
-                'event_type': event_type,
-                'request_id': request_id,
-                'trace_id': trace_id,
-                'span_id': span_id,
-                'app_name': app_name,
-                'payload': json.dumps(payload, ensure_ascii=False, default=str),
-            },
-            maxlen=LogConfig.log_stream_maxlen,
-            approximate=True,
-        )
-
-    @classmethod
     async def enqueue_login_log(cls, request: Request, login_log: LogininforModel, source: str) -> None:
         """
-        登录日志入队
+        登录日志入队（通过 MessageStreamService.produce 推送到 log:login:{app_name}）
 
         :param request: Request对象
         :param login_log: 登录日志模型
@@ -339,12 +305,12 @@ class LogQueueService:
         """
         app_name = cls._resolve_app_name(request)
         payload = LogSanitizer.sanitize_data(login_log.model_dump(by_alias=True, exclude_none=True))
-        await cls._xadd_event(request.app.state.redis, 'login', payload, source, app_name)
+        await cls._produce_event(event_type='login', payload=payload, source=source, app_name=app_name)
 
     @classmethod
     async def enqueue_operation_log(cls, request: Request, operation_log: OperLogModel, source: str) -> None:
         """
-        操作日志入队
+        操作日志入队（通过 MessageStreamService.produce 推送到 log:operation:{app_name}）
 
         :param request: Request对象
         :param operation_log: 操作日志模型
@@ -353,7 +319,45 @@ class LogQueueService:
         """
         app_name = cls._resolve_app_name(request)
         payload = LogSanitizer.sanitize_data(operation_log.model_dump(by_alias=True, exclude_none=True))
-        await cls._xadd_event(request.app.state.redis, 'operation', payload, source, app_name)
+        await cls._produce_event(event_type='operation', payload=payload, source=source, app_name=app_name)
+
+    @classmethod
+    async def _produce_event(
+        cls, event_type: str, payload: dict, source: str, app_name: str
+    ) -> None:
+        """
+        通过 MessageStreamService 推送日志事件
+
+        topic 命名：log:{event_type}:{app_name}（按 app_name 自产自销）
+        key 用 request_id（保证 Redis stream 内顺序、Kafka 内同 partition）
+        headers 携带 event_id 等元数据，消费者侧用 event_id 做业务级去重
+
+        :param event_type: 事件类型（login / operation）
+        :param payload: 已脱敏的事件载荷
+        :param source: 日志来源
+        :param app_name: 应用标识（topic 按 app_name 隔离）
+        :return: None
+        """
+        request_id = TraceCtx.get_request_id()
+        trace_id = TraceCtx.get_trace_id()
+        span_id = TraceCtx.get_span_id()
+        event_id = cls._build_event_id(request_id, event_type, source)
+        headers = {
+            'event_id': event_id,
+            'event_type': event_type,
+            'request_id': request_id,
+            'trace_id': trace_id,
+            'span_id': span_id,
+            'app_name': app_name,
+            'source': source,
+        }
+        topic = f'log:{event_type}:{app_name}'
+        await MessageStreamService.produce(
+            topic=topic,
+            value=payload,
+            key=request_id,
+            headers=headers,
+        )
 
     @staticmethod
     def _resolve_app_name(request: Request) -> str:
@@ -365,180 +369,86 @@ class LogQueueService:
         return getattr(request.app.state, 'app_name', None) or AppConfig.app_name
 
 
-class LogAggregatorService:
+class LogDedupHelper:
     """
-    日志聚合消费服务
+    业务级日志去重 helper（基于 Redis SET NX EX）
 
-    按 app_name 隔离「自产自销」：
-    - admin 端只生产/消费 log:stream:knowledge-admin
-    - rag 端只生产/消费 log:stream:knowledge-rag
-    - 彼此不串扰
+    用 async with 上下文管理器包装「acquire → 业务 → 异常释放」语义，业务侧零踩坑：
+
+        async with LogDedupHelper.acquire(event_id, app_name) as ok:
+            if not ok:
+                return  # 已被其他消费者落库（重复消息）或 event_id 为空，直接跳过
+            async with AsyncSessionLocal() as session:
+                await SomeLogDao.add_xxx_dao(session, ...)
+                await session.commit()
+
+    语义：
+    - __aenter__：调 ``redis.set(key, '1', nx=True, ex=LogConfig.log_stream_dedup_ttl)``，
+      返回是否首次获取（True = 首次成功，False = key 已存在 / event_id 为空）
+    - __aexit__：
+      - 业务正常返回 → 保留 TTL 内的去重窗口（避免短期重复落库）
+      - 业务抛异常 → 主动 delete dedup key（对应原 _release_dedup 行为），
+        允许后端协议下一轮重试时再次获取
     """
 
     @classmethod
-    async def _ensure_group(cls, redis: aioredis.Redis, app_name: str) -> None:
+    def acquire(cls, event_id: str, app_name: str) -> '_DedupAcquireCtx':
         """
-        初始化消费组
+        创建去重 async context manager
 
-        :param redis: Redis连接对象
-        :param app_name: 应用标识（消费组按 app 隔离）
-        :return: None
-        """
-        try:
-            await redis.xgroup_create(
-                name=LogConfig.get_stream_key(app_name),
-                groupname=LogConfig.get_stream_group(app_name),
-                id='0-0',
-                mkstream=True,
-            )
-        except Exception as exc:
-            if 'BUSYGROUP' not in str(exc):
-                raise
-
-    @classmethod
-    async def _acquire_dedup(cls, redis: aioredis.Redis, event_id: str, app_name: str) -> bool:
-        """
-        获取去重锁
-
-        :param redis: Redis连接对象
-        :param event_id: 事件唯一标识
+        :param event_id: 业务幂等键（md5(request_id+log_type+source)），空值时永远返回 False
         :param app_name: 应用标识（dedup key 按 app 隔离）
-        :return: 是否获取成功
+        :return: async context manager 实例
         """
-        if not event_id:
+        return _DedupAcquireCtx(event_id=event_id, app_name=app_name)
+
+
+class _DedupAcquireCtx:
+    """
+    LogDedupHelper.acquire 返回的内部 async context manager
+
+    职责：在 Redis 上 SET NX EX 一个去重 key，业务异常时主动释放。
+    业务方应通过 ``async with LogDedupHelper.acquire(...) as ok:`` 使用，
+    不应直接实例化本类。
+    """
+
+    def __init__(self, *, event_id: str, app_name: str) -> None:
+        self._event_id = event_id
+        self._app_name = app_name
+        self._acquired = False
+
+    @property
+    def _key(self) -> str:
+        return f'{LogConfig.get_dedup_prefix(self._app_name)}:{self._event_id}'
+
+    async def __aenter__(self) -> bool:
+        # 空 event_id 直接返回 False（与原 _acquire_dedup 行为一致：不写 key，调用方应跳过业务）
+        if not self._event_id:
             return False
-        key = f'{LogConfig.get_dedup_prefix(app_name)}:{event_id}'
-        return await redis.set(key, '1', nx=True, ex=LogConfig.log_stream_dedup_ttl)
+        redis = RedisContext.get_redis()
+        result = await redis.set(self._key, '1', nx=True, ex=LogConfig.log_stream_dedup_ttl)
+        self._acquired = bool(result)
+        return self._acquired
 
-    @classmethod
-    async def _release_dedup(cls, redis: aioredis.Redis, event_id: str, app_name: str) -> None:
-        """
-        释放去重锁
-
-        :param redis: Redis连接对象
-        :param event_id: 事件唯一标识
-        :param app_name: 应用标识
-        :return: None
-        """
-        if not event_id:
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        # 仅在 acquire 成功 + 业务抛异常时释放（对应原 _release_dedup 语义）
+        if not self._acquired:
             return
-        await redis.delete(f'{LogConfig.get_dedup_prefix(app_name)}:{event_id}')
-
-    @classmethod
-    async def _claim_pending(cls, redis: aioredis.Redis, consumer_name: str, app_name: str) -> None:
-        """
-        认领并处理超时未确认的消息
-
-        :param redis: Redis连接对象
-        :param consumer_name: 消费者名称
-        :param app_name: 应用标识（只认领本 app stream 上的 pending 消息）
-        :return: None
-        """
-        if LogConfig.log_stream_claim_idle_ms <= 0:
+        if exc_type is None:
+            # 正常完成：保留 TTL 内的去重窗口（避免短期重复落库）
             return
-        stream_key = LogConfig.get_stream_key(app_name)
-        stream_group = LogConfig.get_stream_group(app_name)
-        start_id = '0-0'
-        while True:
-            result = await redis.xautoclaim(
-                name=stream_key,
-                groupname=stream_group,
-                consumername=consumer_name,
-                min_idle_time=LogConfig.log_stream_claim_idle_ms,
-                start_id=start_id,
-                count=LogConfig.log_stream_claim_batch_size,
-            )
-            if not result:
-                return
-            next_start_id, messages = result[0], result[1]
-            if messages:
-                await cls._process_messages(redis, stream_key, messages, app_name)
-            if not messages or next_start_id == start_id:
-                return
-            start_id = next_start_id
+        # 异常分支：释放 dedup key，允许后端协议下一轮重试时再次落库
+        try:
+            redis = RedisContext.get_redis()
+            await redis.delete(self._key)
+        except Exception:
+            # 释放失败不影响异常向上传播
+            pass
 
-    @classmethod
-    async def consume_stream(cls, redis: aioredis.Redis, app_name: str) -> None:
-        """
-        消费日志队列（仅消费本 app 产生的日志）
 
-        :param redis: Redis连接对象
-        :param app_name: 应用标识（消费哪个 app 的 stream）
-        :return: None
-        """
-        stream_key = LogConfig.get_stream_key(app_name)
-        stream_group = LogConfig.get_stream_group(app_name)
-        await cls._ensure_group(redis, app_name)
-        consumer_name = f'{LogConfig.log_stream_consumer_prefix}-{os.getpid()}-{uuid.uuid4().hex[:6]}'
-        last_claim_time = 0.0
-        while True:
-            try:
-                now = asyncio.get_running_loop().time()
-                if now - last_claim_time >= LogConfig.log_stream_claim_interval_ms / 1000:
-                    await cls._claim_pending(redis, consumer_name, app_name)
-                    last_claim_time = now
-                result = await redis.xreadgroup(
-                    groupname=stream_group,
-                    consumername=consumer_name,
-                    streams={stream_key: '>'},
-                    count=LogConfig.log_stream_batch_size,
-                    block=LogConfig.log_stream_block_ms,
-                )
-                if not result:
-                    continue
-                for stream_name, messages in result:
-                    await cls._process_messages(redis, stream_name, messages, app_name)
-            except asyncio.CancelledError:
-                raise
-            except RedisTimeoutError as exc:
-                logger.warning(f'⚠️ 日志聚合消费超时（连接空闲被断开）: {exc}，1秒后重试...')
-                await asyncio.sleep(1)
-            except Exception as exc:
-                logger.error(f'日志聚合消费异常: {exc}')
-                await asyncio.sleep(1)
-
-    @classmethod
-    async def _process_messages(
-        cls, redis: aioredis.Redis, stream_name: str, messages: list[tuple[str, dict]], app_name: str
-    ) -> None:
-        """
-        处理消息并落库
-
-        :param redis: Redis连接对象
-        :param stream_name: Stream名称
-        :param messages: 消息列表
-        :param app_name: 应用标识（dedup key 按 app 隔离）
-        :return: None
-        """
-        if not messages:
-            return
-        async with AsyncSessionLocal() as session:
-            ack_ids: list[str] = []
-            dedup_event_ids: list[str] = []
-            try:
-                for message_id, data in messages:
-                    event_type = data.get('event_type')
-                    event_id = data.get('event_id')
-                    payload_raw = data.get('payload') or '{}'
-                    if event_type not in {'login', 'operation'}:
-                        ack_ids.append(message_id)
-                        continue
-                    acquired = await cls._acquire_dedup(redis, event_id, app_name)
-                    if not acquired:
-                        ack_ids.append(message_id)
-                        continue
-                    dedup_event_ids.append(event_id)
-                    payload = json.loads(payload_raw)
-                    if event_type == 'login':
-                        await LoginLogDao.add_login_log_dao(session, LogininforModel(**payload))
-                    elif event_type == 'operation':
-                        await OperationLogDao.add_operation_log_dao(session, OperLogModel(**payload))
-                    ack_ids.append(message_id)
-                if ack_ids:
-                    await session.commit()
-                    await redis.xack(stream_name, LogConfig.get_stream_group(app_name), *ack_ids)
-            except Exception:
-                await session.rollback()
-                for event_id in dedup_event_ids:
-                    await cls._release_dedup(redis, event_id, app_name)
-                raise
+__all__ = [
+    'OperationLogService',
+    'LoginLogService',
+    'LogQueueService',
+    'LogDedupHelper',
+]

@@ -1,182 +1,256 @@
-# 日志聚合与操作日志落库机制 总结
+# 基于 MessageStreamService 的日志聚合流程
 
-> 一句话：把 HTTP 业务线程里的日志写入，变成「扔进队列就走、后台协程慢慢落库」的异步解耦链路。
-
----
-
-## 一、整体流程：生产端 → 队列 → 消费端
-
-```
-[HTTP 请求进来]
-      ↓
-[Controller 方法执行]
-      ↓ 方法返回
-[Log 装饰器] ← 钩在 controller 上的「自动记录员」
-      ↓ 收集信息 + 脱敏
-[扔进 Redis 队列] ← 业务线程立即返回，不等落库
-      ↓
-[后台聚合协程] ← 启动时就跑着的一个常驻消费者
-      ↓ 攒一批
-[批量写入数据库]
-```
-
-**关键解耦点**：业务线程只负责「扔」，落库是另一个角色的工作。扔的动作亚毫秒级，业务接口完全感觉不到日志落库的开销。
+> 一句话：日志聚合通过 `MessageStreamService` 框架实现，推送侧用 `produce`，消费侧用 `@consumer` 装饰器，按 `app_name` 隔离，业务级去重由 `LogDedupHelper` 保证。
 
 ---
 
-## 二、生产端：HTTP 请求侧发生了什么
+## 一、架构概述
 
-每个 controller 方法挂了一个「日志装饰器」，方法返回时装饰器自动把这件事记下来。
+日志聚合作为 `message-stream-service` 的标准业务方，完全遵循 Kafka 风格 API：
 
-**装饰器会收集什么**：
-- 谁干的（操作人 + 部门）
-- 干了什么（标题、业务类型、具体方法名）
-- 怎么干的（请求方式、URL、IP 归属地）
-- 何时干的 + 花了多久
-- 关键载荷（请求参数、返回结果）—— **会先脱敏再写**，密码、token、密钥自动变成 `******`
+```
+HTTP 请求 → @Log 注解 → LogQueueService.enqueue → MessageStreamService.produce
+                                                              ↓
+                                            RedisStreamBackend.publish (XADD)
+                                                              ↓
+                                            @consumer 装饰器 → 消费者函数
+                                                              ↓
+                                            LogDedupHelper.acquire (SET NX EX)
+                                                              ↓
+                                            DAO 落库 → 框架自动 ACK
+```
 
-**然后入队**：
-- 把上面这些打成一条消息
-- 消息塞进 Redis Stream（一块「消息暂存区」）
-- Stream 自动按「生产者 app」分桶：admin 的请求只会进 admin 的桶，rag 的请求只会进 rag 的桶
-
-**HTTP 线程就此返回，业务接口响应用户**。
+**核心组件**：
+- **LogQueueService**：推送门面，负责构建 payload、headers，调用 `MessageStreamService.produce`
+- **@consumer 装饰器**：声明消费者，框架自动拉起后台消费协程
+- **LogDedupHelper**：业务级去重，基于 Redis SET NX EX，异常时自动释放
+- **MessageStreamService**：框架门面，统一管理生产/消费/ack/claim_idle
 
 ---
 
-## 三、消费端：后台协程怎么把消息变成数据库行
+## 二、时序图
 
-应用启动时（lifespan），每个 app 拉起一个常驻协程：不停地从自己的桶里读消息、攒一批、写数据库。
+```mermaid
+sequenceDiagram
+    participant C as HTTP Client
+    participant Ctrl as Controller
+    participant Log as @Log 注解
+    participant Q as LogQueueService
+    participant MSS as MessageStreamService
+    participant RSB as RedisStreamBackend
+    participant Redis as Redis Stream
+    participant Consumer as @consumer 消费者
+    participant Dedup as LogDedupHelper
+    participant DAO as LogDao
+    participant DB as MySQL
 
-**协程的死循环节奏**：
+    C->>Ctrl: HTTP 请求
+    Ctrl->>Ctrl: 业务逻辑执行
+    Ctrl-->>Log: 方法返回触发注解
+    Log->>Q: enqueue_operation_log(request, operLog, source)
+    Q->>Q: _build_event_id(request_id, log_type, source)
+    Q->>Q: LogSanitizer.sanitize_data(payload)
+    Q->>MSS: produce(topic='log:operation:{app_name}', value, key, headers)
+    MSS->>RSB: publish(topic, value, key, headers)
+    RSB->>Redis: XADD log:operation:{app_name} * __value {...} __key req_id __headers {...}
+    Redis-->>RSB: xid (1700000000000-0)
+    RSB-->>MSS: xid
+    MSS-->>Q: xid
+    Q-->>Log: 完成
+    Log-->>Ctrl: 业务接口立即返回
 
+    Note over Redis,Consumer: 后台消费协程（框架自动拉起）
+    Redis->>Consumer: XREADGROUP 消息
+    Consumer->>Dedup: acquire(event_id, app_name)
+    Dedup->>Redis: SET log:dedup:{app_name}:{event_id} 1 NX EX 3600
+    Redis-->>Dedup: OK (首次获取)
+    Dedup-->>Consumer: True (可以落库)
+    Consumer->>DAO: add_operation_log_dao(session, OperLogModel)
+    DAO->>DB: INSERT INTO sys_oper_log
+    DB-->>DAO: 成功
+    Consumer->>Consumer: session.commit()
+    Note over Consumer: 函数正常返回，框架自动 ACK
 ```
-while 应用没退出:
-    每 5 秒一次：认领上一批「处理中超时卡住」的消息（兜底用）
+
+---
+
+## 三、按 app_name 隔离的命名约定
+
+### Topic 命名
+- 操作日志：`log:operation:{app_name}`
+- 登录日志：`log:login:{app_name}`
+
+示例：
+- admin 端：`log:operation:knowledge-admin`、`log:login:knowledge-admin`
+- rag 端：`log:operation:knowledge-rag`、`log:login:knowledge-rag`
+
+### Group ID 命名
+- `log_writer:{app_name}`
+
+示例：
+- admin 端：`log_writer:knowledge-admin`
+- rag 端：`log_writer:knowledge-rag`
+
+### 隔离保证
+- admin 进程只消费 `log:*:knowledge-admin` 系列 topic
+- rag 进程只消费 `log:*:knowledge-rag` 系列 topic
+- 跨 app 不串扰，日志条目不会出现在另一端的数据库表里
+
+---
+
+## 四、业务级去重机制
+
+### LogDedupHelper 设计
+
+```python
+async with LogDedupHelper.acquire(event_id, app_name) as ok:
+    if not ok:
+        return  # 已被其他消费者落库或 event_id 为空
+    async with AsyncSessionLocal() as session:
+        await SomeLogDao.add_xxx_dao(session, ...)
+        await session.commit()
+```
+
+**语义**：
+- `__aenter__`：调 `redis.set(key, '1', nx=True, ex=3600)`，返回是否首次获取
+- `__aexit__`：
+  - 正常完成 → 保留 TTL 内的去重窗口（避免短期重复落库）
+  - 业务抛异常 → 主动 `delete` dedup key，允许后端协议下一轮重试时再次获取
+
+**event_id 计算**：
+```python
+base = f'{request_id}:{log_type}:{source}'
+event_id = hashlib.md5(base.encode('utf-8')).hexdigest()
+```
+
+---
+
+## 五、消费者代码示例
+
+消费者文件位于 `knowledge_common/message/consumer/log_consumer.py`，由 common 集中维护：
+
+```python
+from knowledge_common.message_stream import Message, consumer
+from knowledge_common.service.log_service import LogDedupHelper
+from knowledge_common.config.database import AsyncSessionLocal
+from knowledge_common.dao.log_dao import OperationLogDao
+from knowledge_common.entity.vo.log_vo import OperLogModel
+
+@consumer(topic='log:operation:knowledge-admin', group_id='log_writer:knowledge-admin')
+async def handle_admin_operation_log(msg: Message) -> None:
+    """
+    admin 端操作日志消费者
     
-    阻塞 2 秒等新消息（最多拿 100 条）
-    
-    拿到一批 → 进入「处理与落库」流程
+    从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
+    """
+    event_id = msg.headers.get('event_id')
+    app_name = msg.headers.get('app_name', 'knowledge-admin')
+    async with LogDedupHelper.acquire(event_id, app_name) as ok:
+        if not ok:
+            return
+        async with AsyncSessionLocal() as session:
+            operation_log = OperLogModel(**msg.value)
+            await OperationLogDao.add_operation_log_dao(session, operation_log)
+            await session.commit()
 ```
 
-**处理与落库**：
+**关键点**：
+- 消费者函数签名：`async def handle(msg: Message) -> None`
+- 异常语义：函数抛异常 → 框架不 ack → 后端协议兜底（claim_idle 接管）
+- 事务管理：每条消息独立 session，独立 commit
 
-```
-对这一批里的每条消息：
+---
 
-  ① 抢一把「去重锁」（Redis SET NX EX 1h）
-     抢到 → 继续
-     抢不到 → 说明之前处理过，直接丢弃不落库（防御重复）
-  
-  ② 解析消息内容
-  
-  ③ 写库（操作日志 / 登录日志，二选一）
-     这一批的所有消息攒一起 commit
-  
-  ④ 全部成功后，告诉 Redis「这批我处理完了」（XACK）
-  
-  ⑤ 出错怎么办？
-     - 数据库回滚
-     - 把这批抢到的去重锁释放掉
-     - 60 秒后还没人认领的消息会被自动接管重试
+## 六、切 Kafka 时的契约保证
+
+当日志聚合完全接入 `MessageStreamService` 后，切换后端只需修改 `.env`：
+
+```bash
+# .env
+MESSAGE_STREAM_BACKEND = 'redis'  # 改为 'kafka' 即可切换
 ```
 
----
+**业务侧零修改**：
+- `@consumer` 装饰器保持不变
+- `MessageStreamService.produce` 调用保持不变
+- `LogDedupHelper` 保持不变
+- `LoginLogDao` / `OperationLogDao` 保持不变
 
-## 四、本次「按 app_name 自产自销」改造
-
-### 之前的问题
-
-所有 app 共用同一个「消息桶 + 同一队消费者」。admin 和 rag 都在抢同一批消息，**谁先抢到谁去落库**。
-
-后果：admin 前端点删除，看到的「数据库写入 SQL」日志打印在 **rag 进程的终端**上 —— 因为 rag 抢到那条消息并在它的数据库会话里执行了 commit。
-
-### 改造后
-
-每个 app 有自己独立的一套东西：
-
-| 概念 | 改造前 | 改造后 |
-|------|--------|--------|
-| 消息桶 | 1 个（所有 app 共享） | 每个 app 1 个：admin 一个、rag 一个 |
-| 消费者队伍 | 1 队（admin 和 rag 混在一起抢） | 每 app 1 队，各抢各的 |
-| 去重锁 | 共享 key | 按 app 分前缀 |
-
-admin 进程只关心 admin 的桶，rag 进程只关心 rag 的桶 —— **自产自销，井水不犯河水**。
-
-### 改造涉及哪些地方
-
-逻辑层面是「**所有跟 Redis 桶有关的资源，全部带上 app 名字**」。
-
-- **配置层**：从「读固定 key」改成「根据 app_name 算 key」（小工具方法）
-- **生产端**：入队前先解析出当前请求属于哪个 app，把名字塞进消息一起带走
-- **消费端**：协程启动时就知道「我只处理我这个 app 的桶」，所有方法都接收 `app_name` 参数
-- **应用启动**：lifespan 里把 `app_name` 写到 `app.state`，让装饰器能取到
-- **数据库表**：**没改**，还是同一张表，只是落库的执行者变成了请求所属的那个 app
+**只有框架层切换**：
+- `RedisStreamBackend` ↔ `KafkaStreamBackend`
+- 由 `backends/factory.py` 根据配置自动选择
 
 ---
 
-## 五、几个关键设计点（为什么这么干）
+## 七、配置说明
 
-### 为什么用 Stream 而不是 List / PubSub？
+### LogConfig（业务级配置）
 
-Stream 是 Redis 的「持久化消息队列」，**消息不会丢**。List 的 BRPOP 拿走了就消失；PubSub 订阅者一断就连不上；只有 Stream + 消费组能保证：
-- 消息持久化（崩了能恢复）
-- 多个消费者抢消息（不重复）
-- 处理完才确认（不丢）
-- 卡住的消息能被认领（不死锁）
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `log_stream_dedup_ttl` | 3600 | 去重 Key 过期时间（秒） |
+| `log_stream_dedup_prefix` | `log:dedup` | 去重 Key 前缀 |
 
-### 为什么要先去重再落库？
+### MessageStreamSettings（框架级配置）
 
-**两层防护**：
-- 第一层：消费组机制保证「同一条消息只被一个消费者拿到」
-- 第二层：万一出现重投（崩溃重试、认领接管），用 event_id 去重锁保证「同一事件只落一次库」
-
-event_id 怎么算：基于「请求唯一标识 + 日志类型 + 触发源」做哈希。同一请求同一个日志只产生一个 event_id。
-
-### 为什么攒一批再 commit？
-
-数据库写入是 IO 密集操作。一条条 commit 是 N 次 IO，一批 commit 是 1 次 IO。攒 100 条一起写，吞吐量能差出几十倍。
-
-### 兜底机制
-
-如果某个 worker 拿到消息后崩了，消息会卡在「已派发但未确认」状态。健康 worker 每 5 秒扫一遍，**把空闲超过 60 秒的卡住消息接管过来**自己处理。这是 Stream 消费组的 `XAUTOCLAIM` 能力。
-
-### 多实例协同
-
-同一个 app 起多个 worker 进程时：
-- 共用一个消费组
-- 每个 worker 拿一个唯一的「消费者名字」（worker 进程号 + 随机串）
-- Redis 保证「同一消息只被组里一个消费者抢到」
-
-天然水平扩展，加 worker 就提速。
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `message_stream_backend` | `redis` | 后端选择：redis / kafka |
+| `message_stream_consume_block_ms` | 2000 | 阻塞读取等待时间（毫秒） |
+| `message_stream_consume_batch_size` | 100 | 每次读取的最大消息数量 |
+| `message_stream_claim_idle_ms` | 60000 | Pending 回收最小空闲时间（毫秒） |
+| `message_stream_claim_interval_ms` | 5000 | Pending 回收检查间隔（毫秒） |
+| `message_stream_redis_maxlen` | 100000 | Redis Stream 近似裁剪上限 |
 
 ---
 
-## 六、常见疑问
+## 八、监控与调试
 
-**Q：消息桶有大小限制吗？会丢消息吗？**
-A：Stream 设置了 100000 条的上限（近似裁剪）。流量极端爆炸时最旧的消息会被丢弃，但 XADD 本身永远成功。一般业务量到不了这个量级。
+### 查看消费组状态
+```bash
+# 查看 admin 端操作日志消费组
+redis-cli XINFO CONSUMERS log:operation:knowledge-admin log_writer:knowledge-admin
 
-**Q：admin 的请求，rag 进程会落库吗？**
-A：不会。改造后 rag 进程根本读不到 admin 桶里的消息。SQL 落库只发生在 admin 进程自己的数据库会话里。
+# 查看 PEL（Pending Entries List）
+redis-cli XPENDING log:operation:knowledge-admin log_writer:knowledge-admin
+```
 
-**Q：消费协程崩了怎么办？**
-A：lifespan 启动时用 `asyncio.create_task` 注册，崩了的话要看异常路径处理。`RedisTimeoutError` 和普通异常都做了 1 秒后重试。`CancelledError` 正常透传（关闭时用）。
+### 查看去重锁
+```bash
+# 查看 admin 端去重 key
+redis-cli KEYS "log:dedup:knowledge-admin:*"
+```
 
-**Q：dedup 锁 1 小时过期比「卡住消息兜底 60 秒」长，会不会有消息被误丢？**
-A：理论上有。设计假设是「1 小时内同一 event_id 不会被重投」 —— 正常情况下是成立的（同一请求同一装饰器只入队一次）。如果有重投链路让同一 event_id 在 1 小时内重投到 2 次以上，第二次会被去重锁挡掉。极端异常可调短 TTL。
-
-**Q：装饰器抛异常会污染业务响应吗？**
-A：不会。`enqueue_*` 是 `await redis.xadd`，失败会被外层 FastAPI 异常兜底，业务接口照常返回。日志入队失败不会影响 HTTP 业务。
+### 手动触发重试
+```bash
+# 认领空闲超过 60 秒的消息
+redis-cli XAUTOCLAIM log:operation:knowledge-admin log_writer:knowledge-admin consumer-name 60000 0-0
+```
 
 ---
 
-## 七、验证：怎么确认改对了
+## 九、故障排查
 
-启动两端后，Redis 里应该看到：
+### 消息堆积
+- 检查消费者协程是否正常运行
+- 检查数据库连接是否正常
+- 查看 PEL 长度：`XPENDING log:operation:{app_name} log_writer:{app_name}`
 
-- 两条独立的 stream：admin 一个、rag 一个
-- 各自的消费组名也带 app 后缀
-- 在 admin 前端点操作，admin 进程终端看到「写操作日志」SQL，rag 进程终端完全看不到
+### 重复落库
+- 检查 dedup key TTL 是否过短
+- 检查 event_id 计算逻辑是否一致
 
-反之亦然。
+### 跨 app 串扰
+- 检查 topic 命名是否正确：`log:{event_type}:{app_name}`
+- 检查 group_id 命名是否正确：`log_writer:{app_name}`
+- 检查消费者装饰器 topic 参数是否匹配
+
+---
+
+## 十、相关文件
+
+- **推送侧**：`knowledge_common/service/log_service.py`（LogQueueService）
+- **消费者**：`knowledge_common/message/consumer/log_consumer.py`
+- **去重 Helper**：`knowledge_common/service/log_service.py`（LogDedupHelper）
+- **配置**：`knowledge_common/config/env.py`（LogConfig、MessageStreamSettings）
+- **测试**：`knowledge-common/tests/test_log_aggregation_via_message_stream.py`

@@ -33,6 +33,7 @@ class RedisUtil:
             db=RedisConfig.redis_database,
             encoding='utf-8',
             decode_responses=True,
+            socket_timeout=None,
             health_check_interval=30,
         )
         if log_start_enabled is None:

@@ -56,7 +56,7 @@ class MessageStreamService:
     _tasks: dict[str, asyncio.Task] = {}
 
     # 业务方声明的扫描路径
-    _scan_paths: list[str] = []
+    _scan_paths: list[str] = ['knowledge_common.message.consumer']
 
     # 后台 idle 接管协程:{consumer_id: Task}
     _claim_tasks: dict[str, asyncio.Task] = {}
