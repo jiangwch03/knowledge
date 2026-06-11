@@ -6,10 +6,10 @@ from fastapi import Request
 from redis import asyncio as aioredis
 
 from knowledge_common.common.constant import CommonConstant
-from knowledge_common.common.enums import RedisInitKeyConfig
-from knowledge_common.common.transactional import transactional
+from knowledge_common.common.transactional import transactional, async_session_scope
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.dao.dict_dao import DictDataDao, DictTypeDao
 from knowledge_common.entity.do.dict_do import SysDictData
 from knowledge_common.entity.vo.dict_vo import (
@@ -75,7 +75,7 @@ class DictTypeService:
         if not await cls.check_dict_type_unique_services(page_object):
             raise ServiceException(message=f'新增字典{page_object.dict_name}失败，字典类型已存在')
         await DictTypeDao.add_dict_type_dao(page_object)
-        await request.app.state.redis.set(f'{RedisInitKeyConfig.SYS_DICT.key}:{page_object.dict_type}', '')
+        await request.app.state.redis.set(f'{RedisKey.SYS_DICT}:{page_object.dict_type}', '')
         return CrudResponseModel(is_success=True, message='新增成功')
 
     @classmethod
@@ -110,7 +110,7 @@ class DictTypeService:
             if dict_type_info.dict_type != page_object.dict_type:
                 dict_data = [CamelCaseUtil.transform_result(row) for row in dict_data_list if row]
                 await request.app.state.redis.set(
-                    f'{RedisInitKeyConfig.SYS_DICT.key}:{page_object.dict_type}',
+                    f'{RedisKey.SYS_DICT}:{page_object.dict_type}',
                     json.dumps(dict_data, ensure_ascii=False, default=str),
                 )
             return CrudResponseModel(is_success=True, message='更新成功')
@@ -137,7 +137,7 @@ class DictTypeService:
                 if (await DictDataDao.count_dict_data_dao(dict_type_into.dict_type)) > 0:
                     raise ServiceException(message=f'{dict_type_into.dict_name}已分配，不能删除')
                 await DictTypeDao.delete_dict_type_dao(DictTypeModel(dictId=int(dict_id)))
-                delete_dict_type_list.append(f'{RedisInitKeyConfig.SYS_DICT.key}:{dict_type_into.dict_type}')
+                delete_dict_type_list.append(f'{RedisKey.SYS_DICT}:{dict_type_into.dict_type}')
             if delete_dict_type_list:
                 await request.app.state.redis.delete(*delete_dict_type_list)
             return CrudResponseModel(is_success=True, message='删除成功')
@@ -233,6 +233,17 @@ class DictDataService:
         return dict_data_list_result
 
     @classmethod
+    async def init_cache(cls, redis: aioredis.Redis) -> None:
+        """
+        应用启动时缓存字典表（封装 session 作用域，供 server.py 生命周期调用）
+
+        :param redis: redis对象
+        :return:
+        """
+        async with async_session_scope():
+            await cls.init_cache_sys_dict_services(redis)
+
+    @classmethod
     async def init_cache_sys_dict_services(cls, redis: aioredis.Redis) -> None:
         """
         应用初始化：获取所有字典类型对应的字典数据信息并缓存service
@@ -241,7 +252,7 @@ class DictDataService:
         :return:
         """
         # 获取以sys_dict:开头的键列表
-        keys = await redis.keys(f'{RedisInitKeyConfig.SYS_DICT.key}:*')
+        keys = await redis.keys(f'{RedisKey.SYS_DICT}:*')
         # 删除匹配的键
         if keys:
             await redis.delete(*keys)
@@ -251,7 +262,7 @@ class DictDataService:
             dict_data_list = await DictDataDao.query_dict_data_list(dict_type)
             dict_data = [CamelCaseUtil.transform_result(row) for row in dict_data_list if row]
             await redis.set(
-                f'{RedisInitKeyConfig.SYS_DICT.key}:{dict_type}',
+                f'{RedisKey.SYS_DICT}:{dict_type}',
                 json.dumps(dict_data, ensure_ascii=False, default=str),
             )
 
@@ -267,7 +278,7 @@ class DictDataService:
         :return: 字典数据列表信息对象
         """
         result = []
-        dict_data_list_result = await redis.get(f'{RedisInitKeyConfig.SYS_DICT.key}:{dict_type}')
+        dict_data_list_result = await redis.get(f'{RedisKey.SYS_DICT}:{dict_type}')
         if dict_data_list_result:
             result = json.loads(dict_data_list_result)
 
@@ -306,7 +317,7 @@ class DictDataService:
         await DictDataDao.add_dict_data_dao(page_object)
         dict_data_list = await cls.query_dict_data_list_services(page_object.dict_type)
         await request.app.state.redis.set(
-            f'{RedisInitKeyConfig.SYS_DICT.key}:{page_object.dict_type}',
+            f'{RedisKey.SYS_DICT}:{page_object.dict_type}',
             json.dumps(CamelCaseUtil.transform_result(dict_data_list), ensure_ascii=False, default=str),
         )
         return CrudResponseModel(is_success=True, message='新增成功')
@@ -333,7 +344,7 @@ class DictDataService:
             await DictDataDao.edit_dict_data_dao(edit_data_type)
             dict_data_list = await cls.query_dict_data_list_services(page_object.dict_type)
             await request.app.state.redis.set(
-                f'{RedisInitKeyConfig.SYS_DICT.key}:{page_object.dict_type}',
+                f'{RedisKey.SYS_DICT}:{page_object.dict_type}',
                 json.dumps(CamelCaseUtil.transform_result(dict_data_list), ensure_ascii=False, default=str),
             )
             return CrudResponseModel(is_success=True, message='更新成功')
@@ -362,7 +373,7 @@ class DictDataService:
             for dict_type in list(set(delete_dict_type_list)):
                 dict_data_list = await cls.query_dict_data_list_services(dict_type)
                 await request.app.state.redis.set(
-                    f'{RedisInitKeyConfig.SYS_DICT.key}:{dict_type}',
+                    f'{RedisKey.SYS_DICT}:{dict_type}',
                     json.dumps(CamelCaseUtil.transform_result(dict_data_list), ensure_ascii=False, default=str),
                 )
             return CrudResponseModel(is_success=True, message='删除成功')

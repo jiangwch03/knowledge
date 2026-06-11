@@ -8,33 +8,29 @@ Redis Pub/Sub 工具类
 - handler 支持同步/异步函数
 - 任务生命周期管理
 
-注意：所有方法都是 @classmethod，无需也不可以实例化（不要写 util = RedisPubSubUtil(...)）。
+注意：所有方法都是 @classmethod，无需也不可以实例化。
 
 典型用法：
 
     from redis import asyncio as aioredis
-    from knowledge_common.utils.redis_pubsub_util import PubSubMessage, RedisPubSubUtil
+    from knowledge_common.redis import PubSubMessage, RedisPubSub
 
-    # redis 是项目中已有的 aioredis 客户端连接（进程级复用）
     redis: aioredis.Redis = ...
 
     # ============ 1. 发布 ============
-    # publish(redis, channel, payload) — payload 为 dict 时自动 JSON 序列化
-    n = await RedisPubSubUtil.publish(
+    n = await RedisPubSub.publish(
         redis,
         'scheduler:global:sync',
         {'app_scope': 'knowledge-rag', 'action': 'sync'},
     )
 
     # ============ 2. 订阅 ============
-    # 定义消息处理函数 — msg.data 已是 dict（自动 JSON 反序列化）
     async def on_message(msg: PubSubMessage):
         if msg.data.get('app_scope') != MY_APP:
             return
         await do_something(msg.data)
 
-    # subscribe(redis, channel, handler) — 启动后台监听任务，返回 asyncio.Task
-    task = await RedisPubSubUtil.subscribe(
+    task = await RedisPubSub.subscribe(
         redis,
         'scheduler:global:sync',
         on_message,
@@ -42,26 +38,11 @@ Redis Pub/Sub 工具类
     )
 
     # ============ 3. 取消订阅 ============
-    # 取消单个：unsubscribe(task) 或 unsubscribe(task_name)
-    await RedisPubSubUtil.unsubscribe(task)
-
+    await RedisPubSub.unsubscribe(task)
     # 应用关闭时一次性关闭全部
-    # await RedisPubSubUtil.shutdown()
-
-模式订阅（同 redis psubscribe）：
-
-    async def on_pattern(msg: PubSubMessage):
-        logger.info(f'命中模式 {msg.pattern} 频道 {msg.channel}: {msg.data}')
-
-    task = await RedisPubSubUtil.subscribe_pattern(
-        redis,
-        'news.*',          # 匹配 news.tech、news.sport 等
-        on_pattern,
-        task_name='news_subscriber',
-    )
+    # await RedisPubSub.shutdown()
 """
 import asyncio
-import json
 from typing import Any, Awaitable, Callable, Union
 
 from redis import asyncio as aioredis
@@ -71,6 +52,7 @@ from redis.exceptions import (
 )
 
 from knowledge_common.common.context import RedisContext
+from knowledge_common.redis.serialization import decode_message_data, encode_payload
 from knowledge_common.utils.log_util import logger
 
 
@@ -101,7 +83,7 @@ class PubSubMessage:
         return f"<PubSubMessage channel={self.channel} pattern={self.pattern} data={self.data}>"
 
 
-class RedisPubSubUtil:
+class RedisPubSub:
     """
     Redis Pub/Sub 异步工具类
 
@@ -119,7 +101,7 @@ class RedisPubSubUtil:
     @classmethod
     def configure(cls, retry_interval: float = 5.0) -> None:
         """
-        配置全局默认参数
+        配置全局参数
 
         :param retry_interval: 订阅连接异常时的重连间隔（秒）
         :return: None
@@ -152,7 +134,7 @@ class RedisPubSubUtil:
         :return: 接收者数量
         """
         target_redis = cls._get_redis(redis)
-        message = cls._encode_payload(payload)
+        message = encode_payload(payload)
         n = await target_redis.publish(channel, message)
         logger.info(f'📢 发布到 [{channel}]: 接收者={n}')
         return n
@@ -168,7 +150,7 @@ class RedisPubSubUtil:
         :return: 接收者数量
         """
         target_redis = cls._get_redis(redis)
-        message = cls._encode_payload(payload)
+        message = encode_payload(payload)
         n = target_redis.publish(channel, message)
         logger.info(f'📢 同步发布到 [{channel}]: 接收者={n}')
         return n
@@ -365,29 +347,12 @@ class RedisPubSubUtil:
     # ==================== 内部工具 ====================
 
     @staticmethod
-    def _encode_payload(payload: Payload) -> str | bytes:
-        """
-        编码发布载荷
-
-        - dict/list -> JSON 字符串
-        - str/bytes -> 原样返回
-        - 其他 -> str()
-        """
-        if isinstance(payload, (dict, list)):
-            return json.dumps(payload, ensure_ascii=False)
-        if isinstance(payload, str):
-            return payload
-        if isinstance(payload, bytes):
-            return payload
-        return str(payload)
-
-    @staticmethod
     def _parse_message(raw: dict) -> PubSubMessage:
         """
         解析 Redis 原始消息
 
         - channel/pattern 统一为 str（处理 bytes）
-        - data 尝试 JSON 反序列化，失败则保持原样
+        - data 使用公共 decode_message_data 解码
         """
         channel = raw.get('channel', '')
         if isinstance(channel, bytes):
@@ -397,12 +362,7 @@ class RedisPubSubUtil:
         if isinstance(pattern, bytes):
             pattern = pattern.decode('utf-8', errors='replace')
 
-        data = raw.get('data', b'')
-        if isinstance(data, bytes):
-            try:
-                data = json.loads(data.decode('utf-8'))
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                data = data.decode('utf-8', errors='replace')
+        data = decode_message_data(raw.get('data'))
 
         return PubSubMessage(
             channel=channel,

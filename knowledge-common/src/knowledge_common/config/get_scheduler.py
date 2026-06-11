@@ -37,7 +37,7 @@ from knowledge_common.entity.vo.job_vo import JobLogModel, JobModel
 from knowledge_common.service.job_log_service import JobLogService
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.log_util import logger
-from knowledge_common.utils.redis_pubsub_util import PubSubMessage, RedisPubSubUtil
+from knowledge_common.redis.pubsub import PubSubMessage, RedisPubSub
 from knowledge_common.utils.server_util import StartupUtil, WorkerIdUtil
 
 
@@ -770,7 +770,7 @@ class SchedulerUtil:
         :return:
         """
         if cls._global_sync_listener_task:
-            await RedisPubSubUtil.unsubscribe(cls._global_sync_listener_task)
+            await RedisPubSub.unsubscribe(cls._global_sync_listener_task)
             cls._global_sync_listener_task = None
         if cls._sync_task:
             cls._sync_task.cancel()

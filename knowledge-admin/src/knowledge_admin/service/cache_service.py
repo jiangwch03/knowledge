@@ -1,7 +1,8 @@
 from fastapi import Request
-from knowledge_common.common.enums import RedisInitKeyConfig
 from knowledge_common.common.vo import CrudResponseModel
-from knowledge_common.config.get_redis import RedisUtil
+from knowledge_common.redis.key import RedisKey
+from knowledge_common.service.config_service import ConfigService
+from knowledge_common.service.dict_service import DictDataService
 
 from knowledge_admin.vo.cache_vo import CacheInfoModel, CacheMonitorModel
 
@@ -39,11 +40,11 @@ class CacheService:
         name_list = [
             CacheInfoModel(
                 cacheKey='',
-                cacheName=key_config.key,
+                cacheName=key_prefix,
                 cacheValue='',
-                remark=key_config.remark,
+                remark=remark,
             )
-            for key_config in RedisInitKeyConfig
+            for key_prefix, remark in RedisKey.CACHE_KEY_REMARKS.items()
         ]
 
         return name_list
@@ -120,7 +121,7 @@ class CacheService:
         if cache_keys:
             await request.app.state.redis.delete(*cache_keys)
 
-        await RedisUtil.init_sys_dict(request.app.state.redis)
-        await RedisUtil.init_sys_config(request.app.state.redis)
+        await DictDataService.init_cache(request.app.state.redis)
+        await ConfigService.init_cache(request.app.state.redis)
 
         return CrudResponseModel(is_success=True, message='所有缓存清除成功')

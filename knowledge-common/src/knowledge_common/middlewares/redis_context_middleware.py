@@ -17,7 +17,7 @@ class RedisContextMiddleware:
     解决方案：
         在 HTTP 请求入口（pure ASGI __call__）将 app.state.redis 注入到当前 task 的
         context 中，使该 task 内所有后续代码（包括 SchedulerUtil.broadcast_* →
-        RedisPubSubUtil.publish → RedisContext.get_redis）都能拿到 redis。
+        RedisPubSub.publish → RedisContext.get_redis）都能拿到 redis。
 
     为什么用 pure ASGI 而不是 BaseHTTPMiddleware：
         BaseHTTPMiddleware 内部用 anyio.create_task_group() 派生新 task 跑下游 app，

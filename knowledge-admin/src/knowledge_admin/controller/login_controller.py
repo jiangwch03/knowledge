@@ -9,7 +9,8 @@ from knowledge_common.common.annotation.log_annotation import Log
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
-from knowledge_common.common.enums import BusinessType, RedisInitKeyConfig
+from knowledge_common.common.enums import BusinessType
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
 from knowledge_common.config.env import AppConfig, JwtConfig
@@ -38,7 +39,7 @@ async def login(
     form_data: Annotated[CustomOAuth2PasswordRequestForm, Depends()],
 ) -> Response:
     captcha_enabled = (
-        await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled') == 'true'
+        await request.app.state.redis.get(f'{RedisKey.SYS_CONFIG}:sys.account.captchaEnabled') == 'true'
     )
     user = UserLogin(
         userName=form_data.username,
@@ -63,14 +64,14 @@ async def login(
     )
     if AppConfig.app_same_time_login:
         await request.app.state.redis.set(
-            f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{session_id}',
+            f'{RedisKey.ACCESS_TOKEN}:{session_id}',
             access_token,
             ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
         )
     else:
         # 此方法可实现同一账号同一时间只能登录一次
         await request.app.state.redis.set(
-            f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{result[0].user_id}',
+            f'{RedisKey.ACCESS_TOKEN}:{result[0].user_id}',
             access_token,
             ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
         )

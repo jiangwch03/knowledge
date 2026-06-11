@@ -13,7 +13,8 @@ from redis import asyncio as aioredis
 from typing_extensions import ParamSpec
 
 from knowledge_common.common.context import RequestContext
-from knowledge_common.common.enums import HttpMethod, RedisInitKeyConfig
+from knowledge_common.common.enums import HttpMethod
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.exceptions.exception import LoginException
 from knowledge_common.entity.vo.user_vo import CurrentUserModel
 from knowledge_common.utils.api_annotation_util import ApiAnnotationUtil
@@ -481,7 +482,7 @@ class ApiRateLimit:
             ).encode('utf-8')
         ).hexdigest()
 
-        key_prefix = f'{RedisInitKeyConfig.API_RATE_LIMIT.key}:{self.namespace}:{self.algorithm}:{key_digest}'
+        key_prefix = f'{RedisKey.API_RATE_LIMIT}:{self.namespace}:{self.algorithm}:{key_digest}'
         if self.algorithm == 'fixed_window' and include_window_bucket:
             window_bucket = current_time_ms // (self.window_seconds * 1000)
             return f'{key_prefix}:{window_bucket}'

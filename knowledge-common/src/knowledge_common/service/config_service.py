@@ -4,10 +4,10 @@ from fastapi import Request
 from redis import asyncio as aioredis
 
 from knowledge_common.common.constant import CommonConstant
-from knowledge_common.common.enums import RedisInitKeyConfig
-from knowledge_common.common.transactional import transactional
+from knowledge_common.common.transactional import transactional, async_session_scope
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.dao.config_dao import ConfigDao
 from knowledge_common.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
 from knowledge_common.utils.common_util import CamelCaseUtil
@@ -35,6 +35,17 @@ class ConfigService:
         return config_list_result
 
     @classmethod
+    async def init_cache(cls, redis: aioredis.Redis) -> None:
+        """
+        应用启动时缓存参数配置表（封装 session 作用域，供 server.py 生命周期调用）
+
+        :param redis: redis对象
+        :return:
+        """
+        async with async_session_scope():
+            await cls.init_cache_sys_config_services(redis)
+
+    @classmethod
     async def init_cache_sys_config_services(cls, redis: aioredis.Redis) -> None:
         """
         应用初始化：获取所有参数配置对应的键值对信息并缓存service
@@ -43,14 +54,14 @@ class ConfigService:
         :return:
         """
         # 获取以sys_config:开头的键列表
-        keys = await redis.keys(f'{RedisInitKeyConfig.SYS_CONFIG.key}:*')
+        keys = await redis.keys(f'{RedisKey.SYS_CONFIG}:*')
         # 删除匹配的键
         if keys:
             await redis.delete(*keys)
         config_all = await ConfigDao.get_config_list(ConfigPageQueryModel(), is_page=False)
         for config_obj in config_all:
             await redis.set(
-                f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_obj.get("configKey")}',
+                f'{RedisKey.SYS_CONFIG}:{config_obj.get("configKey")}',
                 config_obj.get('configValue'),
             )
 
@@ -63,7 +74,7 @@ class ConfigService:
         :param config_key: 参数键名
         :return: 参数键名对应值
         """
-        result = await redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_key}')
+        result = await redis.get(f'{RedisKey.SYS_CONFIG}:{config_key}')
 
         return result
 
@@ -97,7 +108,7 @@ class ConfigService:
             raise ServiceException(message=f'新增参数{page_object.config_name}失败，参数键名已存在')
         await ConfigDao.add_config_dao(page_object)
         await request.app.state.redis.set(
-            f'{RedisInitKeyConfig.SYS_CONFIG.key}:{page_object.config_key}', page_object.config_value
+            f'{RedisKey.SYS_CONFIG}:{page_object.config_key}', page_object.config_value
         )
         return CrudResponseModel(is_success=True, message='新增成功')
 
@@ -121,10 +132,10 @@ class ConfigService:
             await ConfigDao.edit_config_dao(edit_config)
             if config_info.config_key != page_object.config_key:
                 await request.app.state.redis.delete(
-                    f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_info.config_key}'
+                    f'{RedisKey.SYS_CONFIG}:{config_info.config_key}'
                 )
             await request.app.state.redis.set(
-                f'{RedisInitKeyConfig.SYS_CONFIG.key}:{page_object.config_key}', page_object.config_value
+                f'{RedisKey.SYS_CONFIG}:{page_object.config_key}', page_object.config_value
             )
             return CrudResponseModel(is_success=True, message='更新成功')
         else:
@@ -150,7 +161,7 @@ class ConfigService:
                 if config_info.config_type == CommonConstant.YES:
                     raise ServiceException(message=f'内置参数{config_info.config_key}不能删除')
                 await ConfigDao.delete_config_dao(ConfigModel(configId=int(config_id)))
-                delete_config_key_list.append(f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_info.config_key}')
+                delete_config_key_list.append(f'{RedisKey.SYS_CONFIG}:{config_info.config_key}')
             if delete_config_key_list:
                 await request.app.state.redis.delete(*delete_config_key_list)
             return CrudResponseModel(is_success=True, message='删除成功')

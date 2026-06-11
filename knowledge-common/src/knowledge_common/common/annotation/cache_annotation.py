@@ -13,7 +13,8 @@ from typing_extensions import ParamSpec
 
 from knowledge_common.common.constant import HttpStatusConstant
 from knowledge_common.common.context import RequestContext
-from knowledge_common.common.enums import HttpMethod, RedisInitKeyConfig
+from knowledge_common.common.enums import HttpMethod
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.exceptions.exception import LoginException
 from knowledge_common.utils.api_annotation_util import ApiAnnotationUtil
 from knowledge_common.utils.api_response_header_util import ApiResponseHeaderUtil
@@ -102,7 +103,7 @@ class ApiCacheManager:
         :param namespace: 缓存命名空间
         :return: 缓存键扫描匹配模式
         """
-        return f'{RedisInitKeyConfig.API_CACHE.key}:{namespace}:*'
+        return f'{RedisKey.API_CACHE}:{namespace}:*'
 
     @classmethod
     def build_namespace_prefix_pattern(cls, namespace_prefix: str) -> str:
@@ -112,7 +113,7 @@ class ApiCacheManager:
         :param namespace_prefix: 缓存命名空间前缀
         :return: 缓存键扫描匹配模式
         """
-        return f'{RedisInitKeyConfig.API_CACHE.key}:{namespace_prefix}*'
+        return f'{RedisKey.API_CACHE}:{namespace_prefix}*'
 
     @classmethod
     async def _clear_by_pattern(cls, redis: aioredis.Redis, pattern: str) -> int:
@@ -294,7 +295,7 @@ class ApiCache(_ApiCacheSupport):
             ).encode('utf-8')
         ).hexdigest()
 
-        return f'{RedisInitKeyConfig.API_CACHE.key}:{self.namespace}:{key_digest}'
+        return f'{RedisKey.API_CACHE}:{self.namespace}:{key_digest}'
 
     def _get_user_scope(self, request: Request) -> str:
         """

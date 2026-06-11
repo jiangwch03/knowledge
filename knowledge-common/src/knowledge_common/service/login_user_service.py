@@ -7,7 +7,7 @@ from jwt.exceptions import InvalidTokenError
 from knowledge_common.dao.user_login_dao import UserDao
 
 from knowledge_common.common.context import RequestContext
-from knowledge_common.common.enums import RedisInitKeyConfig
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.config.env import AppConfig, JwtConfig
 from knowledge_common.entity.vo.user_vo import CurrentUserModel, TokenData, UserInfoModel
 from knowledge_common.exceptions.exception import AuthException
@@ -28,7 +28,7 @@ class LoginUserService:
         :return: 是否初始密码登录
         """
         init_password_is_modify = await request.app.state.redis.get(
-            f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.initPasswordModify'
+            f'{RedisKey.SYS_CONFIG}:sys.account.initPasswordModify'
         )
         return init_password_is_modify == '1' and pwd_update_date is None
 
@@ -65,22 +65,22 @@ class LoginUserService:
             logger.warning('用户token不合法')
             raise AuthException(data='', message='用户token不合法')
         if AppConfig.app_same_time_login:
-            redis_token = await request.app.state.redis.get(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{session_id}')
+            redis_token = await request.app.state.redis.get(f'{RedisKey.ACCESS_TOKEN}:{session_id}')
         else:
             # 此方法可实现同一账号同一时间只能登录一次
             redis_token = await request.app.state.redis.get(
-                f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get("user_basic_info").user_id}'
+                f'{RedisKey.ACCESS_TOKEN}:{query_user.get("user_basic_info").user_id}'
             )
         if token == redis_token:
             if AppConfig.app_same_time_login:
                 await request.app.state.redis.set(
-                    f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{session_id}',
+                    f'{RedisKey.ACCESS_TOKEN}:{session_id}',
                     redis_token,
                     ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
                 )
             else:
                 await request.app.state.redis.set(
-                    f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get("user_basic_info").user_id}',
+                    f'{RedisKey.ACCESS_TOKEN}:{query_user.get("user_basic_info").user_id}',
                     redis_token,
                     ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
                 )
@@ -129,7 +129,7 @@ class LoginUserService:
         :return: 密码是否过期
         """
         password_validate_days = await request.app.state.redis.get(
-            f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.passwordValidateDays'
+            f'{RedisKey.SYS_CONFIG}:sys.account.passwordValidateDays'
         )
         if password_validate_days and int(password_validate_days) > 0:
             if pwd_update_date is None:

@@ -136,10 +136,16 @@ class JobConstant:
 
 class LockConstant:
     """
-    分布式锁常量
+    分布式锁常量（已废弃，请使用 knowledge_common.redis.key.LockKey）
+
+    保留此类仅为向后兼容，新代码应使用 LockKey：
+        from knowledge_common.redis.key import LockKey
+        key = LockKey.app_startup_key('knowledge-admin')
     """
 
-    APP_STARTUP_LOCK_KEY = AppConfig.app_name.join(':app:startup:lock')
+    from knowledge_common.redis.key import LockKey as _LockKey
+
+    APP_STARTUP_LOCK_KEY = _LockKey.app_startup_key()
     LOCK_EXPIRE_SECONDS = 60
     LOCK_RENEWAL_INTERVAL = 20
 

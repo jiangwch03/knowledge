@@ -7,8 +7,10 @@ from knowledge_common.common.constant import LockConstant
 from knowledge_common.common.router import auto_register_routers
 from knowledge_common.config.env import AppConfig, MessageStreamConfig
 from knowledge_common.config.get_db import close_async_engine, init_create_table
-from knowledge_common.config.get_redis import RedisUtil
+from knowledge_common.redis import RedisConnection
 from knowledge_common.config.get_scheduler import SchedulerUtil
+from knowledge_common.service.config_service import ConfigService
+from knowledge_common.service.dict_service import DictDataService
 from knowledge_common.broadcast import BroadcastService
 from knowledge_common.exceptions.handle import handle_exception
 from knowledge_common.message_stream import MessageStreamService
@@ -92,7 +94,7 @@ async def _stop_background_tasks(app: FastAPI) -> None:
             await lock_task
         except asyncio.CancelledError:
             pass
-    await RedisUtil.close_redis_pool(app)
+    await RedisConnection.close_redis_pool(app)
     await SchedulerUtil.close_system_scheduler()
     await close_async_engine()
 
@@ -118,7 +120,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     :return: None
     """
     #创建 Redis 连接池
-    app.state.redis = await RedisUtil.create_redis_pool(log_enabled=False)
+    app.state.redis = await RedisConnection.create_redis_pool(log_enabled=False)
 
     # 获取启动日志锁 多进程模式下 只有抢占到锁的进程打印启动日志
     startup_log_enabled = await StartupUtil.acquire_startup_log_gate(
@@ -152,13 +154,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await init_create_table()
 
         # 检查 Redis 连接
-        await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
+        await RedisConnection.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
 
         # 应用启动时缓存字典表
-        await RedisUtil.init_sys_dict(app.state.redis)
+        await DictDataService.init_cache(app.state.redis)
 
         #  应用启动时缓存参数配置表
-        await RedisUtil.init_sys_config(app.state.redis)
+        await ConfigService.init_cache(app.state.redis)
 
         # 启动后台任务（调度器、日志聚合等长运行协程）
         await _start_background_tasks(app)

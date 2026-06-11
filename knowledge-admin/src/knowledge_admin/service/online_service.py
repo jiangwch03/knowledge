@@ -2,7 +2,7 @@ from typing import Any
 
 import jwt
 from fastapi import Request
-from knowledge_common.common.enums import RedisInitKeyConfig
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.common.vo import CrudResponseModel
 from knowledge_common.config.env import AppConfig, JwtConfig
 from knowledge_common.exceptions.exception import ServiceException
@@ -25,7 +25,7 @@ class OnlineService:
         :param query_object: 查询参数对象
         :return: 在线用户列表信息
         """
-        access_token_keys = await request.app.state.redis.keys(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}*')
+        access_token_keys = await request.app.state.redis.keys(f'{RedisKey.ACCESS_TOKEN}*')
         if not access_token_keys:
             access_token_keys = []
         access_token_values_list = [await request.app.state.redis.get(key) for key in access_token_keys]
@@ -73,6 +73,6 @@ class OnlineService:
         if page_object.token_ids:
             token_id_list = page_object.token_ids.split(',')
             for token_id in token_id_list:
-                await request.app.state.redis.delete(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{token_id}')
+                await request.app.state.redis.delete(f'{RedisKey.ACCESS_TOKEN}:{token_id}')
             return CrudResponseModel(is_success=True, message='强退成功')
         raise ServiceException(message='传入session_id为空')

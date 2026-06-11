@@ -144,7 +144,7 @@ class RedisContext:
             redis = RedisContext._fallback
         if redis is None:
             raise RuntimeError(
-                'Redis 客户端未初始化。请在应用启动时调用 RedisUtil.create_redis_pool()。'
+                'Redis 客户端未初始化。请在应用启动时调用 RedisConnection.create_redis_pool()。'
             )
         return redis
 

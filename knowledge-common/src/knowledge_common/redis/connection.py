@@ -1,22 +1,26 @@
+"""
+Redis 连接池管理
+
+仅负责连接池的创建、健康检查、关闭。
+缓存预热逻辑（init_sys_dict / init_sys_config）已回归 Service 层。
+"""
+
 from fastapi import FastAPI
 from redis import asyncio as aioredis
 from redis.exceptions import AuthenticationError, RedisError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from knowledge_common.common.context import RedisContext
-from knowledge_common.common.transactional import async_session_scope
 from knowledge_common.config.env import RedisConfig
-from knowledge_common.service.config_service import ConfigService
-from knowledge_common.service.dict_service import DictDataService
 from knowledge_common.utils.log_util import logger
 
 
-class RedisUtil:
+class RedisConnection:
     """
-    Redis相关方法
+    Redis 连接池管理
 
     连接池采用单例模式：create_redis_pool() 仅在首次调用时创建，后续调用直接返回缓存实例。
-    任意位置可通过 RedisUtil.get_redis() 获取全局唯一的 Redis 客户端。
+    仅管理连接生命周期（创建、健康检查、关闭），不含业务缓存初始化。
     """
 
     # 单例缓存：应用生命周期内唯一的 Redis 连接池
@@ -118,25 +122,3 @@ class RedisUtil:
         cls._pool = None
         await app.state.redis.close()
         logger.info('✅️ 关闭redis连接成功')
-
-    @classmethod
-    async def init_sys_dict(cls, redis: FastAPI) -> None:
-        """
-        应用启动时缓存字典表
-
-        :param redis: redis对象
-        :return:
-        """
-        async with async_session_scope():
-            await DictDataService.init_cache_sys_dict_services(redis)
-
-    @classmethod
-    async def init_sys_config(cls, redis: aioredis.Redis) -> None:
-        """
-        应用启动时缓存参数配置表
-
-        :param redis: redis对象
-        :return:
-        """
-        async with async_session_scope():
-            await ConfigService.init_cache_sys_config_services(redis)
