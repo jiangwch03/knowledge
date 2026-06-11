@@ -18,7 +18,6 @@ import importlib
 import pkgutil
 from typing import Any
 
-from knowledge_common.config.env import LogConfig
 from knowledge_common.message_stream.backends.base import StreamBackend
 from knowledge_common.message_stream.consumer import ConsumerInfo
 from knowledge_common.message_stream.exceptions import MessageStreamError
