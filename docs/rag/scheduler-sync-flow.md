@@ -18,7 +18,7 @@
     │       ↓
     │   启动两个后台机制：
     │       ① 每 10 秒自动从数据库同步一次任务状态
-    │       ② 启动全局广播监听器，等待其他实例的同步通知
+    │       ② BroadcastService 启动 @subscriber 监听，等待其他实例的同步通知
     │
     └── 未抢到锁的 Worker → 成为普通 Worker
             ↓
@@ -102,25 +102,25 @@
 
 ## 三、Leader 监听广播并执行同步
 
-各项目 Leader 始终运行一个后台监听器，订阅 Redis 的**全局广播通道**。当任意实例发布广播时，Leader 会收到消息并触发同步。
+各项目 Leader 通过 `BroadcastService` 框架的 `@subscriber` 装饰器注册广播 handler，由框架统一的后台 listen loop 驱动消息接收。当任意实例发布广播时，Leader 的 handler 会收到消息并触发同步。
 
 ### 3.1 广播消息的传输链路
 
 ```
 [Admin 后端实例]
     ↓
-调用 broadcast_scheduler_sync(app_scope) 或 broadcast_execute_job_once(job_id, app_scope) (执行一次)
+调用 SchedulerUtil.broadcast_scheduler_sync(app_scope) 或 broadcast_execute_job_once(job_id, app_scope)
     ↓
-向 Redis 全局通道发布消息：
+内部改调 BroadcastService.publish() 向 Redis 全局通道发布消息：
     {"app_scope": "knowledge-admin", "action": "sync", "worker_id": "xxx"}
     或
     {"app_scope": "knowledge-admin", "action": "execute_once", "job_id": 123, "worker_id": "xxx"} (执行一次)
     ↓
 [Redis Pub/Sub 广播到所有订阅者]
     ↓
-Leader 的监听器收到消息
+BroadcastService listen loop 收到消息 → 分发给 @subscriber handler
     ↓
-检查 app_scope 是否匹配本应用？
+handler 检查 app_scope 是否匹配本应用？
     ├── 不匹配 → 忽略（应用隔离）
     └── 匹配 → 根据 action 分发处理：
             ├── action="sync" → 触发内部同步流水线
@@ -194,9 +194,9 @@ Leader 收到广播后，不会立即刷数据库，而是经过两层保护机�
 
 ### 5.1 为什么只有 Leader 能消费广播？
 
-**设计层面**：全局广播监听器只在 Leader 启动时创建，普通 Worker 根本不启动监听器。
+**设计层面**：BroadcastService 的 listen loop 只在 Leader 启动时创建，普通 Worker 根本不启动监听。
 
-**防御层面**：即使出现极端情况（如锁丢失后状态未即时切换），监听器内部也有 `_is_leader` 检查，非 Leader 会直接忽略消息。
+**防御层面**：即使出现极端情况（如锁丢失后状态未即时切换），`@subscriber` handler 内部也有 `_is_leader` 检查，非 Leader 会直接忽略消息。
 
 ### 5.2 应用隔离如何保障？
 

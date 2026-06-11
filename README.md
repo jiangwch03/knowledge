@@ -7,6 +7,7 @@
 Copyright (c) 2024 insistence
 
 ## 项目代码梳理
+
 ### FastAPI Swagger UI 文档机制全景(RuoYi-Vue3-FastAPI已实现)
 create_app() 针对 Swagger UI 的访问和构建做了自定义方案处理：
 
@@ -39,6 +40,10 @@ create_app() 针对 Swagger UI 的访问和构建做了自定义方案处理：
 ### 消息流服务设计
 把裸操作 Redis Stream 协议的耦合，变成「`@consumer` 声明 + `produce` 推送」的 Kafka 风格门面。`.env` 改 `MESSAGE_STREAM_BACKEND=redis|kafka` 即可切换后端，业务代码零行修改。
 详细说明：[消息流服务设计](./docs/rag/message-stream-service-design.md)
+
+### BroadcastService 广播服务
+与 `MessageStreamService` 对等的广播抽象层。业务代码通过 `@subscriber` 装饰器声明消费者、`BroadcastService.publish()` 发布消息，完全隔离 Redis Pub/Sub 操作。Backend 采用单 pubsub 连接 + dispatch table 多路复用，支持自动重连和 handler 异常隔离。
+详细说明：[BroadcastService 广播服务架构](./docs/rag/broadcast-service-abstraction.md)
 
 ### 日志聚合与操作日志落库机制
 基于 `MessageStreamService` 框架实现的日志异步落库链路。推送侧用 `produce`，消费侧用 `@consumer` 装饰器，按 `app_name` 隔离，业务级去重由 `LogDedupHelper` 保证。

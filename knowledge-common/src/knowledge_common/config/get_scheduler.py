@@ -253,12 +253,8 @@ class SchedulerUtil:
             replace_existing=True,
         )
 
-        # 始终启动全局广播监听器
-        cls._global_sync_listener_task = await RedisPubSubUtil.subscribe(
-            cls._global_sync_channel,
-            cls._on_global_sync_message,
-            task_name='scheduler_global_sync_listener',
-        )
+        # 始终启动全局广播监听器（由 BroadcastService 统一管理，此处不再手动订阅）
+        # 注意：BroadcastService.discover_and_start() 在 lifespan 中已完成订阅注册
 
         logger.info('✅️ 系统初始定时任务加载成功')
 
@@ -453,15 +449,16 @@ class SchedulerUtil:
         :param app_scope: 目标应用标识，携带在广播消息中
         :return: None
         """
-        if cls._redis:
-            await RedisPubSubUtil.publish(
-                cls._global_sync_channel,
-                {
-                    'app_scope': app_scope or cls._app_scope,
-                    'worker_id': cls._worker_id,
-                    'action': 'sync',
-                },
-            )
+        from knowledge_common.broadcast import BroadcastService
+
+        await BroadcastService.publish(
+            cls._global_sync_channel,
+            {
+                'app_scope': app_scope or cls._app_scope,
+                'worker_id': cls._worker_id,
+                'action': 'sync',
+            },
+        )
 
     @classmethod
     async def broadcast_execute_job_once(cls, job_id: int, app_scope: str | None = None) -> None:
@@ -472,16 +469,17 @@ class SchedulerUtil:
         :param app_scope: 目标应用标识
         :return: None
         """
-        if cls._redis:
-            await RedisPubSubUtil.publish(
-                cls._global_sync_channel,
-                {
-                    'app_scope': app_scope or cls._app_scope,
-                    'worker_id': cls._worker_id,
-                    'action': 'execute_once',
-                    'job_id': job_id,
-                },
-            )
+        from knowledge_common.broadcast import BroadcastService
+
+        await BroadcastService.publish(
+            cls._global_sync_channel,
+            {
+                'app_scope': app_scope or cls._app_scope,
+                'worker_id': cls._worker_id,
+                'action': 'execute_once',
+                'job_id': job_id,
+            },
+        )
 
     @classmethod
     async def _on_global_sync_message(cls, msg: PubSubMessage) -> None:

@@ -9,6 +9,7 @@ from knowledge_common.config.env import AppConfig, MessageStreamConfig
 from knowledge_common.config.get_db import close_async_engine, init_create_table
 from knowledge_common.config.get_redis import RedisUtil
 from knowledge_common.config.get_scheduler import SchedulerUtil
+from knowledge_common.broadcast import BroadcastService
 from knowledge_common.exceptions.handle import handle_exception
 from knowledge_common.message_stream import MessageStreamService
 from knowledge_common.middlewares.handle import handle_middleware
@@ -19,6 +20,7 @@ from knowledge_common.utils.server_util import APIDocsUtil, IPUtil, StartupUtil
 from knowledge_common.utils.transport_crypto_util import TransportKeyProvider
 
 from knowledge_admin.common.root_path import CODE_ROOT
+from knowledge_admin.message.broadcast_test_publisher import AdminBroadcastTestPublisher
 from knowledge_admin.message.test_publisher import AdminMessageTestPublisher
 
 
@@ -52,6 +54,28 @@ async def _init_message_stream(app: FastAPI) -> None:
     await MessageStreamService.discover_and_start()
     # 启动自检：发送失败仅打日志，不阻塞启动
     await AdminMessageTestPublisher.send_demo()
+
+
+async def _init_broadcast(app: FastAPI) -> None:
+    """
+    初始化消息广播服务（BroadcastService 三步范式）
+
+    接入范式：
+        1. 注入 Redis 客户端
+        2. 声明订阅者扫描路径
+        3. 扫描 + 启动后台监听
+        4. 启动自检：发送一条测试广播验证 Pub/Sub 链路通畅
+
+    :param app: FastAPI 对象
+    :return: None
+    """
+    BroadcastService.init(redis=app.state.redis)
+    BroadcastService.register_subscriber_paths([
+        'knowledge_admin.message.subscriber',
+    ])
+    await BroadcastService.discover_and_start()
+    # 启动自检：发送失败仅打日志，不阻塞启动
+    await AdminBroadcastTestPublisher.send_demo()
 
 
 async def _stop_background_tasks(app: FastAPI) -> None:
@@ -142,6 +166,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 初始化消息流服务（基础设施注册，独立于后台任务）
         await _init_message_stream(app)
 
+        # 初始化消息广播服务（BroadcastService）
+        await _init_broadcast(app)
+
     # 启动成功日志打印
     if startup_log_enabled:
         # 短暂等待确保下面的启动日志在最后打印
@@ -178,7 +205,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
     with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
-        # 先关闭消息流服务（依赖 Redis，须在连接池关闭前）
+        # 先关闭消息广播服务
+        await BroadcastService.shutdown()
+        # 关闭消息流服务（依赖 Redis，须在连接池关闭前）
         await _shutdown_message_stream()
         await _stop_background_tasks(app)
 

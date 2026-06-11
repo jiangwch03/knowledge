@@ -11,6 +11,7 @@ from knowledge_common.config.get_db import close_async_engine, init_create_table
 from knowledge_common.config.get_redis import RedisUtil
 from knowledge_common.config.get_scheduler import SchedulerUtil
 from knowledge_common.exceptions.handle import handle_exception
+from knowledge_common.broadcast import BroadcastService
 from knowledge_common.message_stream import MessageStreamService
 from knowledge_common.middlewares.handle import handle_middleware
 from knowledge_common.sub_applications.handle import handle_sub_applications
@@ -19,6 +20,7 @@ from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.server_util import APIDocsUtil, IPUtil, StartupUtil
 from knowledge_common.utils.transport_crypto_util import TransportKeyProvider
 from knowledge_rag.common.root_path import CODE_ROOT
+from knowledge_rag.message.broadcast_test_publisher import RagBroadcastTestPublisher
 from knowledge_rag.message.test_publisher import RagMessageTestPublisher
 
 async def _start_background_tasks(app: FastAPI) -> None:
@@ -31,6 +33,25 @@ async def _start_background_tasks(app: FastAPI) -> None:
     # 将 app_name 注入到 app.state，供「自产自销」日志隔离使用
     app.state.app_name = AppConfig.app_name
     await SchedulerUtil.init_system_scheduler(app.state.redis, app_scope=app.state.app_name)
+
+
+async def _init_broadcast(app: FastAPI) -> None:
+    """
+    初始化消息广播服务（BroadcastService 三步范式）
+
+    基于 Redis Pub/Sub 的 fire-and-forget 广播通道，用于定时任务同步等全局通知场景。
+    单连接多路分发，所有 channel 共享一条 pubsub 连接。
+
+    :param app: FastAPI 对象（提取 app.state.redis 作为 Redis 后端连接）
+    :return: None
+    """
+    BroadcastService.init(redis=app.state.redis)
+    BroadcastService.register_subscriber_paths([
+        'knowledge_rag.message.subscriber',
+    ])
+    await BroadcastService.discover_and_start()
+    # 启动自检：发送失败仅打日志，不阻塞启动
+    await RagBroadcastTestPublisher.send_demo()
 
 
 async def _init_message_stream(app: FastAPI) -> None:
@@ -138,6 +159,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 启动后台任务（调度器、日志聚合等长运行协程）
         await _start_background_tasks(app)
 
+        # 初始化消息广播服务（BroadcastService）
+        await _init_broadcast(app)
+
         # 初始化消息流服务（基础设施注册，独立于后台任务）
         await _init_message_stream(app)
 
@@ -177,7 +201,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
     with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
-        # 先关闭消息流服务（依赖 Redis，须在连接池关闭前）
+        # 先关闭消息广播服务（依赖 Redis，须在连接池关闭前）
+        await BroadcastService.shutdown()
+        # 关闭消息流服务（依赖 Redis，须在连接池关闭前）
         await _shutdown_message_stream()
         await _stop_background_tasks(app)
 
