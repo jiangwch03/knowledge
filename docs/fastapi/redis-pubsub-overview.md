@@ -8,12 +8,12 @@
 
 ```mermaid
 graph LR
-    P1[Publisher A] -->|PUBLISH channel msg| R[(Redis Server<br/>单线程命令循环)]
-    P2[Publisher B] -->|PUBLISH channel msg| R
-    R -->|推送 message| S1[Subscriber 1<br/>SUBSCRIBE channel]
-    R -->|推送 message| S2[Subscriber 2<br/>SUBSCRIBE channel]
-    R -->|模式匹配| S3[Subscriber 3<br/>PSUBSCRIBE pattern*]
-    OFF[离线订阅者] -.->|❌ 收不到| R
+    P1["Publisher A"] -->|"PUBLISH channel msg"| R[(Redis Server<br/>单线程命令循环)]
+    P2["Publisher B"] -->|"PUBLISH channel msg"| R
+    R -->|"推送 message"| S1["Subscriber 1<br/>SUBSCRIBE channel"]
+    R -->|"推送 message"| S2["Subscriber 2<br/>SUBSCRIBE channel"]
+    R -->|"模式匹配"| S3["Subscriber 3<br/>PSUBSCRIBE pattern*"]
+    OFF["离线订阅者"] -.->|"❌ 收不到"| R
     style OFF fill:#fdd
 ```
 
@@ -60,16 +60,16 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    subgraph 多线程区_Redis6
-        IO1[网络 I/O 读取]
-        IO2[协议解析]
-        IO3[响应写回]
+    subgraph "多线程区 Redis6"
+        IO1["网络 I/O 读取"]
+        IO2["协议解析"]
+        IO3["响应写回"]
     end
-    subgraph 单线程核心
-        EV[事件循环 epoll/kqueue]
-        EX[命令执行]
-        PB[Pub/Sub 推送]
-        KP[键过期/AOF 重写等子任务]
+    subgraph "单线程核心"
+        EV["事件循环 epoll/kqueue"]
+        EX["命令执行"]
+        PB["Pub/Sub 推送"]
+        KP["键过期/AOF 重写等子任务"]
     end
     IO1 --> EV
     EV --> EX
@@ -107,11 +107,11 @@ def publishCommand(channel, message):
 
 ```mermaid
 graph LR
-    A[单线程命令执行] --> B[避免锁竞争<br/>避免上下文切换]
-    C[I/O 多路复用 epoll] --> D[单线程监听万级连接]
-    E[内存存储] --> F[纳秒级读写]
-    G[精简指令集 + 高效数据结构] --> H[微秒级单命令]
-    A --> Z[10万+ QPS]
+    A["单线程命令执行"] --> B["避免锁竞争<br/>避免上下文切换"]
+    C["I/O 多路复用 epoll"] --> D["单线程监听万级连接"]
+    E["内存存储"] --> F["纳秒级读写"]
+    G["精简指令集 + 高效数据结构"] --> H["微秒级单命令"]
+    A --> Z["10万+ QPS"]
     C --> Z
     E --> Z
     G --> Z
@@ -130,16 +130,16 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph KAFKA[Kafka / RabbitMQ - 消息队列]
-        P1[Publisher] -->|写入| S1[(磁盘/内存<br/>消息持久化)]
-        S1 -->|消费后 ACK| C1[Consumer]
-        S1 -->|可回溯| C2[新加入的 Consumer]
-        S1 -->|超时/容量满才删| DEL1[定时清理]
+    subgraph KAFKA["Kafka / RabbitMQ - 消息队列"]
+        P1["Publisher"] -->|写入| S1[(磁盘/内存<br/>消息持久化)]
+        S1 -->|"消费后 ACK"| C1["Consumer"]
+        S1 -->|可回溯| C2["新加入的 Consumer"]
+        S1 -->|"超时/容量满才删"| DEL1["定时清理"]
     end
-    subgraph REDIS[Redis Pub/Sub - 广播]
-        P2[Publisher] -->|直接推送| R[(内存中无消息存储)]
-        R -->|瞬时推送| C3[在线订阅者]
-        OFF[不在线的订阅者] -.->|无法回放| R
+    subgraph REDIS["Redis Pub/Sub - 广播"]
+        P2["Publisher"] -->|"直接推送"| R[(内存中无消息存储)]
+        R -->|"瞬时推送"| C3["在线订阅者"]
+        OFF["不在线的订阅者"] -.->|"无法回放"| R
     end
     style S1 fill:#fdd
     style R fill:#dfd
@@ -161,17 +161,17 @@ graph TB
 
 ```mermaid
 graph TD
-    A[订阅者连接断开] --> B{断开原因}
-    B -->|1. 客户端主动 QUIT| C[freeClient<br/>释放所有订阅关系]
-    B -->|2. 网络异常 / 心跳超时| C
-    B -->|3. 输出缓冲区超限| C
-    B -->|4. 服务器 SHUTDOWN| C
-    C --> D[从 pubsub_channels 频道链表移除]
-    C --> E[从 pubsub_patterns 模式链表移除]
-    C --> F[client 结构体释放]
-    
-    G[频道变成无人订阅] --> H[下次 PUBLISH 时返回接收者=0]
-    G -.->|惰性清理| I[字典条目后续 GC 释放]
+    A["订阅者连接断开"] --> B{"断开原因"}
+    B -->|"1. 客户端主动 QUIT"| C["freeClient<br/>释放所有订阅关系"]
+    B -->|"2. 网络异常 / 心跳超时"| C
+    B -->|"3. 输出缓冲区超限"| C
+    B -->|"4. 服务器 SHUTDOWN"| C
+    C --> D["从 pubsub_channels 频道链表移除"]
+    C --> E["从 pubsub_patterns 模式链表移除"]
+    C --> F["client 结构体释放"]
+
+    G["频道变成无人订阅"] --> H["下次 PUBLISH 时返回接收者=0"]
+    G -.->|"惰性清理"| I["字典条目后续 GC 释放"]
 ```
 
 ### 3.4 "超时"在 Pub/Sub 里的真实含义
@@ -208,16 +208,16 @@ def checkClientOutputBuffer(client):
 
 ```mermaid
 graph TD
-    A[Redis Server] --> B{触发踢出的原因}
-    B --> C1[1. 客户端主动 QUIT]
-    B --> C2[2. TCP 异常断开<br/>网络中断或进程崩溃]
-    B --> C3[3. 心跳超时<br/>tcp-keepalive 失败]
-    B --> C4[4. 空闲超时<br/>timeout 配置]
-    B --> C5[5. 慢消费熔断<br/>client-output-buffer-limit pubsub]
-    B --> C6[6. maxclients 达上限]
-    B --> C7[7. Redis SHUTDOWN]
+    A["Redis Server"] --> B{"触发踢出的原因"}
+    B --> C1["1. 客户端主动 QUIT"]
+    B --> C2["2. TCP 异常断开<br/>网络中断或进程崩溃"]
+    B --> C3["3. 心跳超时<br/>tcp-keepalive 失败"]
+    B --> C4["4. 空闲超时<br/>timeout 配置"]
+    B --> C5["5. 慢消费熔断<br/>client-output-buffer-limit pubsub"]
+    B --> C6["6. maxclients 达上限"]
+    B --> C7["7. Redis SHUTDOWN"]
 
-    C1 --> R[释放 client 结构体<br/>从所有频道移除]
+    C1 --> R["释放 client 结构体<br/>从所有频道移除"]
     C2 --> R
     C3 --> R
     C4 --> R
@@ -299,17 +299,17 @@ def checkClientOutputBuffer(client):
 
 ```mermaid
 graph TD
-    START{业务场景判断} -->|消息零丢失| NO1[❌ 不用 Pub/Sub]
-    START -->|消费失败需重试| NO2[❌ 不用 Pub/Sub]
-    START -->|离线后回放| NO3[❌ 不用 Pub/Sub]
-    START -->|高并发百万 QPS| NO4[⚠️ 谨慎评估]
-    START -->|实时广播可丢失| YES[✅ Pub/Sub 合适]
-    
-    NO1 --> A1[用 Redis Streams / Kafka]
-    NO2 --> A2[用 RocketMQ / RabbitMQ]
-    NO3 --> A3[用 Kafka / Pulsar]
-    NO4 --> A4[压测评估 + 兜底轮询]
-    YES --> A5[Pub/Sub 轻量首选]
+    START{"业务场景判断"} -->|"消息零丢失"| NO1["❌ 不用 Pub/Sub"]
+    START -->|"消费失败需重试"| NO2["❌ 不用 Pub/Sub"]
+    START -->|"离线后回放"| NO3["❌ 不用 Pub/Sub"]
+    START -->|"高并发百万 QPS"| NO4["⚠️ 谨慎评估"]
+    START -->|"实时广播可丢失"| YES["✅ Pub/Sub 合适"]
+
+    NO1 --> A1["用 Redis Streams / Kafka"]
+    NO2 --> A2["用 RocketMQ / RabbitMQ"]
+    NO3 --> A3["用 Kafka / Pulsar"]
+    NO4 --> A4["压测评估 + 兜底轮询"]
+    YES --> A5["Pub/Sub 轻量首选"]
 ```
 
 ### 5.2 四大消息中间件横向对比
@@ -330,13 +330,13 @@ graph TD
 
 ```mermaid
 graph TD
-    Q1{业务对消息丢失<br/>的容忍度?}
-    Q1 -->|完全不能丢| K1[Kafka / RocketMQ<br/>+ 持久化 + ACK]
-    Q1 -->|偶尔丢也行| Q2{需要重试/回放?}
-    Q2 -->|需要| K2[Redis Streams<br/>或 Kafka]
-    Q2 -->|不需要| Q3{广播一对多?}
-    Q3 -->|是| K3[Redis Pub/Sub ✅]
-    Q3 -->|否 一对一| K4[Redis Streams]
+    Q1{"业务对消息丢失<br/>的容忍度?"}
+    Q1 -->|"完全不能丢"| K1["Kafka / RocketMQ<br/>+ 持久化 + ACK"]
+    Q1 -->|"偶尔丢也行"| Q2{"需要重试/回放?"}
+    Q2 -->|需要| K2["Redis Streams<br/>或 Kafka"]
+    Q2 -->|不需要| Q3{"广播一对多?"}
+    Q3 -->|是| K3["Redis Pub/Sub ✅"]
+    Q3 -->|"否 一对一"| K4["Redis Streams"]
 ```
 
 ### 5.4 典型场景对照
@@ -392,22 +392,22 @@ XCLAIM my_stream group1 consumer2 0 <id>  # 转移给别的消费者
 
 ```mermaid
 graph LR
-    subgraph SCENE1[场景一：任务管理类]
-        A1[业务方变更任务] -->|PUBLISH| R1[(Redis)]
-        R1 -->|秒级| C1[调度器<br/>add/remove job]
-        R1 -->|丢失| D1[10秒轮询]
+    subgraph "场景一：任务管理类"
+        A1["业务方变更任务"] -->|PUBLISH| R1[(Redis)]
+        R1 -->|"秒级"| C1["调度器<br/>add/remove job"]
+        R1 -->|"丢失"| D1["10秒轮询"]
         D1 --> C1
     end
-    subgraph SCENE2[场景二：缓存失效类]
-        A2[数据写入] -->|PUBLISH| R2[(Redis)]
-        R2 -->|秒级| C2[其他节点<br/>清本地缓存]
-        R2 -->|丢失| D2[读穿透<br/>缓存自动重建]
-        D2 -.->|下次读时| C2
+    subgraph "场景二：缓存失效类"
+        A2["数据写入"] -->|PUBLISH| R2[(Redis)]
+        R2 -->|"秒级"| C2["其他节点<br/>清本地缓存"]
+        R2 -->|"丢失"| D2["读穿透<br/>缓存自动重建"]
+        D2 -.->|"下次读时"| C2
     end
-    subgraph SCENE3[场景三：实时通知类]
-        A3[事件发生] -->|PUBLISH| R3[(Redis)]
-        R3 -->|秒级| C3[在线用户<br/>推送到客户端]
-        R3 -->|丢失| D3[用户下次拉取<br/>看到最新状态]
+    subgraph "场景三：实时通知类"
+        A3["事件发生"] -->|PUBLISH| R3[(Redis)]
+        R3 -->|"秒级"| C3["在线用户<br/>推送到客户端"]
+        R3 -->|"丢失"| D3["用户下次拉取<br/>看到最新状态"]
     end
     style R1 fill:#dfd
     style R2 fill:#dfd
