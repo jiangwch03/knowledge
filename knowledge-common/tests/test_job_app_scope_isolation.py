@@ -83,7 +83,7 @@ class Test9_1AdminLoadScope:
 
     def test_91_dao_filter_logic_exists(self):
         """9.1.1 验证 JobDao.get_job_list_for_scheduler 接受 app_scope 参数"""
-        from knowledge_common.dao.job_dao import JobDao
+        from knowledge_common.mapper.dao.job_dao import JobDao
         import inspect
 
         sig = inspect.signature(JobDao.get_job_list_for_scheduler)
@@ -94,7 +94,7 @@ class Test9_1AdminLoadScope:
 
     def test_91_admin_filter_includes_null(self):
         """9.1.2 验证 admin app_scope 过滤包含 NULL/空值（兼容旧数据）"""
-        from knowledge_common.dao.job_dao import JobDao
+        from knowledge_common.mapper.dao.job_dao import JobDao
         from knowledge_common.config.env import AppConfig
 
         # admin 应该是 'knowledge-admin'
@@ -122,7 +122,7 @@ class Test9_2RagLoadScope:
 
     def test_92_rag_strict_filter(self):
         """9.2.1 验证 rag app_scope 过滤是严格匹配"""
-        from knowledge_common.dao.job_dao import JobDao
+        from knowledge_common.mapper.dao.job_dao import JobDao
         import inspect
 
         source = inspect.getsource(JobDao.get_job_list_for_scheduler)
@@ -143,7 +143,7 @@ class Test9_3AdminApiSaveAppScope:
 
     def test_93_vo_accepts_app_scope(self, admin_running):
         """9.3.1 JobModel VO 接受 app_scope 字段（静态验证）"""
-        from knowledge_common.entity.vo.job_vo import JobModel
+        from knowledge_common.vo.job_vo import JobModel
 
         # 构造带 app_scope 的 JobModel
         m = JobModel(

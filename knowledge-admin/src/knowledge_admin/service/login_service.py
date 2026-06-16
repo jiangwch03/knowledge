@@ -11,10 +11,10 @@ from knowledge_common.redis.key import RedisKey
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel
 from knowledge_common.config.env import AppConfig, JwtConfig
-from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_common.entity.do.menu_do import SysMenu
-from knowledge_common.entity.do.user_do import SysUser
-from knowledge_common.entity.vo.user_vo import AddUserModel, ResetUserModel
+from knowledge_common.mapper.do.dept_do import SysDept
+from knowledge_common.mapper.do.menu_do import SysMenu
+from knowledge_common.mapper.do.user_do import SysUser
+from knowledge_common.vo.user_vo import AddUserModel, ResetUserModel
 from knowledge_common.exceptions.exception import LoginException, ServiceException
 from knowledge_common.utils.client_ip_util import ClientIPUtil
 from knowledge_common.utils.common_util import CamelCaseUtil

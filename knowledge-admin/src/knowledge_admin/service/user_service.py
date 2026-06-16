@@ -7,9 +7,9 @@ from fastapi import Request, UploadFile
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
-from knowledge_common.entity.do.user_do import SysUserRole
-from knowledge_common.entity.vo.post_vo import PostPageQueryModel
-from knowledge_common.entity.vo.user_vo import (
+from knowledge_common.mapper.do.user_do import SysUserRole
+from knowledge_common.vo.post_vo import PostPageQueryModel
+from knowledge_common.vo.user_vo import (
     AddUserModel,
     CrudUserRoleModel,
     CurrentUserModel,

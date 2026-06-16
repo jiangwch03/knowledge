@@ -20,7 +20,7 @@ from knowledge_common.common.context import RequestContext
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.config.env import AppConfig
 from knowledge_common.exceptions.exception import LoginException, ServiceException, ServiceWarning
-from knowledge_common.entity.vo.log_vo import LogininforModel, OperLogModel
+from knowledge_common.vo.log_vo import LogininforModel, OperLogModel
 from knowledge_common.service.log_service import LogQueueService
 from knowledge_common.utils.client_ip_util import ClientIPUtil
 from knowledge_common.utils.dependency_util import DependencyUtil

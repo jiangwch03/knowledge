@@ -4,9 +4,9 @@ from typing import Any
 from knowledge_common.common.constant import CommonConstant, MenuConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel
-from knowledge_common.entity.do.menu_do import SysMenu
-from knowledge_common.entity.vo.role_vo import RoleMenuQueryModel
-from knowledge_common.entity.vo.user_vo import CurrentUserModel
+from knowledge_common.mapper.do.menu_do import SysMenu
+from knowledge_common.vo.role_vo import RoleMenuQueryModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.exceptions.exception import ServiceException, ServiceWarning
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.string_util import StringUtil

@@ -5,8 +5,8 @@ from sqlalchemy import asc, delete, desc, select
 
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
-from knowledge_common.entity.do.log_do import SysLogininfor, SysOperLog
-from knowledge_common.entity.vo.log_vo import LogininforModel, LoginLogPageQueryModel, OperLogModel, OperLogPageQueryModel
+from knowledge_common.mapper.do.log_do import SysLogininfor, SysOperLog
+from knowledge_common.vo.log_vo import LogininforModel, LoginLogPageQueryModel, OperLogModel, OperLogPageQueryModel
 from knowledge_common.utils.common_util import SnakeCaseUtil
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.utils.time_format_util import TimeFormatUtil

@@ -12,8 +12,8 @@ from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
-from knowledge_common.entity.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
-from knowledge_common.entity.vo.user_vo import CurrentUserModel
+from knowledge_common.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.utils.common_util import bytes2file_response
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil

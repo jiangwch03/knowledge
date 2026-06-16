@@ -4,12 +4,12 @@ import jwt
 from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
-from knowledge_common.dao.user_login_dao import UserDao
+from knowledge_common.mapper.dao.user_login_dao import UserDao
 
 from knowledge_common.common.context import RequestContext
 from knowledge_common.redis.key import RedisKey
 from knowledge_common.config.env import AppConfig, JwtConfig
-from knowledge_common.entity.vo.user_vo import CurrentUserModel, TokenData, UserInfoModel
+from knowledge_common.vo.user_vo import CurrentUserModel, TokenData, UserInfoModel
 from knowledge_common.exceptions.exception import AuthException
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.log_util import logger

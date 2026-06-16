@@ -1,9 +1,9 @@
 from collections.abc import Sequence
 
 from knowledge_common.common.transactional import get_current_session
-from knowledge_common.entity.do.menu_do import SysMenu
-from knowledge_common.entity.do.role_do import SysRole, SysRoleMenu
-from knowledge_common.entity.do.user_do import SysUser, SysUserRole
+from knowledge_common.mapper.do.menu_do import SysMenu
+from knowledge_common.mapper.do.role_do import SysRole, SysRoleMenu
+from knowledge_common.mapper.do.user_do import SysUser, SysUserRole
 from sqlalchemy import and_, delete, func, select, update
 
 from knowledge_admin.vo.menu_vo import MenuModel, MenuQueryModel

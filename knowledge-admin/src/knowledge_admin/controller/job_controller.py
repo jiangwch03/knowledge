@@ -12,7 +12,7 @@ from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
-from knowledge_common.entity.vo.job_vo import (
+from knowledge_common.vo.job_vo import (
     DeleteJobLogModel,
     DeleteJobModel,
     EditJobModel,
@@ -21,7 +21,7 @@ from knowledge_common.entity.vo.job_vo import (
     JobModel,
     JobPageQueryModel,
 )
-from knowledge_common.entity.vo.user_vo import CurrentUserModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.service.job_log_service import JobLogService
 from knowledge_common.utils.common_util import bytes2file_response
 from knowledge_common.utils.log_util import logger

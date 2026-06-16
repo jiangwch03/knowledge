@@ -3,7 +3,7 @@ from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING, Literal
 
 from knowledge_common.exceptions.exception import LoginException
-from knowledge_common.entity.vo.user_vo import CurrentUserModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 
 if TYPE_CHECKING:
     from redis import asyncio as aioredis

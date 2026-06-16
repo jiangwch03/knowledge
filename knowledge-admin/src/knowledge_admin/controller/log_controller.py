@@ -10,7 +10,7 @@ from knowledge_common.common.constant import ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import PageResponseModel, ResponseBaseModel
-from knowledge_common.entity.vo.log_vo import (
+from knowledge_common.vo.log_vo import (
     DeleteLoginLogModel,
     DeleteOperLogModel,
     LogininforModel,

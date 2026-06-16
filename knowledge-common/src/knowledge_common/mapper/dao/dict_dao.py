@@ -6,8 +6,8 @@ from sqlalchemy import and_, delete, func, select, update
 
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
-from knowledge_common.entity.do.dict_do import SysDictData, SysDictType
-from knowledge_common.entity.vo.dict_vo import DictDataModel, DictDataPageQueryModel, DictTypeModel, DictTypePageQueryModel
+from knowledge_common.mapper.do.dict_do import SysDictData, SysDictType
+from knowledge_common.vo.dict_vo import DictDataModel, DictDataPageQueryModel, DictTypeModel, DictTypePageQueryModel
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.utils.time_format_util import list_format_datetime
 

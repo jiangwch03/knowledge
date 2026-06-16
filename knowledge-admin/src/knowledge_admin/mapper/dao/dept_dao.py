@@ -1,9 +1,9 @@
 from collections.abc import Sequence
 
 from knowledge_common.common.transactional import get_current_session
-from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_common.entity.do.user_do import SysUser
-from knowledge_common.entity.vo.dept_vo import DeptModel
+from knowledge_common.mapper.do.dept_do import SysDept
+from knowledge_common.mapper.do.user_do import SysUser
+from knowledge_common.vo.dept_vo import DeptModel
 from sqlalchemy import ColumnElement, bindparam, func, select, update
 from sqlalchemy.util import immutabledict
 

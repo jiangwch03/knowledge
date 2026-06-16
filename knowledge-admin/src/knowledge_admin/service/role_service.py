@@ -3,7 +3,7 @@ from typing import Any
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
-from knowledge_common.entity.vo.role_vo import (
+from knowledge_common.vo.role_vo import (
     AddRoleModel,
     DeleteRoleModel,
     RoleDeptModel,
@@ -12,7 +12,7 @@ from knowledge_common.entity.vo.role_vo import (
     RoleModel,
     RolePageQueryModel,
 )
-from knowledge_common.entity.vo.user_vo import UserInfoModel, UserRolePageQueryModel
+from knowledge_common.vo.user_vo import UserInfoModel, UserRolePageQueryModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.excel_util import ExcelUtil

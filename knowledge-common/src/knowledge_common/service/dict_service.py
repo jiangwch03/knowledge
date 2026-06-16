@@ -10,9 +10,9 @@ from knowledge_common.common.transactional import transactional, async_session_s
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.redis.key import RedisKey
-from knowledge_common.dao.dict_dao import DictDataDao, DictTypeDao
-from knowledge_common.entity.do.dict_do import SysDictData
-from knowledge_common.entity.vo.dict_vo import (
+from knowledge_common.mapper.dao.dict_dao import DictDataDao, DictTypeDao
+from knowledge_common.mapper.do.dict_do import SysDictData
+from knowledge_common.vo.dict_vo import (
     DeleteDictDataModel,
     DeleteDictTypeModel,
     DictDataModel,

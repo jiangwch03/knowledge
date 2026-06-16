@@ -7,9 +7,9 @@ from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import Network, NotBlank, Size, Xss
 
 from knowledge_common.exceptions.exception import ModelValidatorException
-from knowledge_common.entity.vo.dept_vo import DeptModel
-from knowledge_common.entity.vo.post_vo import PostModel
-from knowledge_common.entity.vo.role_vo import RoleModel
+from knowledge_common.vo.dept_vo import DeptModel
+from knowledge_common.vo.post_vo import PostModel
+from knowledge_common.vo.role_vo import RoleModel
 
 
 class TokenData(BaseModel):

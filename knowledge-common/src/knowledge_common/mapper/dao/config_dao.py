@@ -5,8 +5,8 @@ from sqlalchemy import delete, select, update
 
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
-from knowledge_common.entity.do.config_do import SysConfig
-from knowledge_common.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel
+from knowledge_common.mapper.do.config_do import SysConfig
+from knowledge_common.vo.config_vo import ConfigModel, ConfigPageQueryModel
 from knowledge_common.utils.page_util import PageUtil
 
 

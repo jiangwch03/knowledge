@@ -14,7 +14,7 @@ from knowledge_common.redis.key import RedisKey
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
 from knowledge_common.config.env import AppConfig, JwtConfig
-from knowledge_common.entity.vo.user_vo import CurrentUserModel, EditUserModel
+from knowledge_common.vo.user_vo import CurrentUserModel, EditUserModel
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 

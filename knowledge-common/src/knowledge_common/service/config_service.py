@@ -8,8 +8,8 @@ from knowledge_common.common.transactional import transactional, async_session_s
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.redis.key import RedisKey
-from knowledge_common.dao.config_dao import ConfigDao
-from knowledge_common.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
+from knowledge_common.mapper.dao.config_dao import ConfigDao
+from knowledge_common.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.excel_util import ExcelUtil
 

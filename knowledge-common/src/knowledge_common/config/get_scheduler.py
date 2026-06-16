@@ -32,8 +32,8 @@ from knowledge_common.config.database import (
     create_sync_session_local,
 )
 from knowledge_common.config.env import AppConfig, LogConfig, RedisConfig
-from knowledge_common.dao.job_dao import JobDao
-from knowledge_common.entity.vo.job_vo import JobLogModel, JobModel
+from knowledge_common.mapper.dao.job_dao import JobDao
+from knowledge_common.vo.job_vo import JobLogModel, JobModel
 from knowledge_common.service.job_log_service import JobLogService
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.log_util import logger

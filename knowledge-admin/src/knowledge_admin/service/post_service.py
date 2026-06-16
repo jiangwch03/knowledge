@@ -3,7 +3,7 @@ from typing import Any
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
-from knowledge_common.entity.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
+from knowledge_common.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.excel_util import ExcelUtil

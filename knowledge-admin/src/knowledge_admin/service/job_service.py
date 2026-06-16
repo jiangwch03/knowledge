@@ -5,8 +5,8 @@ from knowledge_common.common.constant import CommonConstant, JobConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.config.get_scheduler import SchedulerUtil
-from knowledge_common.dao.job_dao import JobDao
-from knowledge_common.entity.vo.job_vo import DeleteJobModel, EditJobModel, JobModel, JobPageQueryModel
+from knowledge_common.mapper.dao.job_dao import JobDao
+from knowledge_common.vo.job_vo import DeleteJobModel, EditJobModel, JobModel, JobPageQueryModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.service.dict_service import DictDataService
 from knowledge_common.utils.common_util import CamelCaseUtil

@@ -4,12 +4,12 @@ from typing import Any
 
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
-from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_common.entity.do.menu_do import SysMenu
-from knowledge_common.entity.do.post_do import SysPost
-from knowledge_common.entity.do.role_do import SysRole, SysRoleMenu
-from knowledge_common.entity.do.user_do import SysUser, SysUserPost, SysUserRole
-from knowledge_common.entity.vo.user_vo import (
+from knowledge_common.mapper.do.dept_do import SysDept
+from knowledge_common.mapper.do.menu_do import SysMenu
+from knowledge_common.mapper.do.post_do import SysPost
+from knowledge_common.mapper.do.role_do import SysRole, SysRoleMenu
+from knowledge_common.mapper.do.user_do import SysUser, SysUserPost, SysUserRole
+from knowledge_common.vo.user_vo import (
     UserModel,
     UserPageQueryModel,
     UserPostModel,

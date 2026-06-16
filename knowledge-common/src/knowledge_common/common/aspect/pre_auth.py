@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 from knowledge_common.common.context import RequestContext
 from knowledge_common.config.env import AppConfig
 from knowledge_common.exceptions.exception import AuthException
-from knowledge_common.entity.vo.user_vo import CurrentUserModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.service.login_user_service import LoginUserService as LoginService
 
 

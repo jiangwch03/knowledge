@@ -5,8 +5,8 @@ from sqlalchemy import delete, select, update
 
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
-from knowledge_common.entity.do.job_do import SysJob
-from knowledge_common.entity.vo.job_vo import JobModel, JobPageQueryModel
+from knowledge_common.mapper.do.job_do import SysJob
+from knowledge_common.vo.job_vo import JobModel, JobPageQueryModel
 from knowledge_common.utils.page_util import PageUtil
 
 

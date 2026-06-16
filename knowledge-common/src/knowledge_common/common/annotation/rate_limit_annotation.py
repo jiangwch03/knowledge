@@ -16,7 +16,7 @@ from knowledge_common.common.context import RequestContext
 from knowledge_common.common.enums import HttpMethod
 from knowledge_common.redis.key import RedisKey
 from knowledge_common.exceptions.exception import LoginException
-from knowledge_common.entity.vo.user_vo import CurrentUserModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.utils.api_annotation_util import ApiAnnotationUtil
 from knowledge_common.utils.api_response_header_util import ApiResponseHeaderUtil
 from knowledge_common.utils.client_ip_util import ClientIPUtil

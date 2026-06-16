@@ -12,7 +12,7 @@ from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
-from knowledge_common.entity.vo.dict_vo import (
+from knowledge_common.vo.dict_vo import (
     DeleteDictDataModel,
     DeleteDictTypeModel,
     DictDataModel,
@@ -20,7 +20,7 @@ from knowledge_common.entity.vo.dict_vo import (
     DictTypeModel,
     DictTypePageQueryModel,
 )
-from knowledge_common.entity.vo.user_vo import CurrentUserModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.service.dict_service import DictDataService, DictTypeService
 from knowledge_common.utils.common_util import bytes2file_response
 from knowledge_common.utils.log_util import logger

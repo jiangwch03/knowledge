@@ -8,8 +8,8 @@ from knowledge_common.common.context import RedisContext
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.config.env import AppConfig, LogConfig
-from knowledge_common.dao.log_dao import LoginLogDao, OperationLogDao
-from knowledge_common.entity.vo.log_vo import (
+from knowledge_common.mapper.dao.log_dao import LoginLogDao, OperationLogDao
+from knowledge_common.vo.log_vo import (
     DeleteLoginLogModel,
     DeleteOperLogModel,
     LogininforModel,

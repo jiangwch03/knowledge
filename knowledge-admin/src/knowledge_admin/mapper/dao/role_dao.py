@@ -4,11 +4,11 @@ from typing import Any
 
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
-from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_common.entity.do.menu_do import SysMenu
-from knowledge_common.entity.do.role_do import SysRole, SysRoleDept, SysRoleMenu
-from knowledge_common.entity.do.user_do import SysUser, SysUserRole
-from knowledge_common.entity.vo.role_vo import RoleDeptModel, RoleMenuModel, RoleModel, RolePageQueryModel
+from knowledge_common.mapper.do.dept_do import SysDept
+from knowledge_common.mapper.do.menu_do import SysMenu
+from knowledge_common.mapper.do.role_do import SysRole, SysRoleDept, SysRoleMenu
+from knowledge_common.mapper.do.user_do import SysUser, SysUserRole
+from knowledge_common.vo.role_vo import RoleDeptModel, RoleMenuModel, RoleModel, RolePageQueryModel
 from knowledge_common.utils.page_util import PageUtil
 from sqlalchemy import ColumnElement, and_, delete, desc, func, select, update
 

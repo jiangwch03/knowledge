@@ -13,17 +13,17 @@ from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
-from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_common.entity.do.user_do import SysUser
-from knowledge_common.entity.vo.dept_vo import DeptModel
-from knowledge_common.entity.vo.role_vo import (
+from knowledge_common.mapper.do.dept_do import SysDept
+from knowledge_common.mapper.do.user_do import SysUser
+from knowledge_common.vo.dept_vo import DeptModel
+from knowledge_common.vo.role_vo import (
     AddRoleModel,
     DeleteRoleModel,
     RoleDeptQueryModel,
     RoleModel,
     RolePageQueryModel,
 )
-from knowledge_common.entity.vo.user_vo import (
+from knowledge_common.vo.user_vo import (
     CrudUserRoleModel,
     CurrentUserModel,
     UserInfoModel,

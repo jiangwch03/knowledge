@@ -4,8 +4,8 @@ from fastapi import Request
 
 from knowledge_common.common.transactional import transactional, transactional_sync
 from knowledge_common.common.vo import CrudResponseModel, PageModel
-from knowledge_common.dao.job_log_dao import JobLogDao
-from knowledge_common.entity.vo.job_vo import DeleteJobLogModel, JobLogModel, JobLogPageQueryModel
+from knowledge_common.mapper.dao.job_log_dao import JobLogDao
+from knowledge_common.vo.job_vo import DeleteJobLogModel, JobLogModel, JobLogPageQueryModel
 from knowledge_common.service.dict_service import DictDataService
 from knowledge_common.utils.excel_util import ExcelUtil
 

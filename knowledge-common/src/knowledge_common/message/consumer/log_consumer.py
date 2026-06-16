@@ -14,8 +14,8 @@ from typing import Awaitable, Callable
 
 from knowledge_common.common.transactional import transactional
 from knowledge_common.config.env import AppConfig
-from knowledge_common.dao.log_dao import LoginLogDao, OperationLogDao
-from knowledge_common.entity.vo.log_vo import LogininforModel, OperLogModel
+from knowledge_common.mapper.dao.log_dao import LoginLogDao, OperationLogDao
+from knowledge_common.vo.log_vo import LogininforModel, OperLogModel
 from knowledge_common.message_stream import Message, consumer
 from knowledge_common.service.log_service import LogDedupHelper
 

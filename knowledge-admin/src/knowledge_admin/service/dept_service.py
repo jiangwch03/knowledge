@@ -4,8 +4,8 @@ from typing import Any
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel
-from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_common.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptTreeModel
+from knowledge_common.mapper.do.dept_do import SysDept
+from knowledge_common.vo.dept_vo import DeleteDeptModel, DeptModel, DeptTreeModel
 from knowledge_common.exceptions.exception import ServiceException, ServiceWarning
 from knowledge_common.utils.common_util import CamelCaseUtil
 from sqlalchemy import ColumnElement

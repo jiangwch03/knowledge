@@ -1,6 +1,6 @@
 from knowledge_common.common.transactional import get_current_session
-from knowledge_common.entity.do.dept_do import SysDept
-from knowledge_common.entity.do.user_do import SysUser
+from knowledge_common.mapper.do.dept_do import SysDept
+from knowledge_common.mapper.do.user_do import SysUser
 from sqlalchemy import Row, and_, select
 
 
