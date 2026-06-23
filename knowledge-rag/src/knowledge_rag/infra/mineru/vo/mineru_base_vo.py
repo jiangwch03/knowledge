@@ -1,6 +1,8 @@
 from typing import Generic, TypeVar
-T = TypeVar('T')
+
 from pydantic import BaseModel, Field
+
+T = TypeVar('T')
 
 
 class MinerUBaseRespVo(BaseModel,Generic[T]):

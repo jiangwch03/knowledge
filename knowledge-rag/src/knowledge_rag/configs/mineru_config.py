@@ -1,5 +1,5 @@
 from knowledge_common.config.env import MinerUConfig
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from knowledge_rag.enums.mineru_enum import MinerUParseModeEnum
 

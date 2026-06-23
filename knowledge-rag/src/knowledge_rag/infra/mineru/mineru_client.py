@@ -1,32 +1,40 @@
-import xml.etree.ElementTree as ET
-import zipfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-import aiofiles
 import httpx
-import pypdf
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.file_util import FileUtil as FileUtil
 from knowledge_rag.configs.mineru_config import minerUClientConfig
 from knowledge_rag.infra.mineru.vo import MinerUBatchResultRespVo
+from knowledge_rag.infra.mineru.mineru_data_id_generate import generate_data_id_with_prefix, generate_split_data_id
 from knowledge_rag.infra.mineru.vo.mineru_batch_upload_vo import (
-    MinerUBatchUploadReqVo,
     MinerUFileItem,
+    MinerUBatchUploadReqVo,
     MinerUApplyUploadUrlsVo,
     MinerUUploadFilesRespVo,
 )
 
 
 class MineUClient:
-    """MineU 精准解析 API 客户端"""
+    """MineU 精准解析 API 客户端（单例）"""
+
+    _instance = None
+    _initialized = False
 
     _TIMEOUT: int = 60
     _MAX_PAGES: int = 300
 
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self) -> None:
+        if self._initialized:
+            return
+        self._initialized = True
         self._config = minerUClientConfig
 
         parsed = urlparse(self._config.base_url)
@@ -139,6 +147,75 @@ class MineUClient:
             raise ServiceException(f'批量上传文件异常: {e}') from e
 
         return MinerUUploadFilesRespVo(upload_results=upload_results)
+
+    async def download_zip(self, zip_url: str, save_path: Path, timeout: int = 120) -> None:
+        """从 MinerU 下载结果 ZIP 包到本地
+
+        Args:
+            zip_url: ZIP 下载链接 (full_zip_url)
+            save_path: 本地保存路径
+            timeout: 下载超时秒数，默认 120s（大文件需要足够时间）
+        """
+        logger.info(f'下载 MinerU 结果 zip: url={zip_url}, save_to={save_path}')
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(zip_url, timeout=timeout)
+            resp.raise_for_status()
+            save_path.write_bytes(resp.content)
+
+    def build_file_items(
+        self,
+        file_name: str,
+        total_pages: int,
+        prefix: str,
+        is_ocr: bool | None = False,
+    ) -> list[MinerUFileItem]:
+        """根据总页数构造 MinerUFileItem 列表
+
+        通过 generate_data_id_with_prefix 自动生成 data_id，
+        调用方只需提供 prefix 前缀即可，无需手动构造 data_id。
+
+        如果总页数不超过 _MAX_PAGES，返回单个文件项（不分页）；
+        否则按 _MAX_PAGES 拆分，每个文件项指定对应的页码范围。
+
+        Args:
+            file_name: 文件名，需带正确后缀
+            total_pages: 文件总页数
+            prefix: data_id 前缀，用于生成业务数据 ID
+            is_ocr: 是否启用 OCR
+
+        Returns:
+            MinerUFileItem 列表
+        """
+        if total_pages <= 0:
+            raise ServiceException(f'总页数必须大于 0，当前值: {total_pages}')
+
+        base_data_id = generate_data_id_with_prefix(prefix)
+
+        if total_pages <= self._MAX_PAGES:
+            return [
+                MinerUFileItem(
+                    name=file_name,
+                    data_id=base_data_id,
+                    is_ocr=is_ocr,
+                    page_ranges=None,
+                )
+            ]
+
+        items: list[MinerUFileItem] = []
+        part_index: int = 0
+        for start in range(1, total_pages + 1, self._MAX_PAGES):
+            part_index += 1
+            end = min(start + self._MAX_PAGES - 1, total_pages)
+            chunk_data_id = generate_split_data_id(base_data_id, part_index, start, end)
+            items.append(
+                MinerUFileItem(
+                    name=file_name,
+                    data_id=chunk_data_id,
+                    is_ocr=is_ocr,
+                    page_ranges=f'{start}-{end}',
+                )
+            )
+        return items
 
     # 批量获取任务结果
     async def get_batch_results(self, batch_id: str) -> MinerUBatchResultRespVo:

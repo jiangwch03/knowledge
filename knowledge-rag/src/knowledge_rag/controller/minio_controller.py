@@ -32,8 +32,7 @@ async def upload_local_file(request: MinioUploadLocalReqVo) -> dict:
     :param request: 包含本地文件路径的请求体
     :return: 统一成功响应，data 为 MinioUploadRespVo（含 object_name）
     """
-    service = MinioService()
-    result = await service.upload_local_file(request.file_path)
+    result = await MinioService.upload_local_file(request.file_path)
     return ResponseUtil.success(data=result)
 
 
@@ -56,12 +55,11 @@ async def upload_stream(
     :param file: FastAPI UploadFile 对象，封装了前端上传的文件流与元数据
     :return: 统一成功响应，data 为 MinioUploadRespVo（含 object_name）
     """
-    service = MinioService()
     # 读取上传文件的完整二进制内容到内存
     content = await file.read()
     # 取前端原始文件名，若未提供则降级为 unknown
     filename = file.filename or 'unknown'
-    result = await service.upload_stream(content, filename)
+    result = await MinioService.upload_stream(content, filename)
     return ResponseUtil.success(data=result)
 
 
@@ -82,6 +80,5 @@ async def download_file(request: MinioDownloadReqVo) -> dict:
     :param request: 包含 object_name（桶内文件路径）的请求体
     :return: 统一成功响应，data 为 MinioDownloadRespVo（含 local_path）
     """
-    service = MinioService()
-    result = await service.download_file(request.object_name)
+    result = await MinioService.download_file(request.object_name)
     return ResponseUtil.success(data=result)

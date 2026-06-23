@@ -8,6 +8,7 @@ from knowledge_common.common.constant import LockConstant
 from knowledge_common.common.router import auto_register_routers
 from knowledge_common.config.env import AppConfig, MessageStreamConfig
 from knowledge_common.config.get_db import close_async_engine, init_create_table
+from knowledge_common.config.prompt_config import prompt_config
 from knowledge_common.redis import RedisConnection
 from knowledge_common.config.get_scheduler import SchedulerUtil
 from knowledge_common.service.config_service import ConfigService
@@ -157,6 +158,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         #  应用启动时缓存参数配置表
         await ConfigService.init_cache(app.state.redis)
+
+        # 加载提示词配置
+        prompt_config.load('knowledge-rag/src/configs/prompts.yaml')
 
         # 启动后台任务（调度器、日志聚合等长运行协程）
         await _start_background_tasks(app)

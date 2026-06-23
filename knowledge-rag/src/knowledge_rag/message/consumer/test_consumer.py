@@ -9,11 +9,12 @@ knowledge-rag 测试消费者示例
 """
 from __future__ import annotations
 
+from knowledge_common.config.env import StreamTopicConfig
 from knowledge_common.message_stream import Message, consumer
 from knowledge_common.utils.log_util import logger
 
 
-@consumer(topic='test:rag:demo', group_id='rag_test_demo')
+@consumer(topic='test:rag:demo', group_id = StreamTopicConfig.group_id)
 async def handle_rag_test_demo(msg: Message) -> None:
     """
     rag 端测试消费者
