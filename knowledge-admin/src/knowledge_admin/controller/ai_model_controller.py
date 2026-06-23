@@ -11,15 +11,15 @@ from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
-from knowledge_common.vo.user_vo import CurrentUserModel
+from knowledge_common.mapper.do.ai_models_do import AiModels
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
+from knowledge_common.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel, DeleteAiModelModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
 
-from knowledge_admin.mapper.do.ai_model_do import AiModels
 from knowledge_admin.service.ai_model_service import AiModelService
-from knowledge_admin.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel, DeleteAiModelModel
 
 ai_model_controller = APIRouterPro(
     prefix='/ai/model', order_num=18, tags=['AI管理-模型管理'], dependencies=[PreAuthDependency()]

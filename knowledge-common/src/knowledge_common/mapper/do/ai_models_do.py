@@ -1,9 +1,10 @@
 from datetime import datetime
 
+from sqlalchemy import CHAR, BigInteger, Column, DateTime, Float, Integer, String
+
 from knowledge_common.config.database import Base
 from knowledge_common.config.env import DataBaseConfig
 from knowledge_common.utils.common_util import SqlalchemyUtil
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Float, Integer, String
 
 
 class AiModels(Base):

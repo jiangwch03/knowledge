@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
 
+from knowledge_common.vo.base_page_query_vo import BasePageQueryModel
+
 
 class AiModelModel(BaseModel):
     """
@@ -45,13 +47,10 @@ class AiModelModel(BaseModel):
         return self.base_url
 
 
-class AiModelPageQueryModel(AiModelModel):
+class AiModelPageQueryModel(AiModelModel, BasePageQueryModel):
     """
     AI模型管理分页查询模型
     """
-
-    page_num: int = Field(default=1, description='当前页码')
-    page_size: int = Field(default=10, description='每页记录数')
 
 
 class DeleteAiModelModel(BaseModel):

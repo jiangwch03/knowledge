@@ -1,12 +1,13 @@
 from typing import Any
 
-from knowledge_common.common.transactional import get_current_session
-from knowledge_common.common.vo import PageModel
-from knowledge_common.utils.page_util import PageUtil
 from sqlalchemy import ColumnElement, delete, select, update
 
-from knowledge_admin.mapper.do.ai_model_do import AiModels
-from knowledge_admin.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel
+from knowledge_common.common.transactional import get_current_session
+from knowledge_common.enums.del_flag_enum import DeleteFlag
+from knowledge_common.common.vo import PageModel
+from knowledge_common.mapper.do.ai_models_do import AiModels
+from knowledge_common.utils.page_util import PageUtil
+from knowledge_common.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel
 
 
 class AiModelDao:
@@ -28,9 +29,24 @@ class AiModelDao:
         return ai_model_info
 
     @classmethod
+    async def get_ai_model_by_code(cls, model_code: str) -> AiModels | None:
+        """
+        根据模型编码获取AI模型
+
+        :param model_code: 模型编码
+        :return: AI模型信息对象
+        """
+        db = get_current_session()
+        return (
+            (await db.execute(select(AiModels).where(AiModels.model_code == model_code, AiModels.del_flag == DeleteFlag.NORMAL.value)))
+            .scalars()
+            .first()
+        )
+
+    @classmethod
     async def get_ai_model_list(
         cls, query_object: AiModelPageQueryModel, data_scope_sql: ColumnElement, is_page: bool = False
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据查询参数获取AI模型列表信息
 
@@ -39,7 +55,6 @@ class AiModelDao:
         :param is_page: 是否开启分页
         :return: AI模型列表信息对象
         """
-        db = get_current_session()
         query = (
             select(AiModels)
             .where(
@@ -52,7 +67,7 @@ class AiModelDao:
             )
             .order_by(AiModels.model_sort)
         )
-        ai_model_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        ai_model_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -74,7 +89,7 @@ class AiModelDao:
         return db_model
 
     @classmethod
-    async def edit_ai_model_dao(cls, ai_model: dict) -> None:
+    async def edit_ai_model_dao(cls, ai_model: dict[str, Any]) -> None:
         """
         编辑AI模型数据库操作
 
