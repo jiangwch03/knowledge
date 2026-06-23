@@ -3,12 +3,11 @@ from typing import Any
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.mapper.dao.ai_models_dao import AiModelDao
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.crypto_util import CryptoUtil
+from knowledge_common.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel, DeleteAiModelModel
 from sqlalchemy import ColumnElement
-
-from knowledge_admin.mapper.dao.ai_model_dao import AiModelDao
-from knowledge_admin.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel, DeleteAiModelModel
 
 
 class AiModelService:
@@ -96,8 +95,7 @@ class AiModelService:
         if ai_model_info.model_id:
             await AiModelDao.edit_ai_model_dao(edit_ai_model)
             return CrudResponseModel(is_success=True, message='修改成功')
-        else:
-            raise ServiceException(message='AI模型不存在')
+        raise ServiceException(message='AI模型不存在')
 
     @classmethod
     @transactional()
@@ -115,8 +113,7 @@ class AiModelService:
             for model_id in model_id_list:
                 await AiModelDao.delete_ai_model_dao(AiModelModel(modelId=model_id))
             return CrudResponseModel(is_success=True, message='删除成功')
-        else:
-            raise ServiceException(message='传入AI模型id为空')
+        raise ServiceException(message='传入AI模型id为空')
 
     @classmethod
     async def ai_model_detail_services(cls, model_id: int) -> AiModelModel:

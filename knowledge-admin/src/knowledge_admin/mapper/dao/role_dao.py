@@ -3,13 +3,14 @@ from datetime import datetime, time
 from typing import Any
 
 from knowledge_common.common.transactional import get_current_session
+from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.common.vo import PageModel
 from knowledge_common.mapper.do.dept_do import SysDept
 from knowledge_common.mapper.do.menu_do import SysMenu
 from knowledge_common.mapper.do.role_do import SysRole, SysRoleDept, SysRoleMenu
 from knowledge_common.mapper.do.user_do import SysUser, SysUserRole
-from knowledge_common.vo.role_vo import RoleDeptModel, RoleMenuModel, RoleModel, RolePageQueryModel
 from knowledge_common.utils.page_util import PageUtil
+from knowledge_common.vo.role_vo import RoleDeptModel, RoleMenuModel, RoleModel, RolePageQueryModel
 from sqlalchemy import ColumnElement, and_, delete, desc, func, select, update
 
 
@@ -31,7 +32,7 @@ class RoleDao:
             (
                 await db.execute(
                     select(SysRole)
-                    .where(SysRole.status == '0', SysRole.del_flag == '0', SysRole.role_name == role_name)
+                    .where(SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value, SysRole.role_name == role_name)
                     .order_by(desc(SysRole.create_time))
                     .distinct()
                 )
@@ -56,7 +57,7 @@ class RoleDao:
                 await db.execute(
                     select(SysRole)
                     .where(
-                        SysRole.del_flag == '0',
+                        SysRole.del_flag == DeleteFlag.NORMAL.value,
                         SysRole.role_name == role.role_name if role.role_name else True,
                         SysRole.role_key == role.role_key if role.role_key else True,
                     )
@@ -82,7 +83,7 @@ class RoleDao:
         role_info = (
             (
                 await db.execute(
-                    select(SysRole).where(SysRole.role_id == role_id, SysRole.status == '0', SysRole.del_flag == '0')
+                    select(SysRole).where(SysRole.role_id == role_id, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value)
                 )
             )
             .scalars()
@@ -101,7 +102,7 @@ class RoleDao:
         """
         db = get_current_session()
         query_role_info = (
-            (await db.execute(select(SysRole).where(SysRole.del_flag == '0', SysRole.role_id == role_id).distinct()))
+            (await db.execute(select(SysRole).where(SysRole.del_flag == DeleteFlag.NORMAL.value, SysRole.role_id == role_id).distinct()))
             .scalars()
             .first()
         )
@@ -119,7 +120,7 @@ class RoleDao:
         role_info = (
             (
                 await db.execute(
-                    select(SysRole).where(SysRole.role_id != 1, SysRole.status == '0', SysRole.del_flag == '0')
+                    select(SysRole).where(SysRole.role_id != 1, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value)
                 )
             )
             .scalars()
@@ -131,7 +132,7 @@ class RoleDao:
     @classmethod
     async def get_role_list(
         cls, query_object: RolePageQueryModel, data_scope_sql: ColumnElement, is_page: bool = False
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据查询参数获取角色列表信息
 
@@ -147,7 +148,7 @@ class RoleDao:
             .join(SysUser, SysUser.user_id == SysUserRole.user_id, isouter=True)
             .join(SysDept, SysDept.dept_id == SysUser.dept_id, isouter=True)
             .where(
-                SysRole.del_flag == '0',
+                SysRole.del_flag == DeleteFlag.NORMAL.value,
                 SysRole.role_id == query_object.role_id if query_object.role_id is not None else True,
                 SysRole.role_name.like(f'%{query_object.role_name}%') if query_object.role_name else True,
                 SysRole.role_key.like(f'%{query_object.role_key}%') if query_object.role_key else True,
@@ -163,7 +164,7 @@ class RoleDao:
             .order_by(SysRole.role_sort)
             .distinct()
         )
-        role_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        role_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -185,7 +186,7 @@ class RoleDao:
         return db_role
 
     @classmethod
-    async def edit_role_dao(cls, role: dict) -> None:
+    async def edit_role_dao(cls, role: dict[str, Any]) -> None:
         """
         编辑角色数据库操作
 
@@ -207,7 +208,7 @@ class RoleDao:
         await db.execute(
             update(SysRole)
             .where(SysRole.role_id == role.role_id)
-            .values(del_flag='2', update_by=role.update_by, update_time=role.update_time)
+            .values(del_flag=DeleteFlag.DELETED.value, update_by=role.update_by, update_time=role.update_time)
         )
 
     @classmethod

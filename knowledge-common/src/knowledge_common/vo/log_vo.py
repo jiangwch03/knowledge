@@ -4,6 +4,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+from knowledge_common.vo.base_page_query_vo import BasePageQueryModel
+
 
 class OperLogModel(BaseModel):
     """
@@ -66,13 +68,10 @@ class OperLogQueryModel(OperLogModel):
     end_time: str | None = Field(default=None, description='结束时间')
 
 
-class OperLogPageQueryModel(OperLogQueryModel):
+class OperLogPageQueryModel(OperLogQueryModel, BasePageQueryModel):
     """
     操作日志管理分页查询模型
     """
-
-    page_num: int = Field(default=1, description='当前页码')
-    page_size: int = Field(default=10, description='每页记录数')
 
 
 class DeleteOperLogModel(BaseModel):
@@ -98,13 +97,10 @@ class LoginLogQueryModel(LogininforModel):
     end_time: str | None = Field(default=None, description='结束时间')
 
 
-class LoginLogPageQueryModel(LoginLogQueryModel):
+class LoginLogPageQueryModel(LoginLogQueryModel, BasePageQueryModel):
     """
     登录日志管理分页查询模型
     """
-
-    page_num: int = Field(default=1, description='当前页码')
-    page_size: int = Field(default=10, description='每页记录数')
 
 
 class DeleteLoginLogModel(BaseModel):

@@ -3,12 +3,14 @@ from datetime import datetime, time
 from typing import Any
 
 from knowledge_common.common.transactional import get_current_session
+from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.common.vo import PageModel
 from knowledge_common.mapper.do.dept_do import SysDept
 from knowledge_common.mapper.do.menu_do import SysMenu
 from knowledge_common.mapper.do.post_do import SysPost
 from knowledge_common.mapper.do.role_do import SysRole, SysRoleMenu
 from knowledge_common.mapper.do.user_do import SysUser, SysUserPost, SysUserRole
+from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.vo.user_vo import (
     UserModel,
     UserPageQueryModel,
@@ -17,7 +19,6 @@ from knowledge_common.vo.user_vo import (
     UserRolePageQueryModel,
     UserRoleQueryModel,
 )
-from knowledge_common.utils.page_util import PageUtil
 from sqlalchemy import ColumnElement, and_, delete, desc, func, or_, select, update
 
 
@@ -39,7 +40,7 @@ class UserDao:
             (
                 await db.execute(
                     select(SysUser)
-                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_name == user_name)
+                    .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_name == user_name)
                     .order_by(desc(SysUser.create_time))
                     .distinct()
                 )
@@ -64,7 +65,7 @@ class UserDao:
                 await db.execute(
                     select(SysUser)
                     .where(
-                        SysUser.del_flag == '0',
+                        SysUser.del_flag == DeleteFlag.NORMAL.value,
                         SysUser.user_name == user.user_name if user.user_name else True,
                         SysUser.phonenumber == user.phonenumber if user.phonenumber else True,
                         SysUser.email == user.email if user.email else True,
@@ -80,7 +81,7 @@ class UserDao:
         return query_user_info
 
     @classmethod
-    async def get_user_by_id(cls, user_id: int) -> dict[str, Any]:
+    async def get_user_by_id(cls, user_id: int) -> dict[str, Sequence[SysUser | SysDept | SysRole | SysMenu] | SysUser | SysDept | None]:
         """
         根据user_id获取用户信息
 
@@ -92,7 +93,7 @@ class UserDao:
             (
                 await db.execute(
                     select(SysUser)
-                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .distinct()
                 )
             )
@@ -104,10 +105,10 @@ class UserDao:
                 await db.execute(
                     select(SysDept)
                     .select_from(SysUser)
-                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(
                         SysDept,
-                        and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == '0'),
+                        and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == DeleteFlag.NORMAL.value),
                     )
                     .distinct()
                 )
@@ -120,11 +121,11 @@ class UserDao:
                 await db.execute(
                     select(SysRole)
                     .select_from(SysUser)
-                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                     .join(
                         SysRole,
-                        and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'),
+                        and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value),
                     )
                     .distinct()
                 )
@@ -137,7 +138,7 @@ class UserDao:
                 await db.execute(
                     select(SysPost)
                     .select_from(SysUser)
-                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(SysUserPost, SysUser.user_id == SysUserPost.user_id, isouter=True)
                     .join(SysPost, and_(SysUserPost.post_id == SysPost.post_id, SysPost.status == '0'))
                     .distinct()
@@ -157,12 +158,12 @@ class UserDao:
                     await db.execute(
                         select(SysMenu)
                         .select_from(SysUser)
-                        .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                        .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                         .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                         .join(
                             SysRole,
                             and_(
-                                SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'
+                                SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value
                             ),
                             isouter=True,
                         )
@@ -187,7 +188,7 @@ class UserDao:
         return results
 
     @classmethod
-    async def get_user_detail_by_id(cls, user_id: int) -> dict[str, Any]:
+    async def get_user_detail_by_id(cls, user_id: int) -> dict[str, Sequence[SysUser | SysDept | SysRole | SysMenu] | SysUser | SysDept | None]:
         """
         根据user_id获取用户详细信息
 
@@ -196,7 +197,7 @@ class UserDao:
         """
         db = get_current_session()
         query_user_basic_info = (
-            (await db.execute(select(SysUser).where(SysUser.del_flag == '0', SysUser.user_id == user_id).distinct()))
+            (await db.execute(select(SysUser).where(SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id).distinct()))
             .scalars()
             .first()
         )
@@ -205,10 +206,10 @@ class UserDao:
                 await db.execute(
                     select(SysDept)
                     .select_from(SysUser)
-                    .where(SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(
                         SysDept,
-                        and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == '0'),
+                        and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == DeleteFlag.NORMAL.value),
                     )
                     .distinct()
                 )
@@ -221,11 +222,11 @@ class UserDao:
                 await db.execute(
                     select(SysRole)
                     .select_from(SysUser)
-                    .where(SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                     .join(
                         SysRole,
-                        and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'),
+                        and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value),
                     )
                     .distinct()
                 )
@@ -238,7 +239,7 @@ class UserDao:
                 await db.execute(
                     select(SysPost)
                     .select_from(SysUser)
-                    .where(SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(SysUserPost, SysUser.user_id == SysUserPost.user_id, isouter=True)
                     .join(SysPost, and_(SysUserPost.post_id == SysPost.post_id, SysPost.status == '0'))
                     .distinct()
@@ -252,11 +253,11 @@ class UserDao:
                 await db.execute(
                     select(SysMenu)
                     .select_from(SysUser)
-                    .where(SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                     .join(
                         SysRole,
-                        and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'),
+                        and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value),
                         isouter=True,
                     )
                     .join(SysRoleMenu, SysRole.role_id == SysRoleMenu.role_id, isouter=True)
@@ -280,7 +281,7 @@ class UserDao:
     @classmethod
     async def get_user_list(
         cls, query_object: UserPageQueryModel, data_scope_sql: ColumnElement, is_page: bool = False
-    ) -> PageModel | list[list[dict[str, Any]]]:
+    ) -> PageModel | list:
         """
         根据查询参数获取用户列表信息
 
@@ -293,7 +294,7 @@ class UserDao:
         query = (
             select(SysUser, SysDept)
             .where(
-                SysUser.del_flag == '0',
+                SysUser.del_flag == DeleteFlag.NORMAL.value,
                 or_(
                     SysUser.dept_id == query_object.dept_id,
                     SysUser.dept_id.in_(
@@ -319,13 +320,13 @@ class UserDao:
             )
             .join(
                 SysDept,
-                and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == '0'),
+                and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == DeleteFlag.NORMAL.value),
                 isouter=True,
             )
             .order_by(SysUser.user_id)
             .distinct()
         )
-        user_list: PageModel | list[list[dict[str, Any]]] = await PageUtil.paginate(
+        user_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -347,7 +348,7 @@ class UserDao:
         return db_user
 
     @classmethod
-    async def edit_user_dao(cls, user: dict) -> None:
+    async def edit_user_dao(cls, user: dict[str, Any]) -> None:
         """
         编辑用户数据库操作
 
@@ -369,7 +370,7 @@ class UserDao:
         await db.execute(
             update(SysUser)
             .where(SysUser.user_id == user.user_id)
-            .values(del_flag='2', update_by=user.update_by, update_time=user.update_time)
+            .values(del_flag=DeleteFlag.DELETED.value, update_by=user.update_by, update_time=user.update_time)
         )
 
     @classmethod
@@ -388,7 +389,7 @@ class UserDao:
                 await db.execute(
                     select(SysRole)
                     .where(
-                        SysRole.del_flag == '0',
+                        SysRole.del_flag == DeleteFlag.NORMAL.value,
                         SysRole.role_id != 1,
                         SysRole.role_name == query_object.role_name if query_object.role_name else True,
                         SysRole.role_key == query_object.role_key if query_object.role_key else True,
@@ -411,7 +412,7 @@ class UserDao:
         query_object: UserRolePageQueryModel,
         data_scope_sql: ColumnElement,
         is_page: bool = False,
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据角色id获取已分配的用户列表信息
 
@@ -427,7 +428,7 @@ class UserDao:
             .join(SysUserRole, SysUserRole.user_id == SysUser.user_id, isouter=True)
             .join(SysRole, SysRole.role_id == SysUserRole.role_id, isouter=True)
             .where(
-                SysUser.del_flag == '0',
+                SysUser.del_flag == DeleteFlag.NORMAL.value,
                 SysUser.user_name == query_object.user_name if query_object.user_name else True,
                 SysUser.phonenumber == query_object.phonenumber if query_object.phonenumber else True,
                 SysRole.role_id == query_object.role_id,
@@ -435,7 +436,7 @@ class UserDao:
             )
             .distinct()
         )
-        allocated_user_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        allocated_user_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -447,7 +448,7 @@ class UserDao:
         query_object: UserRolePageQueryModel,
         data_scope_sql: ColumnElement,
         is_page: bool = False,
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据角色id获取未分配的用户列表信息
 
@@ -463,7 +464,7 @@ class UserDao:
             .join(SysUserRole, SysUserRole.user_id == SysUser.user_id, isouter=True)
             .join(SysRole, SysRole.role_id == SysUserRole.role_id, isouter=True)
             .where(
-                SysUser.del_flag == '0',
+                SysUser.del_flag == DeleteFlag.NORMAL.value,
                 SysUser.user_name == query_object.user_name if query_object.user_name else True,
                 SysUser.phonenumber == query_object.phonenumber if query_object.phonenumber else True,
                 or_(SysRole.role_id != query_object.role_id, SysRole.role_id.is_(None)),
@@ -479,7 +480,7 @@ class UserDao:
             )
             .distinct()
         )
-        unallocated_user_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        unallocated_user_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -576,7 +577,7 @@ class UserDao:
         dept_basic_info = (
             (
                 await db.execute(
-                    select(SysDept).where(SysDept.dept_id == dept_id, SysDept.status == '0', SysDept.del_flag == '0')
+                    select(SysDept).where(SysDept.dept_id == dept_id, SysDept.status == '0', SysDept.del_flag == DeleteFlag.NORMAL.value)
                 )
             )
             .scalars()

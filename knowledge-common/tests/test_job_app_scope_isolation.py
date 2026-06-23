@@ -15,7 +15,6 @@ job-app-scope-isolation 自动化验证测试套件
     .venv/bin/pytest knowledge-common/tests/test_job_app_scope_isolation.py -v -s -k "static"
 """
 import asyncio
-import os
 import re
 import socket
 import sys
@@ -95,7 +94,6 @@ class Test9_1AdminLoadScope:
     def test_91_admin_filter_includes_null(self):
         """9.1.2 验证 admin app_scope 过滤包含 NULL/空值（兼容旧数据）"""
         from knowledge_common.mapper.dao.job_dao import JobDao
-        from knowledge_common.config.env import AppConfig
 
         # admin 应该是 'knowledge-admin'
         # 验证 SQL 实现：用源码检查
@@ -163,7 +161,6 @@ class Test9_3AdminApiSaveAppScope:
     )
     def test_93_admin_api_save_app_scope(self):
         """9.3.2 admin API 保存任务时携带 app_scope（需 admin 服务运行）"""
-        import httpx
 
         # 这里需要登录 token，省略具体实现
         # 用 pytest.skip 让动态验证更醒目
@@ -400,7 +397,7 @@ def pytest_sessionfinish(session, exitstatus):
     admin = _port_open('127.0.0.1', 9099)
     rag = _port_open('127.0.0.1', 9098)
 
-    print(f'环境状态：')
+    print('环境状态：')
     print(f'  Redis:    {"✅ 运行中" if _port_open("127.0.0.1", 6379) else "❌ 未运行"}')
     print(f'  admin:    {"✅ 运行中（9099）" if admin else "⚠️  未运行（9099）"}')
     print(f'  rag:      {"✅ 运行中（9098）" if rag else "⚠️  未运行（9098）"}')

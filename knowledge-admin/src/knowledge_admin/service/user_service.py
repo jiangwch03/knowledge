@@ -7,7 +7,12 @@ from fastapi import Request, UploadFile
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
+from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.mapper.do.user_do import SysUserRole
+from knowledge_common.service.config_service import ConfigService
+from knowledge_common.utils.common_util import CamelCaseUtil
+from knowledge_common.utils.excel_util import ExcelUtil
+from knowledge_common.utils.pwd_util import PwdUtil
 from knowledge_common.vo.post_vo import PostPageQueryModel
 from knowledge_common.vo.user_vo import (
     AddUserModel,
@@ -28,11 +33,6 @@ from knowledge_common.vo.user_vo import (
     UserRoleResponseModel,
     UserRowModel,
 )
-from knowledge_common.exceptions.exception import ServiceException
-from knowledge_common.service.config_service import ConfigService
-from knowledge_common.utils.common_util import CamelCaseUtil
-from knowledge_common.utils.excel_util import ExcelUtil
-from knowledge_common.utils.pwd_util import PwdUtil
 from sqlalchemy import ColumnElement
 
 from knowledge_admin.mapper.dao.user_dao import UserDao
@@ -223,8 +223,7 @@ class UserService:
                             UserPostModel(userId=page_object.user_id, postId=post)
                         )
             return CrudResponseModel(is_success=True, message='更新成功')
-        else:
-            raise ServiceException(message='用户不存在')
+        raise ServiceException(message='用户不存在')
 
     @classmethod
     @transactional()
@@ -247,8 +246,7 @@ class UserService:
                 await UserDao.delete_user_post_dao(UserPostModel(**user_id_dict))
                 await UserDao.delete_user_dao(UserModel(**user_id_dict))
             return CrudResponseModel(is_success=True, message='删除成功')
-        else:
-            raise ServiceException(message='传入用户id为空')
+        raise ServiceException(message='传入用户id为空')
 
     @classmethod
     async def user_detail_services(cls, user_id: int | str) -> UserDetailModel:
@@ -560,10 +558,10 @@ class UserService:
             for role_id in role_id_list:
                 await UserDao.add_user_role_dao(UserRoleModel(userId=page_object.user_id, roleId=role_id))
             return CrudResponseModel(is_success=True, message='分配成功')
-        elif page_object.user_id and not page_object.role_ids:
+        if page_object.user_id and not page_object.role_ids:
             await UserDao.delete_user_role_by_user_and_role_dao(UserRoleModel(userId=page_object.user_id))
             return CrudResponseModel(is_success=True, message='分配成功')
-        elif page_object.user_ids and page_object.role_id:
+        if page_object.user_ids and page_object.role_id:
             user_id_list = page_object.user_ids.split(',')
             for user_id in user_id_list:
                 user_role = await cls.detail_user_role_services(
@@ -573,8 +571,7 @@ class UserService:
                     continue
                 await UserDao.add_user_role_dao(UserRoleModel(userId=user_id, roleId=page_object.role_id))
             return CrudResponseModel(is_success=True, message='新增成功')
-        else:
-            raise ServiceException(message='不满足新增条件')
+        raise ServiceException(message='不满足新增条件')
 
     @classmethod
     @transactional()
@@ -593,17 +590,15 @@ class UserService:
                     UserRoleModel(userId=page_object.user_id, roleId=page_object.role_id)
                 )
                 return CrudResponseModel(is_success=True, message='删除成功')
-            elif page_object.user_ids and page_object.role_id:
+            if page_object.user_ids and page_object.role_id:
                 user_id_list = page_object.user_ids.split(',')
                 for user_id in user_id_list:
                     await UserDao.delete_user_role_by_user_and_role_dao(
                         UserRoleModel(userId=user_id, roleId=page_object.role_id)
                     )
                 return CrudResponseModel(is_success=True, message='删除成功')
-            else:
-                raise ServiceException(message='不满足删除条件')
-        else:
-            raise ServiceException(message='传入用户角色关联信息为空')
+            raise ServiceException(message='不满足删除条件')
+        raise ServiceException(message='传入用户角色关联信息为空')
 
     @classmethod
     async def detail_user_role_services(cls, page_object: UserRoleModel) -> SysUserRole | None:

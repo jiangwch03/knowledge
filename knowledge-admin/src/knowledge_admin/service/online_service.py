@@ -2,10 +2,10 @@ from typing import Any
 
 import jwt
 from fastapi import Request
-from knowledge_common.redis.key import RedisKey
 from knowledge_common.common.vo import CrudResponseModel
 from knowledge_common.config.env import AppConfig, JwtConfig
 from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.utils.common_util import CamelCaseUtil
 
 from knowledge_admin.vo.online_vo import DeleteOnlineModel, OnlineQueryModel

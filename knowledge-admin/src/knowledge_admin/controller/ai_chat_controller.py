@@ -10,9 +10,9 @@ from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, ResponseBaseModel
-from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
+from knowledge_common.vo.user_vo import CurrentUserModel
 
 from knowledge_admin.service.ai_chat_service import AiChatService
 from knowledge_admin.vo.ai_chat_vo import (

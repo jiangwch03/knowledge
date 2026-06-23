@@ -15,6 +15,9 @@ from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
 from knowledge_common.mapper.do.dept_do import SysDept
 from knowledge_common.mapper.do.user_do import SysUser
+from knowledge_common.utils.common_util import bytes2file_response
+from knowledge_common.utils.log_util import logger
+from knowledge_common.utils.response_util import ResponseUtil
 from knowledge_common.vo.dept_vo import DeptModel
 from knowledge_common.vo.role_vo import (
     AddRoleModel,
@@ -29,9 +32,6 @@ from knowledge_common.vo.user_vo import (
     UserInfoModel,
     UserRolePageQueryModel,
 )
-from knowledge_common.utils.common_util import bytes2file_response
-from knowledge_common.utils.log_util import logger
-from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
 

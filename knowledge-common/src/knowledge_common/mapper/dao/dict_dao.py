@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from datetime import datetime, time
-from typing import Any
 
 from sqlalchemy import and_, delete, func, select, update
 
@@ -55,7 +54,7 @@ class DictTypeDao:
         return dict_type_info
 
     @classmethod
-    async def get_all_dict_type(cls) -> list[Any]:
+    async def get_all_dict_type(cls) -> list[dict]:
         """
         获取所有的字典类型信息
 
@@ -69,7 +68,7 @@ class DictTypeDao:
     @classmethod
     async def get_dict_type_list(
         cls, query_object: DictTypePageQueryModel, is_page: bool = False
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据查询参数获取字典类型列表信息
 
@@ -94,7 +93,7 @@ class DictTypeDao:
             .order_by(SysDictType.dict_id)
             .distinct()
         )
-        dict_type_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        dict_type_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -116,7 +115,7 @@ class DictTypeDao:
         return db_dict_type
 
     @classmethod
-    async def edit_dict_type_dao(cls, dict_type: dict) -> None:
+    async def edit_dict_type_dao(cls, dict_type: dict[str, str]) -> None:
         """
         编辑字典类型数据库操作
 
@@ -186,7 +185,7 @@ class DictDataDao:
     @classmethod
     async def get_dict_data_list(
         cls, query_object: DictDataPageQueryModel, is_page: bool = False
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据查询参数获取字典数据列表信息
 
@@ -205,7 +204,7 @@ class DictDataDao:
             .order_by(SysDictData.dict_sort)
             .distinct()
         )
-        dict_data_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        dict_data_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -257,7 +256,7 @@ class DictDataDao:
         return db_data_type
 
     @classmethod
-    async def edit_dict_data_dao(cls, dict_data: dict | None = None) -> None:
+    async def edit_dict_data_dao(cls, dict_data: dict[str, str] | None = None) -> None:
         """
         编辑字典数据数据库操作
 

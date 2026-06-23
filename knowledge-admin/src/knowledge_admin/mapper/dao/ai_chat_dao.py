@@ -1,3 +1,5 @@
+from typing import Any
+
 from knowledge_common.common.transactional import get_current_session
 from sqlalchemy import select, update
 
@@ -41,7 +43,7 @@ class AiChatConfigDao:
         return db_chat_config
 
     @classmethod
-    async def edit_chat_config_dao(cls, chat_config: dict) -> None:
+    async def edit_chat_config_dao(cls, chat_config: dict[str, Any]) -> None:
         """
         编辑对话配置数据库操作
 

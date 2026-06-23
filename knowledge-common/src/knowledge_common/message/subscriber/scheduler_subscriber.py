@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from knowledge_common.broadcast import BroadcastMessage, subscriber
 from knowledge_common.config.get_scheduler import SchedulerUtil
-from knowledge_common.utils.log_util import logger
 
 
 @subscriber(channel='scheduler:global:sync')

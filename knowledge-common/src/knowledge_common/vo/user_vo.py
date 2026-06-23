@@ -10,6 +10,7 @@ from knowledge_common.exceptions.exception import ModelValidatorException
 from knowledge_common.vo.dept_vo import DeptModel
 from knowledge_common.vo.post_vo import PostModel
 from knowledge_common.vo.role_vo import RoleModel
+from knowledge_common.vo.base_page_query_vo import BasePageQueryModel
 
 
 class TokenData(BaseModel):
@@ -183,13 +184,10 @@ class UserQueryModel(UserModel):
     end_time: str | None = Field(default=None, description='结束时间')
 
 
-class UserPageQueryModel(UserQueryModel):
+class UserPageQueryModel(UserQueryModel, BasePageQueryModel):
     """
     用户管理分页查询模型
     """
-
-    page_num: int = Field(default=1, description='当前页码')
-    page_size: int = Field(default=10, description='每页记录数')
 
 
 class AddUserModel(UserModel):
@@ -258,13 +256,10 @@ class UserRoleQueryModel(UserModel):
     role_id: int | None = Field(default=None, description='角色ID')
 
 
-class UserRolePageQueryModel(UserRoleQueryModel):
+class UserRolePageQueryModel(UserRoleQueryModel, BasePageQueryModel):
     """
     用户角色关联管理分页查询模型
     """
-
-    page_num: int = Field(default=1, description='当前页码')
-    page_size: int = Field(default=10, description='每页记录数')
 
 
 class SelectedRoleModel(RoleModel):

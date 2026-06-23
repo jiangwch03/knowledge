@@ -4,8 +4,8 @@ from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
 from knowledge_common.mapper.do.post_do import SysPost
 from knowledge_common.mapper.do.user_do import SysUserPost
-from knowledge_common.vo.post_vo import PostModel, PostPageQueryModel
 from knowledge_common.utils.page_util import PageUtil
+from knowledge_common.vo.post_vo import PostModel, PostPageQueryModel
 from sqlalchemy import delete, func, select, update
 
 
@@ -72,7 +72,7 @@ class PostDao:
     @classmethod
     async def get_post_list(
         cls, query_object: PostPageQueryModel, is_page: bool = False
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据查询参数获取岗位列表信息
 
@@ -91,7 +91,7 @@ class PostDao:
             .order_by(SysPost.post_sort)
             .distinct()
         )
-        post_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        post_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -113,7 +113,7 @@ class PostDao:
         return db_post
 
     @classmethod
-    async def edit_post_dao(cls, post: dict) -> None:
+    async def edit_post_dao(cls, post: dict[str, Any]) -> None:
         """
         编辑岗位数据库操作
 

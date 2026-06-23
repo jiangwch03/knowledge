@@ -8,7 +8,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Awaitable, Callable
 
-from knowledge_common.broadcast.message import BroadcastMessage
 
 # 分发函数签名：接收 channel + 原始 payload，由门面负责构造 BroadcastMessage 再调 handler
 DispatchFn = Callable[[str, Any], Awaitable[None]]

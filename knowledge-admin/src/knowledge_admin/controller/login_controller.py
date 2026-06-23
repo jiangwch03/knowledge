@@ -10,13 +10,13 @@ from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimi
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency
 from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
-from knowledge_common.redis.key import RedisKey
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
 from knowledge_common.config.env import AppConfig, JwtConfig
-from knowledge_common.vo.user_vo import CurrentUserModel, EditUserModel
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
+from knowledge_common.vo.user_vo import CurrentUserModel, EditUserModel
 
 from knowledge_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
 from knowledge_admin.service.user_service import UserService

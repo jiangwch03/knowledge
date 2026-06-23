@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
 
 from redis import asyncio as aioredis
 from redis.exceptions import (

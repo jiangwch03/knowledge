@@ -894,6 +894,7 @@ class SchedulerUtil:
             max_instances=3 if job_info.concurrent == '0' else 1,
             jobstore=job_info.job_group,
             executor=job_executor,
+            replace_existing=True,
         )
 
     @classmethod

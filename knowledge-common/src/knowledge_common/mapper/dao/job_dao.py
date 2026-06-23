@@ -60,7 +60,7 @@ class JobDao:
     @classmethod
     async def get_job_list(
         cls, query_object: JobPageQueryModel, is_page: bool = False
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据查询参数获取定时任务列表信息
 
@@ -80,7 +80,7 @@ class JobDao:
             .order_by(SysJob.job_id)
             .distinct()
         )
-        job_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        job_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -138,7 +138,7 @@ class JobDao:
         return db_job
 
     @classmethod
-    async def edit_job_dao(cls, job: dict, old_job: JobModel) -> None:
+    async def edit_job_dao(cls, job: dict[str, Any], old_job: JobModel) -> None:
         """
         编辑定时任务数据库操作
 

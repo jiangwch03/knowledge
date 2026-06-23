@@ -21,7 +21,7 @@ import socket
 import sys
 import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -44,7 +44,6 @@ from knowledge_common.broadcast import (  # noqa: E402
 )
 from knowledge_common.broadcast.backends.base import BroadcastBackend  # noqa: E402
 from knowledge_common.broadcast.backends.redis_pubsub import RedisPubSubBackend  # noqa: E402
-from knowledge_common.broadcast.subscriber import SubscriberInfo  # noqa: E402
 
 
 # =============================================================================

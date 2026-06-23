@@ -3,6 +3,9 @@ from typing import Any
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
+from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.utils.common_util import CamelCaseUtil
+from knowledge_common.utils.excel_util import ExcelUtil
 from knowledge_common.vo.role_vo import (
     AddRoleModel,
     DeleteRoleModel,
@@ -13,9 +16,6 @@ from knowledge_common.vo.role_vo import (
     RolePageQueryModel,
 )
 from knowledge_common.vo.user_vo import UserInfoModel, UserRolePageQueryModel
-from knowledge_common.exceptions.exception import ServiceException
-from knowledge_common.utils.common_util import CamelCaseUtil
-from knowledge_common.utils.excel_util import ExcelUtil
 from sqlalchemy import ColumnElement
 
 from knowledge_admin.mapper.dao.role_dao import RoleDao
@@ -184,8 +184,7 @@ class RoleService:
                             RoleMenuModel(roleId=page_object.role_id, menuId=menu)
                         )
             return CrudResponseModel(is_success=True, message='更新成功')
-        else:
-            raise ServiceException(message='角色不存在')
+        raise ServiceException(message='角色不存在')
 
     @classmethod
     @transactional()
@@ -207,8 +206,7 @@ class RoleService:
                         RoleDeptModel(roleId=page_object.role_id, deptId=dept)
                     )
             return CrudResponseModel(is_success=True, message='分配成功')
-        else:
-            raise ServiceException(message='角色不存在')
+        raise ServiceException(message='角色不存在')
 
     @classmethod
     @transactional()
@@ -234,8 +232,7 @@ class RoleService:
                 await RoleDao.delete_role_dept_dao(RoleDeptModel(**role_id_dict))
                 await RoleDao.delete_role_dao(RoleModel(**role_id_dict))
             return CrudResponseModel(is_success=True, message='删除成功')
-        else:
-            raise ServiceException(message='传入角色id为空')
+        raise ServiceException(message='传入角色id为空')
 
     @classmethod
     async def role_detail_services(cls, role_id: int) -> RoleModel:

@@ -1,12 +1,14 @@
 import argparse
 import configparser
+import json
 import os
 import sys
-from typing import Literal
+from typing import Annotated, Literal
 
 from dotenv import load_dotenv
-from pydantic import computed_field
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings
+from pydantic_settings.sources import NoDecode
 
 
 class AppSettings(BaseSettings):
@@ -186,49 +188,53 @@ class MessageStreamSettings(BaseSettings):
     def is_redis(self) -> bool:
         return self.message_stream_backend == 'redis'
 
+class StreamTopicSettings(BaseSettings):
+    """
+    消息流主题配置
+    """
+    # 消费组ID
+    group_id: str = 'knowledge_rag'
+    # 文档解析待处理队列
+    document_parse_pending: str = 'document.parse.pending'
+    # 文档 Markdown 合并待处理队列
+    document_md_pending: str = 'document.md.pending'
 
-class UploadSettings:
+class UploadSettings(BaseSettings):
     """
     上传配置
     """
 
-    UPLOAD_PREFIX = '/profile'
-    UPLOAD_PATH = 'vf_admin/upload_path'
-    UPLOAD_MACHINE = 'A'
-    DEFAULT_ALLOWED_EXTENSION = [
-        # 图片
-        'bmp',
-        'gif',
-        'jpg',
-        'jpeg',
-        'png',
-        # word excel powerpoint
-        'doc',
-        'docx',
-        'xls',
-        'xlsx',
-        'ppt',
-        'pptx',
-        'html',
-        'htm',
-        'txt',
-        # 压缩文件
-        'rar',
-        'zip',
-        'gz',
-        'bz2',
-        # 视频格式
-        'mp4',
-        'avi',
-        'rmvb',
-        # pdf
-        'pdf',
-    ]
-    DOWNLOAD_PATH = 'vf_admin/download_path'
+    UPLOAD_PREFIX: str = '/profile'
+    UPLOAD_PATH: str = 'vf_admin/upload_path'
+    UPLOAD_TEMP_PATH: str = 'vf_admin/upload_path/tmp'
+    UPLOAD_MACHINE: str = 'A'
+    DEFAULT_ALLOWED_EXTENSION: Annotated[list[str], NoDecode] = Field(default = list)
+    UPLOAD_MAX_SIZE: int = 100 * 1024 * 1024
+    DOWNLOAD_PATH: str = 'vf_admin/download_path'
 
-    def __init__(self) -> None:
+    @field_validator('DEFAULT_ALLOWED_EXTENSION', mode='before')
+    @classmethod
+    def _parse_extensions(cls, v: str | list[str]) -> list[str]:
+        """
+        从 .env 文件读取时支持两种格式：
+        - 逗号分隔：DEFAULT_ALLOWED_EXTENSION = bmp,gif,jpg
+        - JSON 数组：DEFAULT_ALLOWED_EXTENSION = '["bmp","gif","jpg"]'
+        """
+        if isinstance(v, list):
+            return v
+        v_stripped = v.strip().strip("'\"")
+        if v_stripped.startswith('[') and v_stripped.endswith(']'):
+            try:
+                return json.loads(v_stripped)
+            except json.JSONDecodeError:
+                pass
+        return [item.strip() for item in v_stripped.split(',') if item.strip()]
+
+    def model_post_init(self, __context) -> None:
         if not os.path.exists(self.UPLOAD_PATH):
             os.makedirs(self.UPLOAD_PATH)
+        if not os.path.exists(self.UPLOAD_TEMP_PATH):
+            os.makedirs(self.UPLOAD_TEMP_PATH)
         if not os.path.exists(self.DOWNLOAD_PATH):
             os.makedirs(self.DOWNLOAD_PATH)
 
@@ -267,10 +273,22 @@ class MinioSettings(BaseSettings):
     minio_access_key_id: str = 'jiangwch'
     # MinIO 秘密访问密钥（用户自定义密码）
     minio_secret_access_key: str = 'jiangwch'
+    # MinIO 存储 bucket 名称（需预先在 MinIO 中创建）
+    minio_bucket_name: str = 'minio-data'
     # Milvus 专用的存储 bucket 名称（需预先在 MinIO 中创建）
-    minio_bucket_name: str = 'milvus-data'
+    milvus_bucket_name: str = 'milvus-data'
+    # 知识库专用的存储 bucket 名称（需预先在 MinIO 中创建）
+    knowledge_bucket_name: str = 'knowledge-data'
     # 是否使用 SSL/TLS 加密连接，false 表示使用明文 HTTP
     minio_use_ssl: bool = False
+    # MinIO 对象路径前缀：原始文档
+    minio_object_document_prefix: str = 'documents'
+    # MinIO 对象路径前缀：文档中的图片
+    minio_object_image_prefix: str = 'documents/images'
+    # MinIO 对象路径前缀：合并后的 Markdown
+    minio_object_markdown_prefix: str = 'documents/markdown'
+    # MinIO 本地下载子目录（拼接在 UploadConfig.DOWNLOAD_PATH 后）
+    minio_download_subdir: str = 'minio'
 
 
 def _resolve_workspace_root() -> str | None:
@@ -420,6 +438,13 @@ class GetConfig:
         """
         return MessageStreamSettings()
 
+
+    def get_stream_topic_config(self) -> StreamTopicSettings:
+        """
+        Stream topic 配置
+        """
+        return StreamTopicSettings()
+
     @staticmethod
     def parse_cli_args() -> None:
         """
@@ -479,3 +504,5 @@ MinerUConfig = get_config.get_mineru_config()
 MinioConfig = get_config.get_minio_config()
 # 消息流后端配置
 MessageStreamConfig = get_config.get_message_stream_config()
+# Stream topic 配置
+StreamTopicConfig = get_config.get_stream_topic_config()

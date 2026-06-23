@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from pydantic import BaseModel
 from redis import asyncio as aioredis
 from redis.exceptions import (
     ConnectionError as RedisConnectionError,
@@ -44,6 +45,8 @@ def _encode_field_value(value: Any) -> str:
     """业务 value 序列化为 str(写入 xadd fields)"""
     if isinstance(value, str):
         return value
+    if isinstance(value, BaseModel):
+        return json.dumps(value.model_dump(), ensure_ascii=False, default=str)
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False, default=str)
     return str(value)

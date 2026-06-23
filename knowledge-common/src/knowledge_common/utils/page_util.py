@@ -1,5 +1,5 @@
 import math
-from typing import Any
+from typing import TypeVar, cast
 
 from sqlalchemy import Row, Select, func, select
 
@@ -8,13 +8,16 @@ from knowledge_common.common.vo import PageModel
 from knowledge_common.utils.common_util import CamelCaseUtil
 
 
+T = TypeVar('T')
+
+
 class PageUtil:
     """
     分页工具类
     """
 
     @classmethod
-    def get_page_obj(cls, data_list: list, page_num: int, page_size: int) -> PageModel:
+    def get_page_obj(cls, data_list: list[T], page_num: int, page_size: int) -> PageModel[T]:
         """
         输入数据列表data_list和分页信息，返回分页数据列表结果
 
@@ -31,16 +34,16 @@ class PageUtil:
         paginated_data = data_list[start:end]
         has_next = math.ceil(len(data_list) / page_size) > page_num
 
-        result = PageModel[Any](
+        result = PageModel[T](
             rows=paginated_data, pageNum=page_num, pageSize=page_size, total=len(data_list), hasNext=has_next
         )
 
         return result
 
-    @classmethod
+    @staticmethod
     async def paginate(
-        cls, query: Select, page_num: int, page_size: int, is_page: bool = False
-    ) -> PageModel | list[dict[str, Any] | list[dict[Any, Any]]]:
+        query: Select, page_num: int, page_size: int, is_page: bool = False
+    ) -> PageModel[T] | list[T]:
         """
         输入查询语句和分页信息，返回分页数据列表结果
 
@@ -61,8 +64,8 @@ class PageUtil:
                 else:
                     paginated_data.append(row)
             has_next = math.ceil(total / page_size) > page_num
-            result = PageModel[Any](
-                rows=CamelCaseUtil.transform_result(paginated_data),
+            result = PageModel[T](
+                rows=cast(list[T], CamelCaseUtil.transform_result(paginated_data)),
                 pageNum=page_num,
                 pageSize=page_size,
                 total=total,
@@ -76,12 +79,12 @@ class PageUtil:
                     no_paginated_data.append(row[0])
                 else:
                     no_paginated_data.append(row)
-            result = CamelCaseUtil.transform_result(no_paginated_data)
+            result = cast(list[T], CamelCaseUtil.transform_result(no_paginated_data))
 
         return result
 
 
-def get_page_obj(data_list: list, page_num: int, page_size: int) -> PageModel:
+def get_page_obj(data_list: list[T], page_num: int, page_size: int) -> PageModel[T]:
     """
     输入数据列表data_list和分页信息，返回分页数据列表结果
 
@@ -98,7 +101,7 @@ def get_page_obj(data_list: list, page_num: int, page_size: int) -> PageModel:
     paginated_data = data_list[start:end]
     has_next = math.ceil(len(data_list) / page_size) > page_num
 
-    result = PageModel[Any](
+    result = PageModel[T](
         rows=paginated_data, pageNum=page_num, pageSize=page_size, total=len(data_list), hasNext=has_next
     )
 

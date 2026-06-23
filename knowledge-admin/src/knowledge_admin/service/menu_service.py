@@ -4,12 +4,12 @@ from typing import Any
 from knowledge_common.common.constant import CommonConstant, MenuConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel
-from knowledge_common.mapper.do.menu_do import SysMenu
-from knowledge_common.vo.role_vo import RoleMenuQueryModel
-from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.exceptions.exception import ServiceException, ServiceWarning
+from knowledge_common.mapper.do.menu_do import SysMenu
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.string_util import StringUtil
+from knowledge_common.vo.role_vo import RoleMenuQueryModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 
 from knowledge_admin.mapper.dao.menu_dao import MenuDao
 from knowledge_admin.mapper.dao.role_dao import RoleDao
@@ -128,8 +128,7 @@ class MenuService:
                 raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，上级菜单不能选择自己')
             await MenuDao.edit_menu_dao(edit_menu)
             return CrudResponseModel(is_success=True, message='更新成功')
-        else:
-            raise ServiceException(message='菜单不存在')
+        raise ServiceException(message='菜单不存在')
 
     @classmethod
     @transactional()
@@ -149,8 +148,7 @@ class MenuService:
                     raise ServiceWarning(message='菜单已分配,不允许删除')
                 await MenuDao.delete_menu_dao(MenuModel(menuId=menu_id))
             return CrudResponseModel(is_success=True, message='删除成功')
-        else:
-            raise ServiceException(message='传入菜单id为空')
+        raise ServiceException(message='传入菜单id为空')
 
     @classmethod
     async def menu_detail_services(cls, menu_id: int) -> MenuModel:

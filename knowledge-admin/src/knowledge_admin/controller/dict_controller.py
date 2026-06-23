@@ -12,6 +12,10 @@ from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
+from knowledge_common.service.dict_service import DictDataService, DictTypeService
+from knowledge_common.utils.common_util import bytes2file_response
+from knowledge_common.utils.log_util import logger
+from knowledge_common.utils.response_util import ResponseUtil
 from knowledge_common.vo.dict_vo import (
     DeleteDictDataModel,
     DeleteDictTypeModel,
@@ -21,10 +25,6 @@ from knowledge_common.vo.dict_vo import (
     DictTypePageQueryModel,
 )
 from knowledge_common.vo.user_vo import CurrentUserModel
-from knowledge_common.service.dict_service import DictDataService, DictTypeService
-from knowledge_common.utils.common_util import bytes2file_response
-from knowledge_common.utils.log_util import logger
-from knowledge_common.utils.response_util import ResponseUtil
 from pydantic_validation_decorator import ValidateFields
 
 dict_controller = APIRouterPro(

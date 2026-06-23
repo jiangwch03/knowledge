@@ -10,10 +10,10 @@ from knowledge_common.common.constant import ApiGroup, ApiNamespace
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, DynamicResponseModel, ResponseBaseModel
-from knowledge_common.vo.role_vo import RoleMenuQueryModel
-from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
+from knowledge_common.vo.role_vo import RoleMenuQueryModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 from pydantic_validation_decorator import ValidateFields
 
 from knowledge_admin.service.menu_service import MenuService

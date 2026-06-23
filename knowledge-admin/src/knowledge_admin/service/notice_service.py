@@ -74,8 +74,7 @@ class NoticeService:
                 raise ServiceException(message=f'修改通知公告{page_object.notice_title}失败，通知公告已存在')
             await NoticeDao.edit_notice_dao(edit_notice)
             return CrudResponseModel(is_success=True, message='更新成功')
-        else:
-            raise ServiceException(message='通知公告不存在')
+        raise ServiceException(message='通知公告不存在')
 
     @classmethod
     @transactional()
@@ -91,8 +90,7 @@ class NoticeService:
             for notice_id in notice_id_list:
                 await NoticeDao.delete_notice_dao(NoticeModel(noticeId=notice_id))
             return CrudResponseModel(is_success=True, message='删除成功')
-        else:
-            raise ServiceException(message='传入通知公告id为空')
+        raise ServiceException(message='传入通知公告id为空')
 
     @classmethod
     async def notice_detail_services(cls, notice_id: int) -> NoticeModel:

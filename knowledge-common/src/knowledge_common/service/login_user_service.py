@@ -2,7 +2,7 @@ from datetime import timedelta, datetime
 
 import jwt
 from fastapi import Depends, Request
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from knowledge_common.mapper.dao.user_login_dao import UserDao
 

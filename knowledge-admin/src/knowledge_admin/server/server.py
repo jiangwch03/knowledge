@@ -3,18 +3,18 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from knowledge_common.broadcast import BroadcastService
 from knowledge_common.common.constant import LockConstant
 from knowledge_common.common.router import auto_register_routers
 from knowledge_common.config.env import AppConfig, MessageStreamConfig
 from knowledge_common.config.get_db import close_async_engine, init_create_table
-from knowledge_common.redis import RedisConnection
 from knowledge_common.config.get_scheduler import SchedulerUtil
-from knowledge_common.service.config_service import ConfigService
-from knowledge_common.service.dict_service import DictDataService
-from knowledge_common.broadcast import BroadcastService
 from knowledge_common.exceptions.handle import handle_exception
 from knowledge_common.message_stream import MessageStreamService
 from knowledge_common.middlewares.handle import handle_middleware
+from knowledge_common.redis import RedisConnection
+from knowledge_common.service.config_service import ConfigService
+from knowledge_common.service.dict_service import DictDataService
 from knowledge_common.sub_applications.handle import handle_sub_applications
 from knowledge_common.utils.common_util import worship
 from knowledge_common.utils.log_util import logger

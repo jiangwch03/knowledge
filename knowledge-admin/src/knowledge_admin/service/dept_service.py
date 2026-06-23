@@ -4,10 +4,10 @@ from typing import Any
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel
-from knowledge_common.mapper.do.dept_do import SysDept
-from knowledge_common.vo.dept_vo import DeleteDeptModel, DeptModel, DeptTreeModel
 from knowledge_common.exceptions.exception import ServiceException, ServiceWarning
+from knowledge_common.mapper.do.dept_do import SysDept
 from knowledge_common.utils.common_util import CamelCaseUtil
+from knowledge_common.vo.dept_vo import DeleteDeptModel, DeptModel, DeptTreeModel
 from sqlalchemy import ColumnElement
 
 from knowledge_admin.mapper.dao.dept_dao import DeptDao
@@ -169,8 +169,7 @@ class DeptService:
 
                 await DeptDao.delete_dept_dao(DeptModel(deptId=dept_id))
             return CrudResponseModel(is_success=True, message='删除成功')
-        else:
-            raise ServiceException(message='传入部门id为空')
+        raise ServiceException(message='传入部门id为空')
 
     @classmethod
     async def dept_detail_services(cls, dept_id: int) -> DeptModel:

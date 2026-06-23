@@ -1,6 +1,8 @@
 from collections.abc import Sequence
+from typing import Any
 
 from knowledge_common.common.transactional import get_current_session
+from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.mapper.do.menu_do import SysMenu
 from knowledge_common.mapper.do.role_do import SysRole, SysRoleMenu
 from knowledge_common.mapper.do.user_do import SysUser, SysUserRole
@@ -75,12 +77,12 @@ class MenuDao:
                     await db.execute(
                         select(SysMenu)
                         .select_from(SysUser)
-                        .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                        .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                         .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                         .join(
                             SysRole,
                             and_(
-                                SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'
+                                SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value
                             ),
                             isouter=True,
                         )
@@ -132,12 +134,12 @@ class MenuDao:
                     await db.execute(
                         select(SysMenu)
                         .select_from(SysUser)
-                        .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                        .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                         .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                         .join(
                             SysRole,
                             and_(
-                                SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'
+                                SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value
                             ),
                             isouter=True,
                         )
@@ -176,7 +178,7 @@ class MenuDao:
         return db_menu
 
     @classmethod
-    async def edit_menu_dao(cls, menu: dict) -> None:
+    async def edit_menu_dao(cls, menu: dict[str, Any]) -> None:
         """
         编辑菜单数据库操作
 

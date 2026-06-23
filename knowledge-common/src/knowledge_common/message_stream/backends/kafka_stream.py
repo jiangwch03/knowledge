@@ -25,6 +25,7 @@ from typing import Any
 from confluent_kafka import KafkaError, KafkaException, TopicPartition
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.aio import AIOConsumer, AIOProducer
+from pydantic import BaseModel
 
 from knowledge_common.message_stream.backends.base import StreamBackend
 from knowledge_common.message_stream.exceptions import MessageStreamError
@@ -41,6 +42,8 @@ def _encode_value(value: Any) -> bytes:
         return value
     if isinstance(value, str):
         return value.encode('utf-8')
+    if isinstance(value, BaseModel):
+        return json.dumps(value.model_dump(), ensure_ascii=False, default=str).encode('utf-8')
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False, default=str).encode('utf-8')
     return str(value).encode('utf-8')

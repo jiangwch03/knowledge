@@ -111,6 +111,10 @@ class LockKey:
     """
 
     PREFIX = 'lock'
+    UPLOAD_DOCUMENT = 'upload:doc'
+    PARSE_TASK = 'parse:task'
+    UPLOAD_RECORD = 'upload:record'
+    USER_DECISION = 'user:decision'
 
     # ==================== Key 生成方法 ====================
 
@@ -123,6 +127,50 @@ class LockKey:
         """
         name = app_name or AppConfig.app_name
         return f'{LockKey.PREFIX}:app:startup:{name}'
+
+    @staticmethod
+    def upload_document_key(filename: str) -> str:
+        """
+        文档上传锁 key
+
+        基于文件名防止短时重复上传（网络抖动引起重复请求）。
+
+        :param filename: 原始文件名
+        """
+        return f'{LockKey.PREFIX}:{LockKey.UPLOAD_DOCUMENT}:{filename}'
+
+    @staticmethod
+    def parse_task_key(parse_task_id: int) -> str:
+        """
+        解析任务锁 key
+
+        用于 Stage2/Stage3 定时任务和消费者，防止同时处理同一解析任务。
+
+        :param parse_task_id: 解析任务ID
+        """
+        return f'{LockKey.PREFIX}:{LockKey.PARSE_TASK}:{parse_task_id}'
+
+    @staticmethod
+    def upload_record_key(record_id: int) -> str:
+        """
+        上传记录锁 key
+
+        用于删除接口和 Stage4，防止同时操作同一上传记录。
+
+        :param record_id: 上传记录ID
+        """
+        return f'{LockKey.PREFIX}:{LockKey.UPLOAD_RECORD}:{record_id}'
+
+    @staticmethod
+    def user_decision_key(parse_task_id: int) -> str:
+        """
+        用户决策锁 key
+
+        用于用户决策接口，防止同时对同一任务进行决策。
+
+        :param parse_task_id: 解析任务ID
+        """
+        return f'{LockKey.PREFIX}:{LockKey.USER_DECISION}:{parse_task_id}'
 
     @staticmethod
     def custom_key(name: str) -> str:

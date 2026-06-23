@@ -3,10 +3,10 @@ from typing import Any
 from knowledge_common.common.constant import CommonConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
-from knowledge_common.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.excel_util import ExcelUtil
+from knowledge_common.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
 
 from knowledge_admin.mapper.dao.post_dao import PostDao
 
@@ -93,8 +93,7 @@ class PostService:
                 raise ServiceException(message=f'修改岗位{page_object.post_name}失败，岗位编码已存在')
             await PostDao.edit_post_dao(edit_post)
             return CrudResponseModel(is_success=True, message='更新成功')
-        else:
-            raise ServiceException(message='岗位不存在')
+        raise ServiceException(message='岗位不存在')
 
     @classmethod
     @transactional()
@@ -113,8 +112,7 @@ class PostService:
                     raise ServiceException(message=f'{post.post_name}已分配，不能删除')
                 await PostDao.delete_post_dao(PostModel(postId=post_id))
             return CrudResponseModel(is_success=True, message='删除成功')
-        else:
-            raise ServiceException(message='传入岗位id为空')
+        raise ServiceException(message='传入岗位id为空')
 
     @classmethod
     async def post_detail_services(cls, post_id: int) -> PostModel:

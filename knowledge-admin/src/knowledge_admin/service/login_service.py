@@ -7,20 +7,20 @@ import jwt
 from fastapi import Form, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from knowledge_common.common.constant import CommonConstant, MenuConstant
-from knowledge_common.redis.key import RedisKey
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel
 from knowledge_common.config.env import AppConfig, JwtConfig
+from knowledge_common.exceptions.exception import LoginException, ServiceException
 from knowledge_common.mapper.do.dept_do import SysDept
 from knowledge_common.mapper.do.menu_do import SysMenu
 from knowledge_common.mapper.do.user_do import SysUser
-from knowledge_common.vo.user_vo import AddUserModel, ResetUserModel
-from knowledge_common.exceptions.exception import LoginException, ServiceException
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.utils.client_ip_util import ClientIPUtil
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.message_util import message_service
 from knowledge_common.utils.pwd_util import PwdUtil
+from knowledge_common.vo.user_vo import AddUserModel, ResetUserModel
 from sqlalchemy import Row
 
 from knowledge_admin.mapper.dao.login_dao import login_by_account

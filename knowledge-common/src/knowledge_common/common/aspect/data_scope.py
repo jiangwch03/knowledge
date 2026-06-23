@@ -21,7 +21,7 @@ class GetDataScope:
 
     def __init__(
         self,
-        query_alias: Base,
+        query_alias: type[Base],
         user_alias: str | None = 'user_id',
         dept_alias: str | None = 'dept_id',
     ) -> None:
@@ -97,7 +97,7 @@ class GetDataScope:
 
 
 def DataScopeDependency(  # noqa: N802
-    query_alias: Base,
+    query_alias: type[Base],
     user_alias: str | None = 'user_id',
     dept_alias: str | None = 'dept_id',
 ) -> params.Depends:

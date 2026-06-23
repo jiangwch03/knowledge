@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
 
+from knowledge_common.vo.base_page_query_vo import BasePageQueryModel
+
 
 class RoleModel(BaseModel):
     """
@@ -104,13 +106,10 @@ class RoleQueryModel(RoleModel):
     end_time: str | None = Field(default=None, description='结束时间')
 
 
-class RolePageQueryModel(RoleQueryModel):
+class RolePageQueryModel(RoleQueryModel, BasePageQueryModel):
     """
     角色管理分页查询模型
     """
-
-    page_num: int = Field(default=1, description='当前页码')
-    page_size: int = Field(default=10, description='每页记录数')
 
 
 class RoleMenuQueryModel(BaseModel):

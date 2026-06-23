@@ -12,10 +12,10 @@ from knowledge_common.common.enums import BusinessType
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, ResponseBaseModel
 from knowledge_common.mapper.do.dept_do import SysDept
-from knowledge_common.vo.dept_vo import DeleteDeptModel, DeptModel, DeptQueryModel
-from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
+from knowledge_common.vo.dept_vo import DeleteDeptModel, DeptModel, DeptQueryModel
+from knowledge_common.vo.user_vo import CurrentUserModel
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
 

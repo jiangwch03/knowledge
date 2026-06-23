@@ -14,12 +14,13 @@ from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel
 from knowledge_common.config.env import UploadConfig
 from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.mapper.dao.ai_models_dao import AiModelDao
 from knowledge_common.utils.ai_util import AiUtil
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.crypto_util import CryptoUtil
+from knowledge_common.vo.ai_model_vo import AiModelModel
 
 from knowledge_admin.mapper.dao.ai_chat_dao import AiChatConfigDao
-from knowledge_admin.mapper.dao.ai_model_dao import AiModelDao
 from knowledge_admin.mapper.do.ai_chat_do import AiChatConfig
 from knowledge_admin.vo.ai_chat_vo import (
     AgentDataModel,
@@ -32,7 +33,6 @@ from knowledge_admin.vo.ai_chat_vo import (
     SessionDataModel,
     SessionMetricsModel,
 )
-from knowledge_admin.vo.ai_model_vo import AiModelModel
 
 if TYPE_CHECKING:
     from agno.models.message import Message

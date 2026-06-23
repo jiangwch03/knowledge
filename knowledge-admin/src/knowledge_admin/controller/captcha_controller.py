@@ -4,9 +4,9 @@ from datetime import timedelta
 from fastapi import Request, Response
 from knowledge_common.common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from knowledge_common.common.constant import ApiNamespace
-from knowledge_common.redis.key import RedisKey
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DynamicResponseModel
+from knowledge_common.redis.key import RedisKey
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 

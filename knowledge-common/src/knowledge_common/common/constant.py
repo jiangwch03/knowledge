@@ -1,4 +1,4 @@
-from knowledge_common.config.env import DataBaseConfig, AppConfig
+from knowledge_common.config.env import DataBaseConfig
 
 
 class CommonConstant:
@@ -231,19 +231,20 @@ class ApiNamespace:
     AI_MODEL_LIST: AI模型列表接口命名空间
     AI_MODEL_ALL: AI模型全量列表接口命名空间
     AI_MODEL_DETAIL: AI模型详情接口命名空间
+    AI_MODEL_FUNCTION_ADAPTER_LIST: 模型功能适配列表接口命名空间
     AI_CHAT_CONFIG: AI对话配置接口命名空间
     AI_CHAT_SEND: AI对话发送接口命名空间
     AI_CHAT_CANCEL: AI对话取消接口命名空间
 
-    TOOL_GEN_LIST: 代码生成列表接口命名空间
-    TOOL_GEN_DB_LIST: 代码生成数据源列表接口命名空间
-    TOOL_GEN_DETAIL: 代码生成详情接口命名空间
-    TOOL_GEN_PREVIEW: 代码生成预览接口命名空间
-    TOOL_GEN_IMPORT_TABLE: 代码生成导入表接口命名空间
-    TOOL_GEN_CREATE_TABLE: 代码生成建表接口命名空间
-    TOOL_GEN_BATCH_GEN_CODE: 代码生成批量下载接口命名空间
-    TOOL_GEN_GEN_CODE_LOCAL: 代码生成到本地接口命名空间
-    TOOL_GEN_SYNC_DB: 代码生成同步库结构接口命名空间
+    # TOOL_GEN_LIST: 代码生成列表接口命名空间
+    # TOOL_GEN_DB_LIST: 代码生成数据源列表接口命名空间
+    # TOOL_GEN_DETAIL: 代码生成详情接口命名空间
+    # TOOL_GEN_PREVIEW: 代码生成预览接口命名空间
+    # TOOL_GEN_IMPORT_TABLE: 代码生成导入表接口命名空间
+    # TOOL_GEN_CREATE_TABLE: 代码生成建表接口命名空间
+    # TOOL_GEN_BATCH_GEN_CODE: 代码生成批量下载接口命名空间
+    # TOOL_GEN_GEN_CODE_LOCAL: 代码生成到本地接口命名空间
+    # TOOL_GEN_SYNC_DB: 代码生成同步库结构接口命名空间
     """
 
     LOGIN = 'login'
@@ -327,6 +328,7 @@ class ApiNamespace:
     AI_MODEL_LIST = 'ai:model:list'
     AI_MODEL_ALL = 'ai:model:all'
     AI_MODEL_DETAIL = 'ai:model:detail'
+    AI_MODEL_FUNCTION_ADAPTER_LIST = 'ai:model:function-adapter:list'
     AI_CHAT_CONFIG = 'ai:chat:config'
     AI_CHAT_SEND = 'ai:chat:send'
     AI_CHAT_CANCEL = 'ai:chat:cancel'
@@ -368,6 +370,7 @@ class ApiGroup:
     DICT_TYPE_MUTATION: 字典类型写操作关联命名空间分组
     DICT_DATA_MUTATION: 字典数据写操作关联命名空间分组
     AI_MODEL_MUTATION: AI模型写操作关联命名空间分组
+    AI_MODEL_FUNCTION_ADAPTER_MUTATION: 模型功能适配写操作关联命名空间分组
     AI_CHAT_CONFIG_MUTATION: AI对话配置写操作关联命名空间分组
     GEN_MUTATION: 代码生成写操作关联命名空间分组
     """
@@ -498,6 +501,8 @@ class ApiGroup:
         ApiNamespace.AI_MODEL_ALL,
         ApiNamespace.AI_MODEL_DETAIL,
     )
+
+    AI_MODEL_FUNCTION_ADAPTER_MUTATION = (ApiNamespace.AI_MODEL_FUNCTION_ADAPTER_LIST,)
 
     AI_CHAT_CONFIG_MUTATION = (ApiNamespace.AI_CHAT_CONFIG,)
 

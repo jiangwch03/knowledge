@@ -1,8 +1,9 @@
-from typing import Any
+from collections.abc import Sequence
 
 from sqlalchemy import and_, select
 
 from knowledge_common.common.transactional import get_current_session
+from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.mapper.do.dept_do import SysDept
 from knowledge_common.mapper.do.menu_do import SysMenu
 from knowledge_common.mapper.do.post_do import SysPost
@@ -13,7 +14,7 @@ from knowledge_common.mapper.do.user_do import SysUser, SysUserPost, SysUserRole
 class UserDao:
 
     @classmethod
-    async def get_user_by_id(cls, user_id: int) -> dict[str, Any]:
+    async def get_user_by_id(cls, user_id: int) -> dict[str, Sequence[SysUser | SysDept | SysRole | SysMenu] | SysUser | SysDept | None]:
         """
         根据user_id获取用户信息
 
@@ -25,7 +26,7 @@ class UserDao:
             (
                 await db.execute(
                     select(SysUser)
-                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .distinct()
                 )
             )
@@ -37,10 +38,10 @@ class UserDao:
                 await db.execute(
                     select(SysDept)
                     .select_from(SysUser)
-                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(
                         SysDept,
-                        and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == '0'),
+                        and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == DeleteFlag.NORMAL.value),
                     )
                     .distinct()
                 )
@@ -53,11 +54,11 @@ class UserDao:
                 await db.execute(
                     select(SysRole)
                     .select_from(SysUser)
-                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                     .join(
                         SysRole,
-                        and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'),
+                        and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value),
                     )
                     .distinct()
                 )
@@ -70,7 +71,7 @@ class UserDao:
                 await db.execute(
                     select(SysPost)
                     .select_from(SysUser)
-                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                     .join(SysUserPost, SysUser.user_id == SysUserPost.user_id, isouter=True)
                     .join(SysPost, and_(SysUserPost.post_id == SysPost.post_id, SysPost.status == '0'))
                     .distinct()
@@ -90,12 +91,12 @@ class UserDao:
                     await db.execute(
                         select(SysMenu)
                         .select_from(SysUser)
-                        .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
+                        .where(SysUser.status == '0', SysUser.del_flag == DeleteFlag.NORMAL.value, SysUser.user_id == user_id)
                         .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                         .join(
                             SysRole,
                             and_(
-                                SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'
+                                SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == DeleteFlag.NORMAL.value
                             ),
                             isouter=True,
                         )

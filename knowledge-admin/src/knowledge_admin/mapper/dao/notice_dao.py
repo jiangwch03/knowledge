@@ -56,7 +56,7 @@ class NoticeDao:
     @classmethod
     async def get_notice_list(
         cls, query_object: NoticePageQueryModel, is_page: bool = False
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据查询参数获取通知公告列表信息
 
@@ -81,7 +81,7 @@ class NoticeDao:
             .order_by(SysNotice.notice_id)
             .distinct()
         )
-        notice_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        notice_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -103,7 +103,7 @@ class NoticeDao:
         return db_notice
 
     @classmethod
-    async def edit_notice_dao(cls, notice: dict) -> None:
+    async def edit_notice_dao(cls, notice: dict[str, Any]) -> None:
         """
         编辑通知公告数据库操作
 

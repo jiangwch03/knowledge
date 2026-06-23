@@ -1,5 +1,4 @@
 from datetime import datetime, time
-from typing import Any
 
 from sqlalchemy import delete, desc, select
 
@@ -18,7 +17,7 @@ class JobLogDao:
     @classmethod
     async def get_job_log_list(
         cls, query_object: JobLogPageQueryModel, is_page: bool = False
-    ) -> PageModel | list[dict[str, Any]]:
+    ) -> PageModel | list:
         """
         根据查询参数获取定时任务日志列表信息
 
@@ -43,7 +42,7 @@ class JobLogDao:
             .order_by(desc(SysJobLog.create_time))
             .distinct()
         )
-        job_log_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
+        job_log_list = await PageUtil.paginate(
             query, query_object.page_num, query_object.page_size, is_page
         )
 

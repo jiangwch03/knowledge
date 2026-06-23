@@ -5,14 +5,14 @@ from knowledge_common.common.constant import CommonConstant, JobConstant
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.config.get_scheduler import SchedulerUtil
-from knowledge_common.mapper.dao.job_dao import JobDao
-from knowledge_common.vo.job_vo import DeleteJobModel, EditJobModel, JobModel, JobPageQueryModel
 from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.mapper.dao.job_dao import JobDao
 from knowledge_common.service.dict_service import DictDataService
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.cron_util import CronUtil
 from knowledge_common.utils.excel_util import ExcelUtil
 from knowledge_common.utils.string_util import StringUtil
+from knowledge_common.vo.job_vo import DeleteJobModel, EditJobModel, JobModel, JobPageQueryModel
 
 
 class JobService:
@@ -130,8 +130,7 @@ class JobService:
             await JobDao.edit_job_dao(edit_job, job_info)
             await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
             return CrudResponseModel(is_success=True, message='更新成功')
-        else:
-            raise ServiceException(message='定时任务不存在')
+        raise ServiceException(message='定时任务不存在')
 
     @classmethod
     async def execute_job_once_services(cls, page_object: JobModel) -> CrudResponseModel:
@@ -163,8 +162,7 @@ class JobService:
                 await JobDao.delete_job_dao(JobModel(jobId=job_id))
                 await SchedulerUtil.broadcast_scheduler_sync(app_scope=job_info.app_scope)
             return CrudResponseModel(is_success=True, message='删除成功')
-        else:
-            raise ServiceException(message='传入定时任务id为空')
+        raise ServiceException(message='传入定时任务id为空')
 
     @classmethod
     async def job_detail_services(cls, job_id: int) -> JobModel:

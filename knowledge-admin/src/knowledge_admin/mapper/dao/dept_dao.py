@@ -1,6 +1,8 @@
 from collections.abc import Sequence
+from typing import Any
 
 from knowledge_common.common.transactional import get_current_session
+from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.mapper.do.dept_do import SysDept
 from knowledge_common.mapper.do.user_do import SysUser
 from knowledge_common.vo.dept_vo import DeptModel
@@ -36,7 +38,7 @@ class DeptDao:
         """
         db = get_current_session()
         dept_info = (
-            (await db.execute(select(SysDept).where(SysDept.dept_id == dept_id, SysDept.del_flag == '0')))
+            (await db.execute(select(SysDept).where(SysDept.dept_id == dept_id, SysDept.del_flag == DeleteFlag.NORMAL.value)))
             .scalars()
             .first()
         )
@@ -58,7 +60,7 @@ class DeptDao:
                     select(SysDept).where(
                         SysDept.parent_id == dept.parent_id if dept.parent_id else True,
                         SysDept.dept_name == dept.dept_name if dept.dept_name else True,
-                        SysDept.del_flag == '0',
+                        SysDept.del_flag == DeleteFlag.NORMAL.value,
                     )
                 )
             )
@@ -89,7 +91,7 @@ class DeptDao:
                         ~SysDept.dept_id.in_(
                             select(SysDept.dept_id).where(func.find_in_set(dept_info.dept_id, SysDept.ancestors))
                         ),
-                        SysDept.del_flag == '0',
+                        SysDept.del_flag == DeleteFlag.NORMAL.value,
                         SysDept.status == '0',
                         data_scope_sql,
                     )
@@ -136,7 +138,7 @@ class DeptDao:
                     select(SysDept)
                     .where(
                         SysDept.status == '0',
-                        SysDept.del_flag == '0',
+                        SysDept.del_flag == DeleteFlag.NORMAL.value,
                         SysDept.dept_name.like(f'%{dept_info.dept_name}%') if dept_info.dept_name else True,
                         data_scope_sql,
                     )
@@ -167,7 +169,7 @@ class DeptDao:
                 await db.execute(
                     select(SysDept)
                     .where(
-                        SysDept.del_flag == '0',
+                        SysDept.del_flag == DeleteFlag.NORMAL.value,
                         SysDept.dept_id == page_object.dept_id if page_object.dept_id is not None else True,
                         SysDept.status == page_object.status if page_object.status else True,
                         SysDept.dept_name.like(f'%{page_object.dept_name}%') if page_object.dept_name else True,
@@ -199,7 +201,7 @@ class DeptDao:
         return db_dept
 
     @classmethod
-    async def edit_dept_dao(cls, dept: dict) -> None:
+    async def edit_dept_dao(cls, dept: dict[str, Any]) -> None:
         """
         编辑部门数据库操作
 
@@ -210,7 +212,7 @@ class DeptDao:
         await db.execute(update(SysDept), [dept])
 
     @classmethod
-    async def update_dept_children_dao(cls, update_dept: list) -> None:
+    async def update_dept_children_dao(cls, update_dept: list[dict]) -> None:
         """
         更新子部门信息
 
@@ -232,7 +234,7 @@ class DeptDao:
         )
 
     @classmethod
-    async def update_dept_status_normal_dao(cls, dept_id_list: list) -> None:
+    async def update_dept_status_normal_dao(cls, dept_id_list: list[int]) -> None:
         """
         批量更新部门状态为正常
 
@@ -254,7 +256,7 @@ class DeptDao:
         await db.execute(
             update(SysDept)
             .where(SysDept.dept_id == dept.dept_id)
-            .values(del_flag='2', update_by=dept.update_by, update_time=dept.update_time)
+            .values(del_flag=DeleteFlag.DELETED.value, update_by=dept.update_by, update_time=dept.update_time)
         )
 
     @classmethod
@@ -270,7 +272,7 @@ class DeptDao:
             await db.execute(
                 select(func.count('*'))
                 .select_from(SysDept)
-                .where(SysDept.status == '0', SysDept.del_flag == '0', func.find_in_set(dept_id, SysDept.ancestors))
+                .where(SysDept.status == '0', SysDept.del_flag == DeleteFlag.NORMAL.value, func.find_in_set(dept_id, SysDept.ancestors))
             )
         ).scalar()
 
@@ -289,7 +291,7 @@ class DeptDao:
             await db.execute(
                 select(func.count('*'))
                 .select_from(SysDept)
-                .where(SysDept.del_flag == '0', SysDept.parent_id == dept_id)
+                .where(SysDept.del_flag == DeleteFlag.NORMAL.value, SysDept.parent_id == dept_id)
                 .limit(1)
             )
         ).scalar()
@@ -307,7 +309,7 @@ class DeptDao:
         db = get_current_session()
         dept_user_count = (
             await db.execute(
-                select(func.count('*')).select_from(SysUser).where(SysUser.dept_id == dept_id, SysUser.del_flag == '0')
+                select(func.count('*')).select_from(SysUser).where(SysUser.dept_id == dept_id, SysUser.del_flag == DeleteFlag.NORMAL.value)
             )
         ).scalar()
 

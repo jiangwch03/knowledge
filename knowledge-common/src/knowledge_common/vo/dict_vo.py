@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Pattern, Size
 
+from knowledge_common.vo.base_page_query_vo import BasePageQueryModel
+
 
 class DictTypeModel(BaseModel):
     """
@@ -100,13 +102,10 @@ class DictTypeQueryModel(DictTypeModel):
     end_time: str | None = Field(default=None, description='结束时间')
 
 
-class DictTypePageQueryModel(DictTypeQueryModel):
+class DictTypePageQueryModel(DictTypeQueryModel, BasePageQueryModel):
     """
     字典类型管理分页查询模型
     """
-
-    page_num: int = Field(default=1, description='当前页码')
-    page_size: int = Field(default=10, description='每页记录数')
 
 
 class DeleteDictTypeModel(BaseModel):
@@ -128,13 +127,10 @@ class DictDataQueryModel(DictDataModel):
     end_time: str | None = Field(default=None, description='结束时间')
 
 
-class DictDataPageQueryModel(DictDataQueryModel):
+class DictDataPageQueryModel(DictDataQueryModel, BasePageQueryModel):
     """
     字典数据管理分页查询模型
     """
-
-    page_num: int = Field(default=1, description='当前页码')
-    page_size: int = Field(default=10, description='每页记录数')
 
 
 class DeleteDictDataModel(BaseModel):

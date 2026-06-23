@@ -2,8 +2,6 @@
 注解式事务管理单元测试
 """
 
-import asyncio
-import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
