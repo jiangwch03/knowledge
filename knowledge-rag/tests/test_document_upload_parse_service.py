@@ -151,4 +151,4 @@ class TestHandleParseDecision:
             
             with pytest.raises(ServiceException) as exc:
                 await DocumentUploadParseService.handle_parse_decision(1, decision)
-            assert '仅 FAILED 状态任务可重试' in exc.value.data
+            assert '仅 FAILED 状态任务可重试' in exc.value.message

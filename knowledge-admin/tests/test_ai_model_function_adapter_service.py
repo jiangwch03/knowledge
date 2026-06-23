@@ -84,7 +84,7 @@ class TestGetAdapterConfig:
                 await AiModelFunctionAdapterService.get_adapter_config_by_param_id_services(
                     'not_exist'
                 )
-            assert '未配置模型适配' in exc.value.data
+            assert '未配置模型适配' in exc.value.message
 
 
 class TestAdapterList:
@@ -166,7 +166,7 @@ class TestAddAdapter:
             )
             with pytest.raises(ServiceException) as exc:
                 await AiModelFunctionAdapterService.add_adapter_services(model, 'admin')
-            assert '重复定义' in exc.value.data
+            assert '重复定义' in exc.value.message
 
 
 class TestEditAdapter:
@@ -218,7 +218,7 @@ class TestEditAdapter:
             model = AiModelFunctionAdapterModel(adapter_id=1)
             with pytest.raises(ServiceException) as exc:
                 await AiModelFunctionAdapterService.edit_adapter_services(model, 'admin')
-            assert '适配记录不存在' in exc.value.data
+            assert '适配记录不存在' in exc.value.message
 
 
 class TestDeleteAdapter:
@@ -253,4 +253,4 @@ class TestDeleteAdapter:
         ):
             with pytest.raises(ServiceException) as exc:
                 await AiModelFunctionAdapterService.delete_adapter_services(1, 'admin')
-            assert '适配记录不存在' in exc.value.data
+            assert '适配记录不存在' in exc.value.message

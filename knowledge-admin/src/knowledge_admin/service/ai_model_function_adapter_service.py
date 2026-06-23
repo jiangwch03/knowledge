@@ -108,7 +108,7 @@ class AiModelFunctionAdapterService:
             raise ServiceException(f'参数ID [{page_object.param_id}] 重复定义')
         await cls._validate_model(page_object.model_id)
 
-        edit_adapter = page_object.model_dump(exclude_unset=True)
+        edit_adapter = page_object.model_dump(exclude_unset=True, exclude={'model_code', 'model_name'})
         edit_adapter['update_by'] = user_name
         edit_adapter['update_time'] = datetime.now()
         await AiModelFunctionAdapterDao.edit_adapter_dao(edit_adapter)

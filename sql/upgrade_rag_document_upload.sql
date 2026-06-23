@@ -303,22 +303,26 @@ INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `componen
 SELECT '资料下载', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'document' AND `component` = 'knowledge/document/index'), '4', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:document:download', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:document:download');
 
--- 模型功能适配菜单
+-- 模型适配菜单（直接挂载在AI管理下，不再作为模型管理的子菜单）
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
-SELECT '功能适配', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'model' AND `component` = 'ai/model/index'), '2', 'function-adapter', 'ai/function-adapter/index', '', '', 1, 0, 'C', '0', '0', 'ai:model:function-adapter:list', 'tree', 'admin', NOW(), 'admin', NOW(), '模型功能适配菜单'
-WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = 'function-adapter' AND `component` = 'ai/function-adapter/index');
+SELECT '模型适配', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'ai' AND `parent_id` = '0'), '3', 'model-adapter', 'ai/function-adapter/index', '', '', 1, 0, 'C', '0', '0', 'ai:model:function-adapter:list', 'tree', 'admin', NOW(), 'admin', NOW(), '模型适配菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = 'model-adapter');
 
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
-SELECT '适配新增', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'function-adapter' AND `component` = 'ai/function-adapter/index'), '1', '', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:function-adapter:add', '#', 'admin', NOW(), 'admin', NOW(), ''
+SELECT '适配新增', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'model-adapter'), '1', '', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:function-adapter:add', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'ai:model:function-adapter:add');
 
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
-SELECT '适配修改', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'function-adapter' AND `component` = 'ai/function-adapter/index'), '2', '', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:function-adapter:edit', '#', 'admin', NOW(), 'admin', NOW(), ''
+SELECT '适配修改', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'model-adapter'), '2', '', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:function-adapter:edit', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'ai:model:function-adapter:edit');
 
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
-SELECT '适配删除', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'function-adapter' AND `component` = 'ai/function-adapter/index'), '3', '', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:function-adapter:remove', '#', 'admin', NOW(), 'admin', NOW(), ''
+SELECT '适配删除', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'model-adapter'), '3', '', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:function-adapter:remove', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'ai:model:function-adapter:remove');
+
+
+
+
 
 
 

@@ -143,7 +143,20 @@ class SqlalchemyUtil:
             if all(isinstance(row, Base) for row in result):
                 return [cls.base_to_dict(row, transform_case) for row in result]
             if any(isinstance(row, Base) for row in result):
-                return [cls.serialize_result(row, transform_case) for row in result]
+                # Mixed Row: ORM 对象 + 标量字段 → 合并为单个 dict
+                merged: dict[str, Any] = {}
+                fields = getattr(result, '_fields', ())
+                for i, item in enumerate(result):
+                    if isinstance(item, Base):
+                        merged.update(cls.base_to_dict(item, transform_case))
+                    elif fields and i < len(fields):
+                        field_name = fields[i]
+                        if transform_case == 'snake_to_camel':
+                            field_name = CamelCaseUtil.snake_to_camel(field_name)
+                        elif transform_case == 'camel_to_snake':
+                            field_name = SnakeCaseUtil.camel_to_snake(field_name)
+                        merged[field_name] = item
+                return merged
             result_dict = result._asdict()
             if transform_case == 'snake_to_camel':
                 return {CamelCaseUtil.snake_to_camel(k): v for k, v in result_dict.items()}

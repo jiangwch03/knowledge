@@ -125,7 +125,7 @@ class AiModelFunctionAdapterDao:
         :return: 适配记录对象
         """
         db = get_current_session()
-        db_model = AiModelFunctionAdapter(**adapter.model_dump(exclude_unset=True))
+        db_model = AiModelFunctionAdapter(**adapter.model_dump(exclude_unset=True, exclude={'model_code', 'model_name'}))
         db.add(db_model)
         await db.flush()
         return db_model

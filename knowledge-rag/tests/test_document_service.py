@@ -58,4 +58,4 @@ class TestTxtToMarkdown:
             model = TxtToMarkdownModel(content='Hello')
             with pytest.raises(ServiceException) as exc:
                 await DocumentService.txt_to_markdown(model)
-            assert '未找到 txt_to_markdown 模型适配配置' in exc.value.data
+            assert '未找到 txt_to_markdown 模型适配配置' in exc.value.message
