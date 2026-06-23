@@ -19,6 +19,10 @@ export default {
   msgWarning(content) {
     ElMessage.warning(content)
   },
+  // 信息消息
+  msgInfo(content) {
+    ElMessage.info(content)
+  },
   // 弹出提示
   alert(content) {
     ElMessageBox.alert(content, "系统提示")
