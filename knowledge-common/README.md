@@ -1,6 +1,6 @@
 # knowledge-common
 
-`knowledge-common` 是项目的公共基础库,封装跨子项目复用的能力(数据访问、配置、上下文、消息流、调度、Pub/Sub、日志聚合、事务装饰器等),由 `knowledge-admin` / `knowledge-rag` 等子项目通过 uv workspace 引用。
+`knowledge-common` 是项目的公共基础库,封装跨子项目复用的能力(数据访问、配置、上下文、消息流、调度、Pub/Sub、日志聚合、事务装饰器等),由 `knowledge-admin` / `knowledge-content` 等子项目通过 uv workspace 引用。
 
 > 设计原则:**通用归 common,业务归子项目**。所有"换中间件就要改的"基础设施都收敛到 common,业务层只对接 common 暴露的门面 / 装饰器。
 
@@ -175,7 +175,7 @@ async def handle_admin_operation_log(msg: Message) -> None:
             await session.commit()
 
 
-@consumer(topic='log:login:knowledge-rag', group_id='log_writer:knowledge-rag')
+@consumer(topic='log:login:knowledge-content', group_id='log_writer:knowledge-content')
 async def handle_rag_login_log(msg: Message) -> None:
     """
     rag 端登录日志消费者
@@ -183,7 +183,7 @@ async def handle_rag_login_log(msg: Message) -> None:
     从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
     """
     event_id = msg.headers.get('event_id')
-    app_name = msg.headers.get('app_name', 'knowledge-rag')
+    app_name = msg.headers.get('app_name', 'knowledge-content')
     async with LogDedupHelper.acquire(event_id, app_name) as ok:
         if not ok:
             return
@@ -193,7 +193,7 @@ async def handle_rag_login_log(msg: Message) -> None:
             await session.commit()
 
 
-@consumer(topic='log:operation:knowledge-rag', group_id='log_writer:knowledge-rag')
+@consumer(topic='log:operation:knowledge-content', group_id='log_writer:knowledge-content')
 async def handle_rag_operation_log(msg: Message) -> None:
     """
     rag 端操作日志消费者
@@ -201,7 +201,7 @@ async def handle_rag_operation_log(msg: Message) -> None:
     从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
     """
     event_id = msg.headers.get('event_id')
-    app_name = msg.headers.get('app_name', 'knowledge-rag')
+    app_name = msg.headers.get('app_name', 'knowledge-content')
     async with LogDedupHelper.acquire(event_id, app_name) as ok:
         if not ok:
             return

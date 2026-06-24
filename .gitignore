@@ -232,5 +232,6 @@ __marimo__/
 
 .qoder/repowiki/
 .idea/
+.vscode/
 # Proxy scripts
 git-push-with-proxy.sh

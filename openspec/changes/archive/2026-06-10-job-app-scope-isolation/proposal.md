@@ -2,14 +2,14 @@
 
 当前项目的定时任务调度机制基于 APScheduler + 共享 `sys_job` 表，admin 和 rag 两个后端项目各自运行独立的进程，且各自选举 Leader 启动 Scheduler。但由于 `sys_job` 表没有项目归属字段，两个项目的 Leader 都会加载表中全部任务，导致：
 
-1. admin 进程尝试加载 rag 专属任务（`knowledge_rag.tasks.xxx`）时发生 `ModuleNotFoundError`
+1. admin 进程尝试加载 rag 专属任务（`knowledge_content.tasks.xxx`）时发生 `ModuleNotFoundError`
 2. rag 进程尝试加载 admin 专属任务（`knowledge_admin.tasks.xxx`）时同样导入失败
 
 这使得两个后端项目无法真正独立运行各自的定时任务代码。
 
 ## What Changes
 
-- **BREAKING** `sys_job` 表新增 `app_scope` 字段（VARCHAR），标识任务所属应用（`knowledge-admin`/`knowledge-rag`/`knowledge-agent`）
+- **BREAKING** `sys_job` 表新增 `app_scope` 字段（VARCHAR），标识任务所属应用（`knowledge-admin`/`knowledge-content`/`knowledge-agent`）
 - `sys_job_log` 表同步增加 `app_scope` 字段，确保日志归属清晰
 - `JobDao` 增加按 `app_scope` 过滤的查询方法，替换全表扫描
 - `SchedulerUtil` 启动时传入当前应用标识，仅加载属于本应用的任务

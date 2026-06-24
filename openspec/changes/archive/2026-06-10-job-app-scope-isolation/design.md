@@ -3,7 +3,7 @@
 当前项目的定时任务调度基于 `APScheduler` + 共享数据库表 `sys_job`。
 
 - `knowledge-common` 提供 `SchedulerUtil`，是一个单例类，管理全局 `AsyncIOScheduler` 实例
-- `knowledge-admin` 和 `knowledge-rag` 两个后端项目各自在 `server.py` 中调用 `SchedulerUtil.init_system_scheduler()`
+- `knowledge-admin` 和 `knowledge-content` 两个后端项目各自在 `server.py` 中调用 `SchedulerUtil.init_system_scheduler()`
 - 两个项目使用不同的 Redis 锁键（基于 `APP_NAME`），因此各自独立选举 Leader，互不干扰
 - 但 `sys_job` 表没有项目归属字段，两个 Leader 都会加载表中全部任务
 - 由于 admin 和 rag 是独立进程，各自只包含自己的 Python 包，一方的任务代码在另一方进程中无法导入
@@ -27,7 +27,7 @@
 **理由**：`job_group` 已被用于 APScheduler 的 jobstore 分组（如 `default`/`sqlalchemy`/`redis`），语义上表示存储后端而非应用归属。混用会导致概念混乱。
 
 ### 2. 默认值为 `'knowledge-admin'`，可选值由字典表维护
-**选择**：`sys_job`/`sys_job_log` 的 `app_scope` 字段默认 `'knowledge-admin'`，NULL/空值也视为 `'knowledge-admin'`。可选值列表（`knowledge-admin`、`knowledge-rag`、`knowledge-agent`）通过 `sys_dict_type` + `sys_dict_data` 字典表维护。  
+**选择**：`sys_job`/`sys_job_log` 的 `app_scope` 字段默认 `'knowledge-admin'`，NULL/空值也视为 `'knowledge-admin'`。可选值列表（`knowledge-admin`、`knowledge-content`、`knowledge-agent`）通过 `sys_dict_type` + `sys_dict_data` 字典表维护。  
 **理由**：
 - 兼容旧数据：历史任务默认归属 admin（管理后台），由 admin 项目加载，行为与改造前一致
 - 项目名称即字典值，避免硬编码枚举，便于扩展（如新增 `knowledge-agent`）
@@ -42,7 +42,7 @@
 - 项目为内部管理平台（非 toC），前端伪造风险可控
 
 ### 4. `SchedulerUtil` 启动时传入应用标识
-**选择**：改造 `init_system_scheduler` 的签名，接收当前应用标识（如 `'knowledge-admin'`/`'knowledge-rag'`）  
+**选择**：改造 `init_system_scheduler` 的签名，接收当前应用标识（如 `'knowledge-admin'`/`'knowledge-content'`）  
 **理由**：SchedulerUtil 位于 `knowledge-common`，本身不知道自己是被哪个项目调用的。由调用方（`server.py`）传入最合理。
 
 ### 7. 跨项目全局广播同步机制
@@ -75,10 +75,10 @@
 ## Open Questions
 
 - 前端 `app_scope` 下拉框是否需要在编辑时禁用（防止运行中的任务被误改归属）？
-- `app_scope` 是否需要支持多个值（如 `'knowledge-admin,knowledge-rag'`）？当前设计不支持，如有需求可后续扩展。
+- `app_scope` 是否需要支持多个值（如 `'knowledge-admin,knowledge-content'`）？当前设计不支持，如有需求可后续扩展。
 
 ### 5. 用字典表维护 `app_scope` 可选值
-**选择**：在 `sys_dict_type` 新增 `sys_job_app_scope` 类型，在 `sys_dict_data` 中插入 `knowledge-admin`、`knowledge-rag`、`knowledge-agent` 三条数据。  
+**选择**：在 `sys_dict_type` 新增 `sys_job_app_scope` 类型，在 `sys_dict_data` 中插入 `knowledge-admin`、`knowledge-content`、`knowledge-agent` 三条数据。  
 **理由**：项目名称作为字典值，前端可直接复用现有字典下拉组件；新增项目时只需插入字典数据，无需改代码。
 
 ### 6. 复用/增强 common 字典查询方法

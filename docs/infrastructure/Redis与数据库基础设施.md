@@ -238,7 +238,7 @@ graph LR
 | 项目 | 路径 |
 |------|------|
 | admin | `knowledge-admin/src/configs/.env.{app_env}` |
-| rag | `knowledge-rag/src/configs/.env.{app_env}` |
+| rag | `knowledge-content/src/configs/.env.{app_env}` |
 
 **配置模型访问**：通过 `AppConfig`、`DataBaseConfig`、`RedisConfig` 等单例对象直接访问属性。
 

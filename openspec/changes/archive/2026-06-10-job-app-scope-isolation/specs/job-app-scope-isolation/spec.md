@@ -27,14 +27,14 @@
 
 #### Scenario: rag 项目启动
 - **WHEN** rag 项目启动并成为 Leader
-- **THEN** 仅加载 `app_scope` 为 `'knowledge-rag'` 的任务
+- **THEN** 仅加载 `app_scope` 为 `'knowledge-content'` 的任务
 
 ### Requirement: 任务管理服务接收并保存 app_scope
 通过 admin 后台管理（增/改/删）定时任务时，JobService SHALL 接收前端表单传入的 `app_scope` 并保存，保存成功后向全局广播频道发布同步通知。
 
 #### Scenario: 新增任务时选择 app_scope
-- **WHEN** 用户在 admin 后台新增定时任务并选择 `app_scope = 'knowledge-rag'`
-- **THEN** 任务记录的 `app_scope` 保存为 `'knowledge-rag'`，admin 向全局频道广播同步通知
+- **WHEN** 用户在 admin 后台新增定时任务并选择 `app_scope = 'knowledge-content'`
+- **THEN** 任务记录的 `app_scope` 保存为 `'knowledge-content'`，admin 向全局频道广播同步通知
 
 #### Scenario: 编辑任务时修改 app_scope
 - **WHEN** 用户编辑已有任务并修改 `app_scope`
@@ -44,14 +44,14 @@
 admin 后台增/改/删定时任务后，系统 SHALL 通过 Redis 全局频道 `scheduler:global:sync` 广播通知，消息体 SHALL 包含 `app_scope`。各后端项目的 Leader 收到后，只有 `app_scope` 匹配自身或消息未指定 `app_scope` 时才触发同步。
 
 #### Scenario: admin 新增 rag 任务后 rag 实时感知
-- **WHEN** admin 后台新增一个 `app_scope = 'knowledge-rag'` 的任务
-- **THEN** admin 向 `scheduler:global:sync` 频道广播，消息体包含 `app_scope = 'knowledge-rag'`
+- **WHEN** admin 后台新增一个 `app_scope = 'knowledge-content'` 的任务
+- **THEN** admin 向 `scheduler:global:sync` 频道广播，消息体包含 `app_scope = 'knowledge-content'`
 - **THEN** rag 的 Leader 收到通知，匹配 `app_scope`，立即从数据库同步加载该新任务
 - **THEN** admin 的 Leader 收到通知，`app_scope` 不匹配，跳过同步
 
 #### Scenario: admin 停用任务后目标项目实时感知
-- **WHEN** admin 后台停用（status='1'）一个 `app_scope = 'knowledge-rag'` 的任务
-- **THEN** admin 向全局频道广播，消息体包含 `app_scope = 'knowledge-rag'`
+- **WHEN** admin 后台停用（status='1'）一个 `app_scope = 'knowledge-content'` 的任务
+- **THEN** admin 向全局频道广播，消息体包含 `app_scope = 'knowledge-content'`
 - **THEN** rag 的 Leader 收到通知后同步，从 Scheduler 中移除该任务
 - **THEN** admin 的 Leader 收到通知后跳过
 

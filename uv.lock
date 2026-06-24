@@ -11,7 +11,7 @@ members = [
     "knowledge",
     "knowledge-admin",
     "knowledge-common",
-    "knowledge-rag",
+    "knowledge-content",
 ]
 
 [[package]]
@@ -1535,9 +1535,9 @@ dev = [
 ]
 
 [[package]]
-name = "knowledge-rag"
+name = "knowledge-content"
 version = "0.0.1"
-source = { editable = "knowledge-rag" }
+source = { editable = "knowledge-content" }
 dependencies = [
     { name = "knowledge-common" },
     { name = "llama-index" },

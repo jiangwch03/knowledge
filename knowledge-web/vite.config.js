@@ -50,10 +50,10 @@ export default defineConfig(({ mode, command }) => {
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/dev-api/, '')
         },
-        '/dev-rag-api': {
+        '/dev-content-api': {
           target: 'http://127.0.0.1:9098',
           changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-rag-api/, '')
+          rewrite: (p) => p.replace(/^\/dev-content-api/, '')
         }
       }
     },

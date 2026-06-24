@@ -20,10 +20,10 @@
 
 ## 3. 后端 DO/DAO/VO 与枚举定义（参考需求文档 §3 / §7）
 
-- [x] 3.1 在 `knowledge-rag` 中定义上传记录、解析任务、解析分段、文档主表的 DO
-- [x] 3.2 在 `knowledge-rag` 中定义上述表的 DAO/Mapper
-- [x] 3.3 在 `knowledge-rag` 中定义状态枚举：`DocumentUploadStatus`、`MineruParseTaskStatus`、`MineruParseDetailState`；在 `knowledge-common` 中定义 `DocumentStatus`，供 `knowledge-rag` 与后续分块/向量化模块共享
-- [x] 3.4 在 `knowledge-rag` 中定义上传、解析、决策、列表查询等 VO
+- [x] 3.1 在 `knowledge-content` 中定义上传记录、解析任务、解析分段、文档主表的 DO
+- [x] 3.2 在 `knowledge-content` 中定义上述表的 DAO/Mapper
+- [x] 3.3 在 `knowledge-content` 中定义状态枚举：`DocumentUploadStatus`、`MineruParseTaskStatus`、`MineruParseDetailState`；在 `knowledge-common` 中定义 `DocumentStatus`，供 `knowledge-content` 与后续分块/向量化模块共享
+- [x] 3.4 在 `knowledge-content` 中定义上传、解析、决策、列表查询等 VO
 
 ## 4. 文件上传与版本管理接口（参考需求文档 §5.1 / §6.1）
 
@@ -77,14 +77,14 @@
 - [x] 9.5 实现 Markdown 转换页面（TXT 上传/粘贴、编码识别、生成 Markdown、编辑器、下载/保存）
 - [x] 9.6 实现解析任务卡片组件（10 秒轮询、分段明细、失败高亮、重试/删除按钮）
 - [x] 9.7 实现列表行内操作：预览、下载、删除
-- [x] 9.8 新增 `knowledge-rag` API 封装与代理配置（vite/nginx）
+- [x] 9.8 新增 `knowledge-content` API 封装与代理配置（vite/nginx）
 
 ## 10. 权限与部署配置（参考需求文档 §9.1 / §9.2）
 
-- [x] 10.1 在 `knowledge-admin` 菜单/接口权限中注册 `knowledge-rag` 新接口权限编码
+- [x] 10.1 在 `knowledge-admin` 菜单/接口权限中注册 `knowledge-content` 新接口权限编码
 - [x] 10.2 配置前端开发环境与生产环境代理（`/dev-rag-api`、`/docker-rag-api/`）
-- [x] 10.3 更新 nginx 配置支持 `knowledge-rag` 反向代理
-- [x] 10.4 验证三端启动脚本（`knowledge-common`、`knowledge-rag`、`knowledge-web`）正常
+- [x] 10.3 更新 nginx 配置支持 `knowledge-content` 反向代理
+- [x] 10.4 验证三端启动脚本（`knowledge-common`、`knowledge-content`、`knowledge-web`）正常
 
 ## 11. 测试与验证（参考需求文档 §3 / §5 / §6 状态与接口定义）
 

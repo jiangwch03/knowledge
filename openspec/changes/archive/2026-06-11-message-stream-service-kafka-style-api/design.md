@@ -15,7 +15,7 @@
 
 ### 利益相关方
 - `knowledge-admin` 项目:日志聚合场景
-- `knowledge-rag` 项目:未来文档解析/拆分长流程任务
+- `knowledge-content` 项目:未来文档解析/拆分长流程任务
 - `knowledge-common` 维护者:新模块的归宿
 - 未来切 Kafka 时:所有调用方零修改
 

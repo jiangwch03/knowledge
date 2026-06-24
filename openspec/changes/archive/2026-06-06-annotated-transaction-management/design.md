@@ -118,7 +118,7 @@
 **迁移步骤**：
 1. **阶段一**：在 `knowledge-common` 中新增事务管理模块（`transactional.py`），实现核心 `@transactional` 装饰器和事务上下文
 2. **阶段二**：选择一个简单的 Service 层（如 DictService）作为试点，验证事务管理功能
-3. **阶段三**：逐步在 `knowledge-admin` 和 `knowledge-rag` 中推广使用
+3. **阶段三**：逐步在 `knowledge-admin` 和 `knowledge-content` 中推广使用
 4. **阶段四**：编写事务管理相关的单元测试和集成测试，确保覆盖率
 
 **回滚策略**：

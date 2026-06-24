@@ -416,7 +416,7 @@ class TestLifespanStaticVerification:
     def test_rag_server_imports_broadcast(self):
         server_py = (
             _PROJECT_ROOT
-            / 'knowledge-rag' / 'src' / 'knowledge_rag' / 'server' / 'server.py'
+            / 'knowledge-content' / 'src' / 'knowledge_content' / 'server' / 'server.py'
         )
         text = server_py.read_text(encoding='utf-8')
         assert 'from knowledge_common.broadcast import BroadcastService' in text
@@ -438,7 +438,7 @@ class TestLifespanStaticVerification:
         """knowledge_common.message.subscriber 是 BroadcastService 内置默认路径，无需显式注册"""
         server_py = (
             _PROJECT_ROOT
-            / 'knowledge-rag' / 'src' / 'knowledge_rag' / 'server' / 'server.py'
+            / 'knowledge-content' / 'src' / 'knowledge_content' / 'server' / 'server.py'
         )
         text = server_py.read_text(encoding='utf-8')
-        assert 'knowledge_rag.message.subscriber' in text
+        assert 'knowledge_content.message.subscriber' in text

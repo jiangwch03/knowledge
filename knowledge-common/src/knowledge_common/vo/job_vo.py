@@ -28,7 +28,7 @@ class JobModel(BaseModel):
     )
     concurrent: Literal['0', '1'] | None = Field(default=None, description='是否并发执行（0允许 1禁止）')
     status: Literal['0', '1'] | None = Field(default=None, description='状态（0正常 1暂停）')
-    app_scope: str | None = Field(default=None, description='任务所属应用（knowledge-admin/knowledge-rag/knowledge-agent）')
+    app_scope: str | None = Field(default=None, description='任务所属应用（knowledge-admin/knowledge-content/knowledge-agent）')
     create_by: str | None = Field(default=None, description='创建者')
     create_time: datetime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')

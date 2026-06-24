@@ -21,7 +21,7 @@ Redis Pub/Sub 工具类
     n = await RedisPubSub.publish(
         redis,
         'scheduler:global:sync',
-        {'app_scope': 'knowledge-rag', 'action': 'sync'},
+        {'app_scope': 'knowledge-content', 'action': 'sync'},
     )
 
     # ============ 2. 订阅 ============

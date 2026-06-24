@@ -51,7 +51,7 @@ def create_app() -> FastAPI:
 | **注册方式** | FastAPI 内置 | 手动 add_route |
 | **openapi_url** | 受 root_path 影响，带前缀 | 硬编码 `/openapi.json`，无前缀 |
 | **静态资源 CDN** | npmmirror（monkey-patch 生效） | npmmirror（直接传参） |
-| **访问地址** | `gateway/api/knowledge_rag/proxy-docs` | `127.0.0.1:9098/docs` |
+| **访问地址** | `gateway/api/knowledge_content/proxy-docs` | `127.0.0.1:9098/docs` |
 
 ## 禁用文档时的行为
 

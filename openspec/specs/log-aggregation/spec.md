@@ -14,7 +14,7 @@
 
 #### Scenario: 日志消费者由装饰器声明
 - **WHEN** 框架 `MessageStreamService.discover_and_start()` 扫描业务消费者路径
-- **THEN** 业务侧 SHALL 提供 `@consumer(topic='log:operation:{app_name}', group_id='log_writer:{app_name}')` 装饰的 async 函数(放在 `knowledge_admin.message.consumer.log_consumer` / `knowledge_rag.message.consumer.log_consumer`),由框架自动拉起后台消费协程,业务侧 SHALL NOT 自行 `asyncio.create_task(LogAggregatorService.consume_stream(...))`
+- **THEN** 业务侧 SHALL 提供 `@consumer(topic='log:operation:{app_name}', group_id='log_writer:{app_name}')` 装饰的 async 函数(放在 `knowledge_admin.message.consumer.log_consumer` / `knowledge_content.message.consumer.log_consumer`),由框架自动拉起后台消费协程,业务侧 SHALL NOT 自行 `asyncio.create_task(LogAggregatorService.consume_stream(...))`
 
 ### Requirement: 按 app_name 隔离的 topic / group 命名约定
 
@@ -25,12 +25,12 @@
 - **THEN** 操作日志 topic SHALL 为 `log:operation:knowledge-admin`,登录日志 topic SHALL 为 `log:login:knowledge-admin`,消费组 SHALL 为 `log_writer:knowledge-admin`
 
 #### Scenario: rag 端 topic / group 命名
-- **WHEN** `app.state.app_name == 'knowledge-rag'`
-- **THEN** 操作日志 topic SHALL 为 `log:operation:knowledge-rag`,登录日志 topic SHALL 为 `log:login:knowledge-rag`,消费组 SHALL 为 `log_writer:knowledge-rag`
+- **WHEN** `app.state.app_name == 'knowledge-content'`
+- **THEN** 操作日志 topic SHALL 为 `log:operation:knowledge-content`,登录日志 topic SHALL 为 `log:login:knowledge-content`,消费组 SHALL 为 `log_writer:knowledge-content`
 
 #### Scenario: 跨 app 不串扰
 - **WHEN** admin 与 rag 在同一 Redis 实例上同时运行,且都注册了日志消费者
-- **THEN** admin 消费者 SHALL 只消费 `log:*:knowledge-admin` 系列 topic,rag 消费者 SHALL 只消费 `log:*:knowledge-rag` 系列 topic,日志条目 SHALL NOT 出现在另一端的数据库表里
+- **THEN** admin 消费者 SHALL 只消费 `log:*:knowledge-admin` 系列 topic,rag 消费者 SHALL 只消费 `log:*:knowledge-content` 系列 topic,日志条目 SHALL NOT 出现在另一端的数据库表里
 
 ### Requirement: 业务级去重契约
 
@@ -82,7 +82,7 @@
 
 ### Requirement: 服务器启动顺序与后台任务移除
 
-`knowledge_admin.server.server` 与 `knowledge_rag.server.server` 的 `_start_background_tasks` SHALL NOT 再创建 `app.state.log_aggregator_task`,日志消费协程 SHALL 由 `MessageStreamService.discover_and_start()`(在 `_init_message_stream` 中调用)统一拉起;`_stop_background_tasks` SHALL 同步删除对 `log_aggregator_task` 的 cancel 逻辑。
+`knowledge_admin.server.server` 与 `knowledge_content.server.server` 的 `_start_background_tasks` SHALL NOT 再创建 `app.state.log_aggregator_task`,日志消费协程 SHALL 由 `MessageStreamService.discover_and_start()`(在 `_init_message_stream` 中调用)统一拉起;`_stop_background_tasks` SHALL 同步删除对 `log_aggregator_task` 的 cancel 逻辑。
 
 #### Scenario: 后台任务不再包含 log_aggregator_task
 - **WHEN** 应用启动 lifespan 走完 `_start_background_tasks`

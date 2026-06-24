@@ -131,7 +131,7 @@ class JobConstant:
         '}',
         ' ',
     ]
-    JOB_WHITE_LIST = ['knowledge_rag','knowledge_admin','knowledge_agent']
+    JOB_WHITE_LIST = ['knowledge_content','knowledge_admin','knowledge_agent']
 
 
 class LockConstant:

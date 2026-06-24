@@ -119,7 +119,7 @@
 
 ### Requirement: 业务方路径注册
 
-`MessageStreamService` SHALL 提供 `register_consumer_paths(paths: list[str])` 类方法,接收业务方声明的消费者所在 Python 包路径(如 `['knowledge_admin.service', 'knowledge_rag.service']`)。框架 SHALL 不硬编码全项目路径扫描,各子项目在 lifespan 中主动声明。
+`MessageStreamService` SHALL 提供 `register_consumer_paths(paths: list[str])` 类方法,接收业务方声明的消费者所在 Python 包路径(如 `['knowledge_admin.service', 'knowledge_content.service']`)。框架 SHALL 不硬编码全项目路径扫描,各子项目在 lifespan 中主动声明。
 
 #### Scenario: 业务方声明路径
 - **WHEN** 子项目 lifespan 调 `MessageStreamService.register_consumer_paths(['knowledge_admin.service'])`

@@ -112,7 +112,7 @@ class Test9_1AdminLoadScope:
 
 
 # =============================================================================
-# 9.2 rag 项目启动后，仅加载 knowledge-rag 的任务
+# 9.2 rag 项目启动后，仅加载 knowledge-content 的任务
 # =============================================================================
 
 class Test9_2RagLoadScope:
@@ -125,7 +125,7 @@ class Test9_2RagLoadScope:
 
         source = inspect.getsource(JobDao.get_job_list_for_scheduler)
         # rag 应该用 `==` 严格匹配
-        has_eq_filter = "=='knowledge-rag'" in source or "= 'knowledge-rag'" in source
+        has_eq_filter = "=='knowledge-content'" in source or "= 'knowledge-content'" in source
         assert has_eq_filter or 'app_scope' in source, (
             'rag app_scope 过滤逻辑应使用严格匹配'
         )
@@ -133,7 +133,7 @@ class Test9_2RagLoadScope:
 
 
 # =============================================================================
-# 9.3 通过 admin 后台新增任务并选择 knowledge-rag
+# 9.3 通过 admin 后台新增任务并选择 knowledge-content
 # =============================================================================
 
 class Test9_3AdminApiSaveAppScope:
@@ -150,9 +150,9 @@ class Test9_3AdminApiSaveAppScope:
             jobGroup='DEFAULT',
             invokeTarget='module.func',
             cronExpression='0 0 0 * * ?',
-            appScope='knowledge-rag',  # ← 驼峰名（VO 以 alias 接收）
+            appScope='knowledge-content',  # ← 驼峰名（VO 以 alias 接收）
         )
-        assert m.app_scope == 'knowledge-rag'
+        assert m.app_scope == 'knowledge-content'
         print('✅ 9.3.1 JobModel VO 接受 app_scope 字段')
 
     @pytest.mark.skipif(
@@ -166,8 +166,8 @@ class Test9_3AdminApiSaveAppScope:
         # 用 pytest.skip 让动态验证更醒目
         pytest.skip(
             '动态 API 测试需要 admin 登录 token + 真实数据库，'
-            '建议人工验证：在 admin 后台新建任务，app_scope 选择 knowledge-rag，'
-            '然后查 DB 确认 sys_job.app_scope = "knowledge-rag"'
+            '建议人工验证：在 admin 后台新建任务，app_scope 选择 knowledge-content，'
+            '然后查 DB 确认 sys_job.app_scope = "knowledge-content"'
         )
 
 
@@ -184,8 +184,8 @@ class Test9_4FrontendFilter:
             '⚠️ 前端筛选必须人工验证：\n'
             '1. 登录 admin 后台\n'
             '2. 进入"定时任务"管理页\n'
-            '3. 在筛选栏选择 app_scope = knowledge-rag\n'
-            '4. 确认列表只展示 app_scope=knowledge-rag 的任务\n'
+            '3. 在筛选栏选择 app_scope = knowledge-content\n'
+            '4. 确认列表只展示 app_scope=knowledge-content 的任务\n'
             '5. 确认列表中有"应用标识"列展示 app_scope'
         )
 
@@ -226,7 +226,7 @@ class Test9_5DictQuery:
                 ).fetchall()
                 values = [r[0] for r in rows]
                 assert len(values) >= 3, f'字典数据应至少 3 条，实际 {len(values)} 条: {values}'
-                expected = {'knowledge-admin', 'knowledge-rag'}
+                expected = {'knowledge-admin', 'knowledge-content'}
                 assert expected.issubset(set(values)), f'字典数据缺失关键值: {values}'
                 print(f'✅ 9.5.2 sys_job_app_scope 字典数据齐全: {values}')
         finally:
@@ -261,7 +261,7 @@ class Test10_1RagReceivesBroadcast:
         pytest.skip(
             '动态 E2E 测试，建议人工验证：\n'
             '1. 启动 admin (9099) 和 rag (9098)\n'
-            '2. 在 admin 后台新增 app_scope=knowledge-rag 的任务\n'
+            '2. 在 admin 后台新增 app_scope=knowledge-content 的任务\n'
             '3. 观察 rag 日志：📢 收到广播 → 加载任务 → Scheduler 注册成功\n'
             '4. 验证 rag 的 Scheduler 中已包含新任务'
         )
@@ -293,7 +293,7 @@ class Test10_2AdminSkipsUnmatched:
         pytest.skip(
             '动态 E2E 测试，建议人工验证：\n'
             '1. 启动 admin (9099) 和 rag (9098)\n'
-            '2. 在 admin 后台新增 app_scope=knowledge-rag 的任务\n'
+            '2. 在 admin 后台新增 app_scope=knowledge-content 的任务\n'
             '3. 观察 admin 日志：📢 收到广播 → 但因 app_scope 不匹配跳过同步'
         )
 
@@ -341,7 +341,7 @@ class Test10_4AppScopeMigration:
     def test_104_e2e_migration(self):
         pytest.skip(
             '动态 E2E 测试，建议人工验证：\n'
-            '1. 在 admin 后台将某任务的 app_scope 从 knowledge-admin 改为 knowledge-rag\n'
+            '1. 在 admin 后台将某任务的 app_scope 从 knowledge-admin 改为 knowledge-content\n'
             '2. 观察 admin 日志：跳过同步\n'
             '3. 观察 rag 日志：收到广播 → 从 Scheduler 移除旧任务 → 加载新任务'
         )

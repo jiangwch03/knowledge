@@ -34,7 +34,7 @@
 
 - [x] 8.1 改造 `knowledge-common` 内部引用：`middlewares/handle.py`、`config/get_scheduler.py`、`common/constant.py`、`common/enums.py`
 - [x] 8.2 改造 `knowledge-admin` 引用：`server/server.py`、`service/cache_service.py`（`RedisUtil` → `RedisConnection`，`init_sys_*` → Service 层调用）
-- [x] 8.3 改造 `knowledge-rag` 引用：`server/server.py`（`RedisUtil` → `RedisConnection`，`init_sys_*` → Service 层调用）
+- [x] 8.3 改造 `knowledge-content` 引用：`server/server.py`（`RedisUtil` → `RedisConnection`，`init_sys_*` → Service 层调用）
 
 ## 9. 清理废弃 RedisInitKeyConfig 枚举
 

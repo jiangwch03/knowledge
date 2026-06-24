@@ -2,7 +2,7 @@
 
 ### 现状
 - 已归档 change `2026-06-11-message-stream-service-kafka-style-api` 在 `knowledge_common/message_stream/` 沉淀了 `MessageStreamService` 门面、`@consumer` 装饰器、`StreamBackend` 抽象、Redis Stream / Kafka 双后端、`init_from_settings` 配置驱动入口
-- `knowledge-admin/server/server.py` 与 `knowledge-rag/server/server.py` 已接入 `MessageStreamService.init_from_settings` + `register_consumer_paths(['knowledge_xxx.message.consumer'])` + `discover_and_start()`,但**消费者目录下只有 `test_consumer.py`**,没有日志消费者
+- `knowledge-admin/server/server.py` 与 `knowledge-content/server/server.py` 已接入 `MessageStreamService.init_from_settings` + `register_consumer_paths(['knowledge_xxx.message.consumer'])` + `discover_and_start()`,但**消费者目录下只有 `test_consumer.py`**,没有日志消费者
 - 日志聚合仍在 `knowledge_common/service/log_service.py` 用裸 `redis.xadd` / `xreadgroup` / `xack` / `xautoclaim` / `xgroup_create`,通过 `LogQueueService` 推送、`LogAggregatorService.consume_stream` 在 `app.state.log_aggregator_task = asyncio.create_task(...)` 后台拉起
 - `LogConfig` 含 11 个 `log_stream_*` 字段(8 个纯协议字段 + 3 个业务级字段)
 - 按 `app_name` 隔离的"自产自销"已落地:`get_stream_key(app_name)` / `get_stream_group(app_name)` / `get_dedup_prefix(app_name)`,admin 与 rag 用各自的 stream key / group / dedup 前缀
@@ -15,7 +15,7 @@
 - 不破坏 `@Log` 注解的对外契约(`enqueue_login_log` / `enqueue_operation_log` 方法签名保持)
 
 ### 利益相关方
-- `knowledge-admin` / `knowledge-rag`:lifespan 启动顺序、新消费者文件位置
+- `knowledge-admin` / `knowledge-content`:lifespan 启动顺序、新消费者文件位置
 - `knowledge-common` 维护者:`log_service.py` 的删改、`LogConfig` 字段下沉、`LogDedupHelper` 新设计
 - 未来切 Kafka 的工程师:本 change 是验证"业务零修改"承诺的关键样本
 
@@ -41,7 +41,7 @@
 
 ## Decisions
 
-- **新消费者目录**:`knowledge_common/message/consumer/log_consumer.py`(单文件集中维护,代码一份),内含 4 个消费函数(admin/rag × login/operation),装饰器分别声明各自 topic;各项目独立部署时由 `MessageStreamService` 框架默认扫描路径(`_scan_paths` 默认值已含 `knowledge_common.message.consumer`,见 `knowledge_common/message_stream/service.py:59`)自动 import + 注册,业务项目侧零代码复制;不新建 `knowledge_admin/message/consumer/log_consumer.py` 与 `knowledge_rag/message/consumer/log_consumer.py`
+- **新消费者目录**:`knowledge_common/message/consumer/log_consumer.py`(单文件集中维护,代码一份),内含 4 个消费函数(admin/rag × login/operation),装饰器分别声明各自 topic;各项目独立部署时由 `MessageStreamService` 框架默认扫描路径(`_scan_paths` 默认值已含 `knowledge_common.message.consumer`,见 `knowledge_common/message_stream/service.py:59`)自动 import + 注册,业务项目侧零代码复制;不新建 `knowledge_admin/message/consumer/log_consumer.py` 与 `knowledge_content/message/consumer/log_consumer.py`
 - **topic 命名**:`log:{event_type}:{app_name}`,event_type ∈ `{login, operation}`;与原 stream key `log:stream:{app_name}` 形态对齐,语义升级为 Kafka 风格
 - **group_id 命名**:`log_writer:{app_name}`,跨进程同 app 的多个 worker 共享,跨 app 不共享
 - **`event_id` 进 headers,不进 payload**:headers 走 Kafka 元数据语义,payload 保留原"log 业务字段",升级清晰度
@@ -62,7 +62,7 @@
 ### 风险 1:删除 `LogAggregatorService` 后旧 stream 残留消息
 - **风险**:迁移上线时,旧 `log:stream:{app_name}` Stream 可能有未消费的 PEL 消息,直接切换会丢失
 - **缓解**:
-  - 本机 / 测试环境:`redis-cli DEL log:stream:knowledge-admin log:stream:knowledge-rag` 手动清理,无业务损失
+  - 本机 / 测试环境:`redis-cli DEL log:stream:knowledge-admin log:stream:knowledge-content` 手动清理,无业务损失
   - 生产环境:切换前 24 小时观察 PEL 长度(`XPENDING log:stream:{app_name} log_aggregator:{app_name}`),确认 PEL 为空再切;或先停 `LogQueueService` 推送 30 秒等老消费跑完再升级
   - 文档明确:本 change 不做"双路并存灰度",运维需配合"消费完旧 stream 再升级"流程
 
@@ -106,8 +106,8 @@
 - 新建 `knowledge_common/message/consumer/log_consumer.py`:单文件含 4 个消费函数
   - `@consumer(topic='log:login:knowledge-admin', group_id='log_writer:knowledge-admin')` 装饰 `handle_admin_login_log`
   - `@consumer(topic='log:operation:knowledge-admin', group_id='log_writer:knowledge-admin')` 装饰 `handle_admin_operation_log`
-  - `@consumer(topic='log:login:knowledge-rag', group_id='log_writer:knowledge-rag')` 装饰 `handle_rag_login_log`
-  - `@consumer(topic='log:operation:knowledge-rag', group_id='log_writer:knowledge-rag')` 装饰 `handle_rag_operation_log`
+  - `@consumer(topic='log:login:knowledge-content', group_id='log_writer:knowledge-content')` 装饰 `handle_rag_login_log`
+  - `@consumer(topic='log:operation:knowledge-content', group_id='log_writer:knowledge-content')` 装饰 `handle_rag_operation_log`
 - 消费者函数体:`async with LogDedupHelper.acquire(event_id, app_name) as ok: if not ok: return; async with AsyncSessionLocal() as session: dao.add(...); await session.commit()`,其中 `app_name` 从 `msg.headers['app_name']` 读取(`LogQueueService` 推送时写入),`dao` 走 `knowledge_common.dao` 下按 `app_name` 分流到对应表
 - 4 个消费函数在 admin / rag 任一进程启动时都会被 import + 装饰器注册(因默认扫描路径包含 `knowledge_common.message.consumer`),各自拉起 4 个消费协程 + 4 个 idle 接管协程;但因 topic 按 `app_name` 隔离,非本 app 的 2 个消费者会长期空转阻塞拉取(默认 2s block_ms),CPU/网络开销可忽略,且复用同一 Redis 连接;有意保留"声明式纯粹性",不在装饰器层引入运行时 app_name 条件分支
 

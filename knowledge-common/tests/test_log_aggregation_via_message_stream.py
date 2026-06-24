@@ -364,9 +364,9 @@ class TestLogAggregationIsolation:
         # 用唯一 topic,避免与其他测试串扰
         unique = uuid.uuid4().hex[:8]
         admin_topic = f'log:operation:knowledge-admin-{unique}'
-        rag_topic = f'log:operation:knowledge-rag-{unique}'
+        rag_topic = f'log:operation:knowledge-content-{unique}'
         admin_group = f'log_writer:knowledge-admin-{unique}'
-        rag_group = f'log_writer:knowledge-rag-{unique}'
+        rag_group = f'log_writer:knowledge-content-{unique}'
 
         try:
             redis_client = await aioredis.from_url(

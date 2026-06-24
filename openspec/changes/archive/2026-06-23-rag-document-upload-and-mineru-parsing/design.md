@@ -63,9 +63,9 @@
 1. 执行数据库 DDL 脚本，新建表结构。
 2. 在 `knowledge-common` 中引入 LangChain 1.2.X 依赖，并新建大模型调用工厂/工具类。
 3. 执行数据初始化脚本：`merio_language` 字典、`knowledge_ai_models` 与 `knowledge_ai_model_function_adapter` 初始记录。
-4. 在 `knowledge-admin` 菜单/接口权限中注册 `knowledge-rag` 新接口权限编码。
-5. 前端 `vite.config.js` 与 nginx 配置新增 `knowledge-rag` 代理。
-6. 逐步部署 `knowledge-common`、`knowledge-admin`、`knowledge-rag`、`knowledge-web`。
+4. 在 `knowledge-admin` 菜单/接口权限中注册 `knowledge-content` 新接口权限编码。
+5. 前端 `vite.config.js` 与 nginx 配置新增 `knowledge-content` 代理。
+6. 逐步部署 `knowledge-common`、`knowledge-admin`、`knowledge-content`、`knowledge-web`。
 
 ## Open Questions
 

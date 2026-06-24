@@ -5,7 +5,7 @@
 当 FastAPI 应用部署在反向代理（网关/Nginx）之后时，外部访问路径通常带有代理前缀，例如：
 
 ```
-https://gateway.example.com/api/knowledge_rag/users
+https://gateway.example.com/api/knowledge_content/users
 ```
 
 而应用内部注册的路由是裸路径：
@@ -27,8 +27,8 @@ async def list_users():
 ```python
 # src/main.py
 uvicorn.run(
-    app='knowledge_rag.server.server:create_app',
-    root_path=AppConfig.app_root_path,  # '/api/knowledge_rag'
+    app='knowledge_content.server.server:create_app',
+    root_path=AppConfig.app_root_path,  # '/api/knowledge_content'
     factory=True,
 )
 ```
@@ -40,8 +40,8 @@ Uvicorn 将 `root_path` 写入每个 ASGI 请求的 `scope['root_path']` 中。
 FastAPI 底层依赖 Starlette 的路由器。Starlette 在匹配路由时，自动从请求路径中剥离 `root_path`：
 
 ```
-scope['path']      = '/api/knowledge_rag/users'
-scope['root_path'] = '/api/knowledge_rag'
+scope['path']      = '/api/knowledge_content/users'
+scope['root_path'] = '/api/knowledge_content'
 实际匹配路径      = '/users'
 ```
 
@@ -60,17 +60,17 @@ FastAPI 本身不处理前缀剥离，完全依赖 Starlette 的机制。业务�
 Nginx 的 `proxy_pass` 末尾斜杠行为容易踩坑：
 
 ```nginx
-# ❌ 错误：会去掉 /api/knowledge_rag/ 前缀
-location /api/knowledge_rag/ {
+# ❌ 错误：会去掉 /api/knowledge_content/ 前缀
+location /api/knowledge_content/ {
     proxy_pass http://backend:8080/;
 }
-# 后端收到 /users，但 root_path 仍是 /api/knowledge_rag → 404
+# 后端收到 /users，但 root_path 仍是 /api/knowledge_content → 404
 
 # ✅ 正确：保留完整路径
-location /api/knowledge_rag/ {
+location /api/knowledge_content/ {
     proxy_pass http://backend:8080;
 }
-# 后端收到 /api/knowledge_rag/users，root_path 剥离后匹配 /users
+# 后端收到 /api/knowledge_content/users，root_path 剥离后匹配 /users
 ```
 
 ## 4. 项目中的代码体现
@@ -80,8 +80,8 @@ location /api/knowledge_rag/ {
 ```python
 # src/main.py
 uvicorn.run(
-    app='knowledge_rag.server.server:create_app',
-    root_path=AppConfig.app_root_path,  # 从 .env.dev 读取 '/api/knowledge_rag'
+    app='knowledge_content.server.server:create_app',
+    root_path=AppConfig.app_root_path,  # 从 .env.dev 读取 '/api/knowledge_content'
     factory=True,
 )
 ```
@@ -90,7 +90,7 @@ uvicorn.run(
 
 ```bash
 # .env.dev
-APP_ROOT_PATH = '/api/knowledge_rag'
+APP_ROOT_PATH = '/api/knowledge_content'
 ```
 
 ### 4.3 文档路由的特殊处理
@@ -98,7 +98,7 @@ APP_ROOT_PATH = '/api/knowledge_rag'
 API 文档（Swagger/ReDoc）需要生成正确的 URL，因此项目中单独处理了代理前缀：
 
 ```python
-# src/knowledge_rag/server/server.py
+# src/knowledge_content/server/server.py
 app = FastAPI(
     openapi_url=APIDocsUtil.proxy_openapi_url(),   # 带代理前缀的 openapi.json 路径
     docs_url=APIDocsUtil.proxy_docs_url(),         # 带代理前缀的 Swagger UI 路径
@@ -133,7 +133,7 @@ APIDocsUtil.custom_api_docs_router(app)
 如果网关支持发送 `X-Forwarded-Prefix` 头部，Uvicorn 可以自动推断 `root_path`，无需硬编码：
 
 ```nginx
-proxy_set_header X-Forwarded-Prefix /api/knowledge_rag;
+proxy_set_header X-Forwarded-Prefix /api/knowledge_content;
 ```
 
 此时可以省略 `uvicorn.run(root_path=...)` 参数。但显式配置更可控，推荐保留当前方式。

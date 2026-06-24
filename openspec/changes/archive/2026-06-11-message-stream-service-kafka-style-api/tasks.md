@@ -78,8 +78,8 @@
 - [x] 9.5 `create_backend` 内部用局部 import(`from ... import RedisStreamBackend / KafkaStreamBackend`)避免启动期循环依赖
 - [x] 9.6 `MessageStreamService` 增 `init_from_settings(settings, *, redis=None) -> StreamBackend` 类方法,内部调 `create_backend` + `init`,返回后端实例
 - [x] 9.7 `init_from_settings` docstring 列出 lifespan 调用范式,提供"切后端只改 .env"零修改承诺的文档证据
-- [x] 9.8 5 个 .env 文件(`knowledge-admin/.env.dev` / `.env.prod` / `.env.dockermy` / `.env.dockerpg` + `knowledge-rag/.env.dev`)统一追加 20 个 `MESSAGE_STREAM_*` 字段,中文注释说明每个字段含义与取值范围
-- [x] 9.9 `knowledge-admin/src/knowledge_admin/server/server.py` 与 `knowledge-rag/src/knowledge_rag/server/server.py` 的 lifespan 中将原有 `MessageStreamService.init(RedisStreamBackend(...))` 硬编码范式替换为 `MessageStreamService.init_from_settings(MessageStreamConfig, redis=app.state.redis)`,业务零修改
+- [x] 9.8 5 个 .env 文件(`knowledge-admin/.env.dev` / `.env.prod` / `.env.dockermy` / `.env.dockerpg` + `knowledge-content/.env.dev`)统一追加 20 个 `MESSAGE_STREAM_*` 字段,中文注释说明每个字段含义与取值范围
+- [x] 9.9 `knowledge-admin/src/knowledge_admin/server/server.py` 与 `knowledge-content/src/knowledge_content/server/server.py` 的 lifespan 中将原有 `MessageStreamService.init(RedisStreamBackend(...))` 硬编码范式替换为 `MessageStreamService.init_from_settings(MessageStreamConfig, redis=app.state.redis)`,业务零修改
 - [x] 9.10 补充文档:`docs/rag/message-stream-service-design.md` 增“运行时流程全景”章节,描述 lifespan init / produce / consume / shutdown 四个阶段的后端选择路径
 
 ## 10. KafkaStreamBackend 实现(confluent-kafka)

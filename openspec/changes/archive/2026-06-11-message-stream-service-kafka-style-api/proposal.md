@@ -13,7 +13,7 @@
 - **新增 `MessageStreamSettings` Pydantic 配置类**:统一管理后端选择(`MESSAGE_STREAM_BACKEND=redis|kafka`)、Redis 后端参数(MAXLEN)、Kafka 后端参数(bootstrap.servers / SASL / SSL / acks / linger.ms / partitions / replication.factor 等),共 20 个配置字段。
 - **新增 `create_backend(settings, redis)` 工厂函数**:按配置选择 `RedisStreamBackend` / `KafkaStreamBackend` 实例,Redis 后端需注入 redis 客户端,未知后端类型抛 `MessageStreamError`。
 - **新增 `MessageStreamService.init_from_settings(settings, *, redis)` 类方法**:lifespan 一行注入,内部调 `create_backend` + `init`,返回后端实例;替换原"硬编码 `MessageStreamService.init(RedisStreamBackend(...))`"范式,实现"切后端只改 .env 即可,业务零修改"。
-- **5 个 .env 文件(.env.dev / .env.prod / .env.dockermy / .env.dockerpg + knowledge-rag)统一追加 20 个 `MESSAGE_STREAM_*` 字段**,并按部署环境给出合理默认值(开发环境用 redis / 演示用 kafka 备好 SASL+SSL 全套字段模板)。
+- **5 个 .env 文件(.env.dev / .env.prod / .env.dockermy / .env.dockerpg + knowledge-content)统一追加 20 个 `MESSAGE_STREAM_*` 字段**,并按部署环境给出合理默认值(开发环境用 redis / 演示用 kafka 备好 SASL+SSL 全套字段模板)。
 - **新增 `MessageStreamError` 异常类**:统一异常体系,业务层 try/except 一次。
 - **新增业务方路径注册 API**:`register_consumer_paths(paths)` 接收业务方声明的消费者所在包路径,框架按需 import 扫描,不对齐"框架硬编码全路径扫描"。
 - **推送重试**:`produce` 默认重试 3 次,业务方可定制 `max_retries` / `retry_interval`;失败最终抛 `MessageStreamError`,业务方自行决定后续处理。

@@ -13,25 +13,25 @@ app = FastAPI(
 
 ## 原因：`root_path` 会影响 FastAPI 内置文档路由的 openapi_url
 
-项目配置了 `APP_ROOT_PATH = '/api/knowledge_rag'`（传给 uvicorn 的 `root_path`）。
+项目配置了 `APP_ROOT_PATH = '/api/knowledge_content'`（传给 uvicorn 的 `root_path`）。
 
 FastAPI 内置文档路由生成 Swagger UI HTML 时，会**自动将 `root_path` 拼接到 `openapi_url` 前面**：
 
 ```html
 <!-- FastAPI 内置 /proxy-docs 生成的 HTML -->
 <script>
-  SwaggerUIBundle({ url: "/api/knowledge_rag/proxy-openapi.json" })
+  SwaggerUIBundle({ url: "/api/knowledge_content/proxy-openapi.json" })
 </script>
 ```
 
 这意味着：
-- **通过网关访问**：浏览器请求 `gateway/api/knowledge_rag/proxy-openapi.json` → 网关去掉前缀 → 转发到后端 `/proxy-openapi.json` ✅
-- **直连后端访问**：浏览器请求 `127.0.0.1:9098/api/knowledge_rag/proxy-openapi.json` → 后端没有这个路径 ❌ 404
+- **通过网关访问**：浏览器请求 `gateway/api/knowledge_content/proxy-openapi.json` → 网关去掉前缀 → 转发到后端 `/proxy-openapi.json` ✅
+- **直连后端访问**：浏览器请求 `127.0.0.1:9098/api/knowledge_content/proxy-openapi.json` → 后端没有这个路径 ❌ 404
 
 ## 为什么不能直接注册 /docs
 
 如果把 `docs_url='/docs'` 传给 FastAPI：
-- 生成的 HTML 中 openapi_url 会变成 `/api/knowledge_rag/openapi.json`
+- 生成的 HTML 中 openapi_url 会变成 `/api/knowledge_content/openapi.json`
 - 直连后端时同样会 404
 - 而且还会与后续 `custom_api_docs_router` 手动注册的 `/docs` 路由冲突
 

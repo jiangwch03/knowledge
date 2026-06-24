@@ -235,10 +235,10 @@ INSERT INTO `sys_job` (
     `create_by`, `create_time`, `update_by`, `update_time`, `remark`
 ) SELECT
     'RAG Stage2-A 链接申请失败兜底', 'default', 'default',
-    'knowledge_rag.tasks.document_parse_scheduler.stage2_path_a_job',
-    '', '', '0 * * * * ?', '3', '1', '0', 'knowledge-rag',
+    'knowledge_content.tasks.document_parse_scheduler.stage2_path_a_job',
+    '', '', '0 * * * * ?', '3', '1', '0', 'knowledge-content',
     'admin', NOW(), 'admin', NOW(), '每分钟扫描 LINK_FAILED 任务并重新申请上传链接'
-WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_rag.tasks.document_parse_scheduler.stage2_path_a_job');
+WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_content.tasks.document_parse_scheduler.stage2_path_a_job');
 
 INSERT INTO `sys_job` (
     `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
@@ -246,10 +246,10 @@ INSERT INTO `sys_job` (
     `create_by`, `create_time`, `update_by`, `update_time`, `remark`
 ) SELECT
     'RAG Stage2-B 上传失败兜底', 'default', 'default',
-    'knowledge_rag.tasks.document_parse_scheduler.stage2_path_b_job',
-    '', '', '0 * * * * ?', '3', '1', '0', 'knowledge-rag',
+    'knowledge_content.tasks.document_parse_scheduler.stage2_path_b_job',
+    '', '', '0 * * * * ?', '3', '1', '0', 'knowledge-content',
     'admin', NOW(), 'admin', NOW(), '每分钟扫描 UPLOAD_FAILED 分段并重试或标记超时'
-WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_rag.tasks.document_parse_scheduler.stage2_path_b_job');
+WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_content.tasks.document_parse_scheduler.stage2_path_b_job');
 
 INSERT INTO `sys_job` (
     `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
@@ -257,10 +257,10 @@ INSERT INTO `sys_job` (
     `create_by`, `create_time`, `update_by`, `update_time`, `remark`
 ) SELECT
     'RAG Stage3 解析结果轮询', 'default', 'default',
-    'knowledge_rag.tasks.document_parse_scheduler.stage3_poll_job',
-    '', '', '0 * * * * ?', '3', '1', '0', 'knowledge-rag',
+    'knowledge_content.tasks.document_parse_scheduler.stage3_poll_job',
+    '', '', '0 * * * * ?', '3', '1', '0', 'knowledge-content',
     'admin', NOW(), 'admin', NOW(), '每分钟扫描 PARSING 任务并轮询 MinerU 结果'
-WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_rag.tasks.document_parse_scheduler.stage3_poll_job');
+WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_content.tasks.document_parse_scheduler.stage3_poll_job');
 
 INSERT INTO `sys_job` (
     `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
@@ -268,10 +268,10 @@ INSERT INTO `sys_job` (
     `create_by`, `create_time`, `update_by`, `update_time`, `remark`
 ) SELECT
     'RAG Stage4 md 合并兜底', 'default', 'default',
-    'knowledge_rag.tasks.document_parse_scheduler.stage4_retry_job',
-    '', '', '0 0/5 * * * ?', '3', '1', '0', 'knowledge-rag',
+    'knowledge_content.tasks.document_parse_scheduler.stage4_retry_job',
+    '', '', '0 0/5 * * * ?', '3', '1', '0', 'knowledge-content',
     'admin', NOW(), 'admin', NOW(), '每 5 分钟扫描 CONVERT_FAILED 记录并重新触发合并'
-WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_rag.tasks.document_parse_scheduler.stage4_retry_job');
+WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_content.tasks.document_parse_scheduler.stage4_retry_job');
 
 -- ----------------------------
 -- 10、注册菜单与接口权限

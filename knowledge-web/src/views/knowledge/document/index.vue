@@ -199,7 +199,7 @@
         </el-form-item>
         <el-form-item label="上传文件" prop="file">
           <el-upload
-            ref="ragUploadRef"
+            ref="contentUploadRef"
             :action="uploadAction"
             :headers="uploadHeaders"
             :data="uploadData"
@@ -337,7 +337,7 @@ import {
   handleParseDecision,
   getDocumentStatusOptions,
   getNextVersion,
-} from "@/api/rag/document";
+} from "@/api/content/document";
 import { getToken } from "@/utils/auth";
 
 const { proxy } = getCurrentInstance();
@@ -367,7 +367,7 @@ const queryParams = ref({
   status: undefined,
 });
 
-const ragUploadRef = ref(null);
+const contentUploadRef = ref(null);
 const uploadOpen = ref(false);
 const uploadFileList = ref([]);
 const selectedUploadFile = ref(null);
@@ -385,7 +385,7 @@ const uploadForm = reactive({
 const uploadRules = {
   docTitle: [{ required: true, message: "文档标题不能为空", trigger: "blur" }],
 };
-const uploadAction = import.meta.env.VITE_APP_RAG_API + "/document-parse/upload";
+const uploadAction = import.meta.env.VITE_APP_CONTENT_API + "/document-parse/upload";
 const uploadHeaders = { Authorization: "Bearer " + getToken() };
 
 const convertOpen = ref(false);
@@ -450,7 +450,7 @@ function resetUpload() {
   uploadForm.language = "ch";
   uploadFileList.value = [];
   selectedUploadFile.value = null;
-  ragUploadRef.value?.clearFiles();
+  contentUploadRef.value?.clearFiles()
   proxy.resetForm("uploadRef");
 }
 

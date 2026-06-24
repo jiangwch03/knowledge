@@ -16,11 +16,11 @@
 
 ## 3. 业务消费者(common 集中维护,admin / rag 自动复用)
 
-- [x] 3.1 新建 `knowledge-common/src/knowledge_common/message/consumer/log_consumer.py`(单文件集中维护);不再新建 `knowledge-admin/src/knowledge_admin/message/consumer/log_consumer.py` 与 `knowledge-rag/src/knowledge_rag/message/consumer/log_consumer.py`;`MessageStreamService._scan_paths` 默认值已含 `knowledge_common.message.consumer`(见 `knowledge_common/message_stream/service.py:59`),admin / rag 任一进程启动时都会 import 该文件并触发装饰器注册
+- [x] 3.1 新建 `knowledge-common/src/knowledge_common/message/consumer/log_consumer.py`(单文件集中维护);不再新建 `knowledge-admin/src/knowledge_admin/message/consumer/log_consumer.py` 与 `knowledge-content/src/knowledge_content/message/consumer/log_consumer.py`;`MessageStreamService._scan_paths` 默认值已含 `knowledge_common.message.consumer`(见 `knowledge_common/message_stream/service.py:59`),admin / rag 任一进程启动时都会 import 该文件并触发装饰器注册
 - [x] 3.2 定义 `handle_admin_login_log`:`@consumer(topic='log:login:knowledge-admin', group_id='log_writer:knowledge-admin')` 装饰 `async def handle_admin_login_log(msg: Message) -> None`
 - [x] 3.3 定义 `handle_admin_operation_log`:`@consumer(topic='log:operation:knowledge-admin', group_id='log_writer:knowledge-admin')` 装饰 `async def handle_admin_operation_log(msg: Message) -> None`
-- [x] 3.4 定义 `handle_rag_login_log`:`@consumer(topic='log:login:knowledge-rag', group_id='log_writer:knowledge-rag')` 装饰 `async def handle_rag_login_log(msg: Message) -> None`
-- [x] 3.5 定义 `handle_rag_operation_log`:`@consumer(topic='log:operation:knowledge-rag', group_id='log_writer:knowledge-rag')` 装饰 `async def handle_rag_operation_log(msg: Message) -> None`
+- [x] 3.4 定义 `handle_rag_login_log`:`@consumer(topic='log:login:knowledge-content', group_id='log_writer:knowledge-content')` 装饰 `async def handle_rag_login_log(msg: Message) -> None`
+- [x] 3.5 定义 `handle_rag_operation_log`:`@consumer(topic='log:operation:knowledge-content', group_id='log_writer:knowledge-content')` 装饰 `async def handle_rag_operation_log(msg: Message) -> None`
 - [x] 3.6 4 函数体统一骨架:从 `msg.headers` 取 `event_id` / `app_name` → `async with LogDedupHelper.acquire(event_id, app_name) as ok: if not ok: return` → `async with AsyncSessionLocal() as session: await <Login|Operation>LogDao.add_<login|operation>_log_dao(session, <LogininforModel|OperLogModel>(**msg.value)); await session.commit()`;`app_name` 走 if/elif 分流到 admin / rag 对应 dao 与表
 - [x] 3.7 4 函数异常分支:让异常向上抛(框架 `_consume_loop` 自动跳过 ack,后端协议重投);`LogDedupHelper.acquire` 的 `__aexit__` 接收 `exc_type is not None` 自动 `delete` 释放 dedup,允许下一轮重试
 - [x] 3.8 4 函数加 docstring 说明:"日志聚合消费者(topic=log:{event_type}:{app_name}):从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack"
@@ -45,14 +45,14 @@
 - [x] 5.6 `LogConfig` 保留:`log_stream_dedup_prefix` / `log_stream_dedup_ttl` / `get_dedup_prefix(app_name)` 这 3 项
 - [x] 5.7 检查 `MessageStreamSettings.message_stream_redis_maxlen` 字段是否已存在(查 `knowledge_common/config/env.py`);若未声明则补,默认 `100000`(对齐原 `log_stream_maxlen`)
 - [x] 5.8 在所有 `.env.*` 文件中(`.env.dev` / `.env.prod` / `.env.dockermy` / `.env.dockerpg`)同步删除 `LOG_STREAM_KEY` / `LOG_STREAM_GROUP` / `LOG_STREAM_CONSUMER_PREFIX` / `LOG_STREAM_BATCH_SIZE` / `LOG_STREAM_BLOCK_MS` / `LOG_STREAM_CLAIM_IDLE_MS` / `LOG_STREAM_CLAIM_INTERVAL_MS` / `LOG_STREAM_CLAIM_BATCH_SIZE` / `LOG_STREAM_MAXLEN` 等环境变量(如果存在)
-- [ ] 5.9 verify:`ruff check knowledge-common knowledge-admin knowledge-rag` 无未引用 import 警告;`uv run python -c "from knowledge_common.config.env import LogConfig; print(LogConfig.log_stream_dedup_prefix)"` 能成功加载
+- [ ] 5.9 verify:`ruff check knowledge-common knowledge-admin knowledge-content` 无未引用 import 警告;`uv run python -c "from knowledge_common.config.env import LogConfig; print(LogConfig.log_stream_dedup_prefix)"` 能成功加载
 
 ## 6. server.py 后台任务清理(admin / rag)
 
 - [x] 6.1 `knowledge-admin/src/knowledge_admin/server/server.py` 的 `_start_background_tasks` 删除 `app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(...))` 这段
 - [x] 6.2 admin `_stop_background_tasks` 删除 `log_task = getattr(app.state, 'log_aggregator_task', None); if log_task: log_task.cancel(); try: await log_task except asyncio.CancelledError: pass` 这段
 - [x] 6.3 admin `server.py` 文件顶部删除 `from knowledge_common.service.log_service import LogAggregatorService` import
-- [ ] 6.4 `knowledge-rag/src/knowledge_rag/server/server.py` 重复 6.1 / 6.2 / 6.3 三步
+- [ ] 6.4 `knowledge-content/src/knowledge_content/server/server.py` 重复 6.1 / 6.2 / 6.3 三步
 - [ ] 6.5 verify:启动 admin / rag,lifespan 日志中**不再出现**与 `LogAggregatorService.consume_stream` 相关的协程启动记录;仅出现 `MessageStreamService.discover_and_start` 拉起的消费者协程日志(含 `log_consumer.handle_operation_log` / `handle_login_log`)
 
 ## 7. 端到端测试
@@ -62,7 +62,7 @@
 - [ ] 7.3 测试用例 2 — 消费链路:启动一个 `@consumer(topic='log:operation:test', group_id='log_writer:test')` 装饰的内联消费者,推送后断言 1 秒内消费函数被调用,且 `msg.headers['event_id']` 与推送侧一致
 - [ ] 7.4 测试用例 3 — 去重:同一 `event_id` 连续推送 2 条,断言数据库表(测试用 sqlite in-memory 或 mock dao)只新增 1 条
 - [ ] 7.5 测试用例 4 — 异常回滚释放:mock dao 第一次抛异常,第二次成功;断言两次都成功调到 dao(dedup 在第一次失败时释放,第二次能再次获取)
-- [ ] 7.6 测试用例 5 — app_name 隔离:admin 推送 `log:operation:knowledge-admin`,rag 端的 `@consumer(topic='log:operation:knowledge-rag', ...)` 不应被触发(断言计数器为 0)
+- [ ] 7.6 测试用例 5 — app_name 隔离:admin 推送 `log:operation:knowledge-admin`,rag 端的 `@consumer(topic='log:operation:knowledge-content', ...)` 不应被触发(断言计数器为 0)
 - [ ] 7.7 verify:`cd knowledge-common && uv run pytest tests/test_log_aggregation_via_message_stream.py -v` 全绿(本机 Redis 不连通时所有用例 skip,不应 fail)
 
 ## 8. 文档同步
@@ -77,7 +77,7 @@
 - [x] 9.1 `cd knowledge-common && uv run pytest tests/ -v` 全部测试通过(含 `test_message_stream.py` + 新增的 `test_log_aggregation_via_message_stream.py`)
 - [x] 9.2 启动 admin,触发一次登录请求,确认 MySQL `sys_logininfor` 表新增一行;触发一次任意 `@Log` 注解接口,确认 `sys_oper_log` 表新增一行
 - [x] 9.3 启动 rag,触发同样行为,确认 rag 端日志只写到 rag 端表,**admin 端表无新增**(跨 app 不串扰验证)
-- [x] 9.4 同时启动 admin 与 rag,各自触发日志,确认两个进程日志中均出现 4 个 `id=knowledge_common.message.consumer.log_consumer.handle_*` 消费者后台协程;admin 进程实际消费的是 `log:*:knowledge-admin` topic 的消息、rag 进程实际消费的是 `log:*:knowledge-rag` topic 的消息(各 2 个活跃 + 2 个空转),跨 app 不串扰
+- [x] 9.4 同时启动 admin 与 rag,各自触发日志,确认两个进程日志中均出现 4 个 `id=knowledge_common.message.consumer.log_consumer.handle_*` 消费者后台协程;admin 进程实际消费的是 `log:*:knowledge-admin` topic 的消息、rag 进程实际消费的是 `log:*:knowledge-content` topic 的消息(各 2 个活跃 + 2 个空转),跨 app 不串扰
 - [x] 9.5 模拟"高并发同一请求 ID 重复推送":手动在 redis 上 `XADD log:operation:knowledge-admin '*' __headers '{"event_id":"DUPL_ID","event_type":"operation",...}' __value '{...}'` 触发同 event_id 的二次投递,确认 `sys_oper_log` 只多 1 行(去重成功)
 - [x] 9.6 模拟"消费者函数抛异常":临时让 `handle_admin_operation_log` 内部抛 `RuntimeError`,确认消息保留在 PEL(`XPENDING log:operation:knowledge-admin log_writer:knowledge-admin`),60 秒后被 `claim_idle` 接管(由 `MessageStreamService._claim_idle_loop` 周期触发);恢复函数后下一轮接管处理成功
 - [x] 9.7 关闭 admin,确认 lifespan 退出阶段日志依次打出 `🛑 消费协程已取消: consumer=knowledge_common.message.consumer.log_consumer.handle_<admin|rag>_<login|operation>_log` × 4 → `🛑 MessageStreamService 已关闭`,无残留协程

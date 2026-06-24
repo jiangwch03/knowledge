@@ -19,7 +19,7 @@
 
 - [x] 4.1 创建 `knowledge-common/src/knowledge_common/message/subscriber/__init__.py`
 - [x] 4.2 创建 `knowledge-admin/src/knowledge_admin/message/subscriber/__init__.py`
-- [x] 4.3 创建 `knowledge-rag/src/knowledge_rag/message/subscriber/__init__.py`
+- [x] 4.3 创建 `knowledge-content/src/knowledge_content/message/subscriber/__init__.py`
 
 ## 5. 定时任务广播消费者迁移
 
@@ -31,7 +31,7 @@
 ## 6. lifespan 接入
 
 - [x] 6.1 修改 `knowledge-admin/src/knowledge_admin/server/server.py`：新增 `_init_broadcast(app)` 方法（init → register_subscriber_paths → discover_and_start），在 lifespan 中 Redis 初始化之后调用
-- [x] 6.2 修改 `knowledge-rag/src/knowledge_rag/server/server.py`：同上新增 `_init_broadcast(app)` 并接入 lifespan
+- [x] 6.2 修改 `knowledge-content/src/knowledge_content/server/server.py`：同上新增 `_init_broadcast(app)` 并接入 lifespan
 - [x] 6.3 在两个项目的 lifespan shutdown 阶段加入 `await BroadcastService.shutdown()`
 
 ## 7. 验证与测试

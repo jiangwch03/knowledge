@@ -6,7 +6,7 @@
 
 ## 为什么需要它
 
-FastAPI 内置的 `/proxy-docs` 路由受 `root_path` 影响，生成的 HTML 中 openapi_url 带有网关前缀（如 `/api/knowledge_rag/proxy-openapi.json`），直连后端时该路径不存在导致 404。
+FastAPI 内置的 `/proxy-docs` 路由受 `root_path` 影响，生成的 HTML 中 openapi_url 带有网关前缀（如 `/api/knowledge_content/proxy-openapi.json`），直连后端时该路径不存在导致 404。
 
 `custom_api_docs_router` 手动注册 `/docs` 路由，硬编码 `openapi_url='/openapi.json'`（不受 root_path 影响），解决直连场景。
 

@@ -17,7 +17,7 @@ ROOT := $(shell pwd)
 # 测试路径
 TEST_MSG_STREAM := knowledge-common/tests/test_message_stream.py
 TEST_COMMON_DIR := knowledge-common/tests
-TEST_ALL_DIRS := knowledge-common/tests knowledge-admin/tests knowledge-rag/tests
+TEST_ALL_DIRS := knowledge-common/tests knowledge-admin/tests knowledge-content/tests
 
 # 默认目标:显示帮助
 .DEFAULT_GOAL := help
@@ -119,7 +119,7 @@ test-common: ## 跑 knowledge-common 全部测试
 
 test-all: ## 跑全部子项目测试
 	@echo "▶ 跑全部子项目测试"
-	$(PYTEST) $(TEST_ALL_DIRS) -v 2>&1 | tail -50
+	$(PYTEST) $(TEST_ALL_DIRS) -v --rootdir=$(ROOT) 2>&1 | tail -50
 
 # -----------------------------------------------------------------------------
 # 工具

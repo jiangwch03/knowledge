@@ -6,7 +6,7 @@
 
 - **新增 `broadcast` 框架包**（`knowledge-common/src/knowledge_common/broadcast/`）：提供 `BroadcastService` 门面、`@subscriber` 装饰器、`BroadcastMessage` DTO、`BroadcastBackend` 抽象基类及 `RedisPubSubBackend` 实现。
 - **Backend 采用单连接多路分发**：一个共享 `redis.pubsub()` 对象 + 内部 dispatch table，所有 channel 复用同一 TCP 连接和后台 Task。
-- **新增业务层订阅者目录**：`knowledge-common/message/subscriber/`（通用订阅者）、`knowledge-admin/message/subscriber/`、`knowledge-rag/message/subscriber/`（各项目专属）。
+- **新增业务层订阅者目录**：`knowledge-common/message/subscriber/`（通用订阅者）、`knowledge-admin/message/subscriber/`、`knowledge-content/message/subscriber/`（各项目专属）。
 - **迁移定时任务广播消费者**：将 `SchedulerUtil._on_global_sync_message` 拆出为独立 `@subscriber` 函数，放在 `knowledge-common/message/subscriber/scheduler_subscriber.py`。
 - **迁移定时任务广播发布者**：`SchedulerUtil.broadcast_scheduler_sync()` 内部改调 `BroadcastService.publish()`，不再直接引用 `RedisPubSubUtil`。
 - **lifespan 接入**：各项目 `server.py` 新增 `_init_broadcast()` 三步范式（init → register_subscriber_paths → discover_and_start），对齐 MessageStreamService 风格。

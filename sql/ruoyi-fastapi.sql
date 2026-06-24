@@ -560,7 +560,7 @@ insert into sys_dict_data values(48, 16,  'LiteLLMOpenAI',   'LiteLLMOpenAI',   
 insert into sys_dict_data values(49, 17,  'LlamaCpp',        'LlamaCpp',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LlamaCpp');
 insert into sys_dict_data values(50, 18,  'LMStudio',        'LMStudio',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LMStudio');
 insert into sys_dict_data values(70, 1,  'knowledge-admin',  'knowledge-admin',  'sys_job_app_scope',   '',   'primary', 'Y', '0', 'admin', sysdate(), '', null, '知识管理后台');
-insert into sys_dict_data values(71, 2,  'knowledge-rag',    'knowledge-rag',    'sys_job_app_scope',   '',   'info',    'N', '0', 'admin', sysdate(), '', null, '知识RAG服务');
+insert into sys_dict_data values(71, 2,  'knowledge-content',    'knowledge-content',    'sys_job_app_scope',   '',   'info',    'N', '0', 'admin', sysdate(), '', null, '知识RAG服务');
 insert into sys_dict_data values(72, 3,  'knowledge-agent',  'knowledge-agent',  'sys_job_app_scope',   '',   'info',    'N', '0', 'admin', sysdate(), '', null, '知识Agent服务');
 insert into sys_dict_data values(51, 19,  'Meta',            'Meta',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Meta');
 insert into sys_dict_data values(52, 20,  'Mistral',         'Mistral',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Mistral');
@@ -647,7 +647,7 @@ create table sys_job (
   misfire_policy      varchar(20)   default '3'                comment '计划执行错误策略（1立即执行 2执行一次 3放弃执行）',
   concurrent          char(1)       default '1'                comment '是否并发执行（0允许 1禁止）',
   status              char(1)       default '0'                comment '状态（0正常 1暂停）',
-  app_scope           varchar(64)   default 'knowledge-admin'  comment '任务所属应用（knowledge-admin/knowledge-rag/knowledge-agent）',
+  app_scope           varchar(64)   default 'knowledge-admin'  comment '任务所属应用（knowledge-admin/knowledge-content/knowledge-agent）',
   create_by           varchar(64)   default ''                 comment '创建者',
   create_time         datetime                                 comment '创建时间',
   update_by           varchar(64)   default ''                 comment '更新者',

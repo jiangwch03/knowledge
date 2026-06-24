@@ -60,7 +60,7 @@
 - **THEN** 系统返回配置不存在错误
 
 ### Requirement: 大模型配置表下沉共享（参考需求文档 §9.2 / §10.2.1）
-系统 SHALL 将 `knowledge_ai_models` 的 DO/DAO/VO 从 `knowledge-admin` 下沉至 `knowledge-common`，供 `knowledge-admin` 与 `knowledge-rag` 共享。
+系统 SHALL 将 `knowledge_ai_models` 的 DO/DAO/VO 从 `knowledge-admin` 下沉至 `knowledge-common`，供 `knowledge-admin` 与 `knowledge-content` 共享。
 
 #### Scenario: 调整 import 路径
 - **WHEN** 迁移完成后

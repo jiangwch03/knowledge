@@ -56,7 +56,7 @@ Python 的 **GIL（全局解释器锁）** 导致单进程内多线程无法真�
 
 ```python
 uvicorn.run(
-    app='knowledge_rag.server.server:create_app',
+    app='knowledge_content.server.server:create_app',
     workers=AppConfig.app_workers,
     reload=AppConfig.app_reload,
     factory=True,
@@ -100,7 +100,7 @@ FastAPI 的 `lifespan` / `startup` 事件在**每个 worker 都会触发一次**
 对于更复杂的进程管理（优雅重启、信号处理、worker 超时），生产环境通常用：
 
 ```bash
-gunicorn knowledge_rag.server.server:create_app \
+gunicorn knowledge_content.server.server:create_app \
     --workers 4 \
     --worker-class uvicorn.workers.UvicornWorker \
     --bind 0.0.0.0:8000

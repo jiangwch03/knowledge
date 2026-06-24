@@ -1026,7 +1026,7 @@ class Test61AdminLifespanIntegration:
         """rag server.py 也按同一范式接入"""
         server_py = (
             _PROJECT_ROOT
-            / 'knowledge-rag' / 'src' / 'knowledge_rag' / 'server' / 'server.py'
+            / 'knowledge-content' / 'src' / 'knowledge_content' / 'server' / 'server.py'
         )
         text = server_py.read_text(encoding='utf-8')
         assert 'from knowledge_common.message_stream import MessageStreamService' in text

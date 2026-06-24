@@ -199,7 +199,7 @@ class SchedulerUtil:
         应用启动时初始化定时任务（使用分布式锁确保只有一个worker启动scheduler）
 
         :param redis: Redis连接对象
-        :param app_scope: 应用标识（如 knowledge-admin/knowledge-rag）
+        :param app_scope: 应用标识（如 knowledge-admin/knowledge-content）
         :return:
         """
         cls._redis = redis

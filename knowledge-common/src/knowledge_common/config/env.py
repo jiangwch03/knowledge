@@ -193,7 +193,7 @@ class StreamTopicSettings(BaseSettings):
     消息流主题配置
     """
     # 消费组ID
-    group_id: str = 'knowledge_rag'
+    group_id: str = 'knowledge_content'
     # 文档解析待处理队列
     document_parse_pending: str = 'document.parse.pending'
     # 文档 Markdown 合并待处理队列
@@ -315,8 +315,8 @@ def _infer_current_project() -> str | None:
     argv_str = ' '.join(sys.argv)
     if 'knowledge_admin' in argv_str or 'knowledge-admin' in argv_str:
         return 'knowledge-admin'
-    if 'knowledge_rag' in argv_str or 'knowledge-rag' in argv_str:
-        return 'knowledge-rag'
+    if 'knowledge_content' in argv_str or 'knowledge-content' in argv_str:
+        return 'knowledge-content'
     return None
 
 

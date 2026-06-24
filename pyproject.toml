@@ -5,7 +5,7 @@ description = "Knowledge workspace root"
 requires-python = ">=3.13"
 
 [tool.uv.workspace]
-members = ["knowledge-common", "knowledge-admin", "knowledge-rag"]
+members = ["knowledge-common", "knowledge-admin", "knowledge-content"]
 
 [tool.uv.sources]
 knowledge-common = { workspace = true }

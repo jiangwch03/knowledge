@@ -29,7 +29,7 @@ class SysJob(Base):
     )
     concurrent = Column(CHAR(1), nullable=True, server_default='1', comment='是否并发执行（0允许 1禁止）')
     status = Column(CHAR(1), nullable=True, server_default='0', comment='状态（0正常 1暂停）')
-    app_scope = Column(String(64), nullable=True, server_default='knowledge-admin', comment='任务所属应用（knowledge-admin/knowledge-rag/knowledge-agent）')
+    app_scope = Column(String(64), nullable=True, server_default='knowledge-admin', comment='任务所属应用（knowledge-admin/knowledge-content/knowledge-agent）')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
     create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')

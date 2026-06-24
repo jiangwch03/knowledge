@@ -86,7 +86,7 @@
 - **THEN** SHALL 返回零匹配结果
 
 #### Scenario: 跨子项目导入路径已改造
-- **WHEN** `knowledge-admin` 和 `knowledge-rag` 引用 Redis 相关类
+- **WHEN** `knowledge-admin` 和 `knowledge-content` 引用 Redis 相关类
 - **THEN** SHALL 统一使用 `knowledge_common.redis.*` 新路径 + 新类名（`RedisConnection`、`RedisPubSub`）
 
 ### Requirement: 废弃 RedisInitKeyConfig 枚举清理

@@ -8,6 +8,6 @@
 ## 2. 验证与测试
 
 - [x] 2.1 从 workspace 根目录启动 `knowledge-admin`，验证能正确加载 `knowledge-admin/src/configs/.env.dev`
-- [x] 2.2 从 workspace 根目录启动 `knowledge-rag`，验证能正确加载 `knowledge-rag/src/configs/.env.dev`
+- [x] 2.2 从 workspace 根目录启动 `knowledge-content`，验证能正确加载 `knowledge-content/src/configs/.env.dev`
 - [x] 2.3 从子项目目录启动，验证向后兼容（cwd 优先检查）
 - [x] 2.4 临时移除 `.env` 文件，验证启动不报错、使用默认值

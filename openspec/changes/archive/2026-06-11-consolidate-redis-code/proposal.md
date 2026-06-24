@@ -23,7 +23,7 @@ Redis 相关基础设施代码散落在 `utils/`、`common/`、`config/` 三个�
 
 - **涉及文件**：`common/redis_key.py`、`config/get_redis.py`、`utils/redis_client.py`、`utils/redis_pubsub_util.py`、`utils/distributed_lock.py`（迁移后删除）
 - **不移动**：`common/context.py`（`RedisContext`）、`middlewares/redis_context_middleware.py`（`RedisContextMiddleware`）— 项目级上下文管理，非 Redis 能力
-- **导入改造**：全项目 grep 所有旧路径引用，统一替换为 `knowledge_common.redis.*` 新路径（涉及 `knowledge-common`、`knowledge-admin`、`knowledge-rag` 三个子项目）
+- **导入改造**：全项目 grep 所有旧路径引用，统一替换为 `knowledge_common.redis.*` 新路径（涉及 `knowledge-common`、`knowledge-admin`、`knowledge-content` 三个子项目）
 - **Key 清理**：`RedisInitKeyConfig` 废弃枚举 25+ 处全量替换为 `RedisKey` 常量（涉及 6 个文件），删除枚举定义
 - **依赖关系**：`broadcast/backends/`、`message_stream/backends/` 不受影响，仍通过 `RedisContext` 获取客户端
 - **测试**：现有测试无需修改（类对象不变，仅导入路径变更）

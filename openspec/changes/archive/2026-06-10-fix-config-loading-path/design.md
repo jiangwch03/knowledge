@@ -1,6 +1,6 @@
 ## Context
 
-当前项目的 `knowledge-common` 组件作为共享依赖包，承载了配置加载的核心逻辑（`env.py`）。各子项目（`knowledge-admin`、`knowledge-rag`）的配置文件独立存放在各自目录的 `src/configs/.env.{env}` 中。
+当前项目的 `knowledge-common` 组件作为共享依赖包，承载了配置加载的核心逻辑（`env.py`）。各子项目（`knowledge-admin`、`knowledge-content`）的配置文件独立存放在各自目录的 `src/configs/.env.{env}` 中。
 
 现有实现中，`parse_cli_args()` 使用 `load_dotenv('configs/.env.dev')` 加载配置，该调用隐式依赖 `os.getcwd()` 作为基准路径。由于本地开发时启动命令的执行目录不固定（可能从 workspace 根目录、子项目根目录或其他任意目录执行 `uv run`），导致 `.env` 文件经常找不到，服务以默认配置启动。
 
@@ -44,7 +44,7 @@ Docker 部署场景不受影响——配置通过环境变量注入，`.env` 文
 2. workspace 根目录下各子项目的 `src/configs/.env.{env}`（按目录名排序）—— 覆盖从 workspace 根目录启动的场景
 
 **理由**：
-- 回溯逻辑覆盖从任意子目录启动的情况（如从 `knowledge-admin/`、`knowledge-rag/src/knowledge_rag/` 等）
+- 回溯逻辑覆盖从任意子目录启动的情况（如从 `knowledge-admin/`、`knowledge-content/src/knowledge_content/` 等）
 - 第 2 步覆盖从 workspace 根目录启动的场景
 - 去掉了 `cwd/.env` 等向后兼容路径，避免 cwd 下碰巧存在的 `.env` 文件被误加载
 - 静默跳过（打印警告日志）而非抛异常，确保 Docker 场景不受影响
