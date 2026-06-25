@@ -64,7 +64,7 @@ class UploadDocumentResponseModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    record_id: int = Field(..., description='上传记录ID')
+    task_id: int = Field(..., description='上传任务ID')
     doc_title: str = Field(..., description='文档标题')
     doc_name: str = Field(..., description='文件名')
     doc_type: str = Field(..., description='文档格式')
@@ -79,7 +79,7 @@ class ListDocumentRecordsResponseModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    record_id: int = Field(..., description='上传记录ID')
+    task_id: int = Field(..., description='上传任务ID')
     doc_id: int | None = Field(default=None, description='关联文档ID')
     doc_title: str = Field(..., description='文档标题')
     doc_desc: str | None = Field(default=None, description='文档描述')
@@ -118,7 +118,7 @@ class GetParseTaskResponseModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     parse_task_id: int = Field(..., description='解析任务ID')
-    record_id: int = Field(..., description='关联上传记录ID')
+    task_id: int = Field(..., description='关联上传任务ID')
     parse_mode: str = Field(..., description='解析模式')
     status: str = Field(..., description='整体状态')
     error_code: str | None = Field(default=None, description='错误码')

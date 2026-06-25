@@ -37,11 +37,11 @@ from knowledge_content.mapper.dao.mineru_parse_detail_task_dao import (
     KnowledgeMineruParseDetailTaskDao,
 )
 from knowledge_content.mapper.dao.mineru_parse_task_dao import KnowledgeMineruParseTaskDao
-from knowledge_content.mapper.dao.upload_record_dao import KnowledgeUploadRecordDao
+from knowledge_content.mapper.dao.upload_task_dao import KnowledgeUploadTaskDao
 from knowledge_content.mapper.do.document_do import KnowledgeDocument
 from knowledge_content.mapper.do.parse_detail_task_do import KnowledgeMineruParseDetailTask
 from knowledge_content.mapper.do.parse_task_do import KnowledgeMineruParseTask
-from knowledge_content.mapper.do.upload_record_do import KnowledgeUploadDocumentRecord
+from knowledge_content.mapper.do.upload_task_do import KnowledgeUploadDocumentParseTask
 from knowledge_content.service.mineru_zip_merge_service import MineruZipMergeService
 from knowledge_content.service.minio_service import KnowledgeMinioService
 from knowledge_content.service.vo.message_stream_topic_vo import DocumentParsePending, DocumentMdPending
@@ -75,7 +75,7 @@ class DocumentUploadParseService:
     UPLOAD_EXPIRE_HOURS = 23
     UPLOAD_EXPIRE_MINUTES = 50
 
-    # region 上传记录入口
+    # region 上传任务入口
 
     @classmethod
     def _get_file_extension(cls, filename: str) -> str:
@@ -106,7 +106,7 @@ class DocumentUploadParseService:
         :param doc_title: 文档标题
         :return: 下一版本号，如 '2.0'
         """
-        max_version = await KnowledgeUploadRecordDao.get_max_version_by_title(doc_title)
+        max_version = await KnowledgeUploadTaskDao.get_max_version_by_title(doc_title)
         return cls._resolve_next_version(max_version)
 
     @classmethod
@@ -121,7 +121,7 @@ class DocumentUploadParseService:
 
         :param file: 上传文件
         :param upload_model: 上传参数（含自动注入的 userInfo）
-        :return: 上传记录
+        :return: 上传任务
         """
         user_id = upload_model.userInfo.user.user_id
         dept_id = upload_model.userInfo.user.dept_id
@@ -154,7 +154,7 @@ class DocumentUploadParseService:
 
                 :param file: 上传文件
                 :param upload_model: 上传参数（含自动注入的 userInfo）
-                :return: 上传记录
+                :return: 上传任务
                 """
         user_id = upload_model.userInfo.user.user_id
         dept_id = upload_model.userInfo.user.dept_id
@@ -177,13 +177,13 @@ class DocumentUploadParseService:
 
             # 版本预占
             doc_title = upload_model.doc_title or filename
-            max_version = await KnowledgeUploadRecordDao.get_max_version_by_title(doc_title)
+            max_version = await KnowledgeUploadTaskDao.get_max_version_by_title(doc_title)
             next_version = cls._resolve_next_version(max_version)
-            await KnowledgeUploadRecordDao.update_latest_by_title(doc_title)
+            await KnowledgeUploadTaskDao.update_latest_by_title(doc_title)
 
             # 是否需要MinerU解析（PDF/DOCX/XLSX需要解析，MD直接落库）
             parse_required = '1' if ext in cls.PARSE_TYPES else '0'
-            record = KnowledgeUploadDocumentRecord(
+            record = KnowledgeUploadDocumentParseTask(
                 doc_title=doc_title,  # 文档标题（优先使用上传参数，否则取文件名）
                 doc_desc=upload_model.doc_desc,  # 文档描述
                 doc_name=filename,  # 原始文件名
@@ -201,12 +201,12 @@ class DocumentUploadParseService:
                 create_by=user_name,  # 创建者
                 update_by=user_name,  # 更新者
             )
-            record = await KnowledgeUploadRecordDao.add_record(record)
+            record = await KnowledgeUploadTaskDao.add_task(record)
 
             if ext != 'md':
                 # PDF/DOC/DOCX/XLSX 创建解析任务
                 parse_task = KnowledgeMineruParseTask(
-                    record_id=record.record_id,  # 关联上传记录ID
+                    task_id=record.task_id,  # 关联上传任务ID
                     parse_mode=upload_model.parse_mode or 'document',  # 解析模式：html/document
                     enable_formula=upload_model.enable_formula or FormulaSwitch.YES.value,  # 公式识别（0-否 1-是）
                     enable_table=upload_model.enable_table or TableSwitch.YES.value,  # 表格识别（0-否 1-是）
@@ -227,8 +227,8 @@ class DocumentUploadParseService:
 
             # MD 直接落库
             await cls._create_knowledge_document(record, original_doc_key, user_name)  # 创建知识库文档并落库
-            await KnowledgeUploadRecordDao.update_status(record.record_id,
-                                                         DocumentUploadStatus.CONVERTED.value)  # 更新上传记录状态为"已转换"
+            await KnowledgeUploadTaskDao.update_status(record.task_id,
+                                                         DocumentUploadStatus.CONVERTED.value)  # 更新上传任务状态为"已转换"
             record.status = DocumentUploadStatus.CONVERTED.value  # 同步内存记录状态
             return UploadDocumentResponseModel(**CamelCaseUtil.transform_result(record))
 
@@ -239,7 +239,7 @@ class DocumentUploadParseService:
     @classmethod
     async def _create_knowledge_document(
             cls,
-            record: KnowledgeUploadDocumentRecord,
+            record: KnowledgeUploadDocumentParseTask,
             doc_key: str,
             user_name: str,
     ) -> KnowledgeDocument:
@@ -251,7 +251,7 @@ class DocumentUploadParseService:
             is_latest = '0'
 
         document = KnowledgeDocument(
-            record_id=record.record_id,
+            task_id=record.task_id,
             source_type=DocumentSourceType.UPLOAD.value,
             doc_title=record.doc_title,
             doc_desc=record.doc_desc,
@@ -285,16 +285,16 @@ class DocumentUploadParseService:
             raise ServiceException(f'发布解析消息失败: {e}') from e
 
     @classmethod
-    async def publish_md_pending(cls, record_id: int) -> None:
+    async def publish_md_pending(cls, task_id: int) -> None:
         """发布 document.md.pending 消息"""
         try:
             await MessageStreamService.produce(
                 topic=StreamTopicConfig.document_md_pending,
-                value=DocumentMdPending(record_id=record_id),
-                key=str(record_id),
+                value=DocumentMdPending(task_id=task_id),
+                key=str(task_id),
             )
         except Exception as e:
-            logger.error(f'发布 {StreamTopicConfig.document_md_pending} 消息失败: record_id={record_id}, error={e}')
+            logger.error(f'发布 {StreamTopicConfig.document_md_pending} 消息失败: task_id={task_id}, error={e}')
 
     @classmethod
     async def list_records(
@@ -303,7 +303,7 @@ class DocumentUploadParseService:
             data_scope_sql: ColumnElement | None = None,
     ) -> PageModel[ListDocumentRecordsResponseModel]:
         """查询上传记录列表（含数据权限过滤）"""
-        result = await KnowledgeUploadRecordDao.get_record_list(
+        result = await KnowledgeUploadTaskDao.get_task_list(
             query_object, data_scope_sql=data_scope_sql, is_page=True,
         )
         # 将原始 dict 行转型为类型明确的响应 VO，与 response_model 声明一致
@@ -312,27 +312,27 @@ class DocumentUploadParseService:
 
     @classmethod
     @transactional(rollback_for=(Exception,))
-    async def delete_record(cls, record_id: int) -> None:
-        """删除上传记录（仅允许未落库文档）"""
+    async def delete_record(cls, task_id: int) -> None:
+        """删除上传任务（仅允许未落库文档）"""
         
         # 分布式锁：防止同时删除同一条记录
-        lock_key = LockKey.upload_record_key(record_id)
+        lock_key = LockKey.upload_task_key(task_id)
         async with DistributedLock(lock_key, expire=30, timeout=0) as acquired:
             if not acquired:
                 raise ServiceException('该记录正在处理中，请稍后重试')
             
             current_user = RequestContext.get_current_user()
             user_name = current_user.user.user_name
-            record = await KnowledgeUploadRecordDao.get_record_by_id(record_id)
+            record = await KnowledgeUploadTaskDao.get_task_by_id(task_id)
             if not record:
-                raise ServiceException('上传记录不存在')
+                raise ServiceException('上传任务不存在')
 
-            document = await KnowledgeDocumentDao.get_document_by_record_id(record_id)
+            document = await KnowledgeDocumentDao.get_document_by_task_id(task_id, source_type='0')
             if document:
                 raise ServiceException('已生成文档，不允许删除')
 
-            await KnowledgeUploadRecordDao.soft_delete(record_id, update_by=user_name)
-            await KnowledgeMineruParseTaskDao.soft_delete_by_record_id(record_id, update_by=user_name)
+            await KnowledgeUploadTaskDao.soft_delete(task_id, update_by=user_name)
+            await KnowledgeMineruParseTaskDao.soft_delete_by_upload_task_id(task_id, update_by=user_name)
 
     # endregion
 
@@ -353,9 +353,9 @@ class DocumentUploadParseService:
         return [GetParseTaskDetailsResponseModel(**CamelCaseUtil.transform_result(d)) for d in details]
 
     @classmethod
-    async def get_parse_tasks_by_record(cls, record_id: int) -> list[ParseTaskItemResponseModel]:
-        """获取上传记录下的所有解析任务列表"""
-        tasks = await KnowledgeMineruParseTaskDao.get_tasks_by_record_id(record_id)
+    async def get_parse_tasks_by_record(cls, task_id: int) -> list[ParseTaskItemResponseModel]:
+        """获取上传任务下的所有解析任务列表"""
+        tasks = await KnowledgeMineruParseTaskDao.get_tasks_by_upload_task_id(task_id)
         return [ParseTaskItemResponseModel(**CamelCaseUtil.transform_result(t)) for t in tasks]
 
     @classmethod
@@ -372,25 +372,25 @@ class DocumentUploadParseService:
         :param decision: 决策模型（含自动注入的 userInfo）
         """
         
-        # 先查询任务获取 record_id
+        # 先查询任务获取 task_id
         task = await KnowledgeMineruParseTaskDao.get_task_by_id(parse_task_id)
         if not task:
             raise ServiceException('解析任务不存在')
         
-        # 分布式锁：基于 record_id，与删除接口互斥
-        lock_key = LockKey.upload_record_key(task.record_id)
+        # 分布式锁：基于 task_id，与删除接口互斥
+        lock_key = LockKey.upload_task_key(task.task_id)
         new_parse_task_id: int | None = None
         async with DistributedLock(lock_key, expire=60, timeout=0) as acquired:
             if not acquired:
                 raise ServiceException('该记录正在处理中，请稍后重试')
             
             user_name = decision.userInfo.user.user_name
-            record = await KnowledgeUploadRecordDao.get_record_by_id(task.record_id)
+            record = await KnowledgeUploadTaskDao.get_task_by_id(task.task_id)
             if not record:
-                raise ServiceException('上传记录不存在')
+                raise ServiceException('上传任务不存在')
             # 删除
             if decision.action == ParseDecisionAction.DELETE:
-                await cls.delete_record(record.record_id)
+                await cls.delete_record(record.task_id)
                 return
 
             # 重试
@@ -415,7 +415,7 @@ class DocumentUploadParseService:
 
             # 创建新任务
             new_task = KnowledgeMineruParseTask(
-                record_id=record.record_id,
+                task_id=record.task_id,
                 parse_mode=task.parse_mode,
                 enable_formula=task.enable_formula,
                 enable_table=task.enable_table,
@@ -443,9 +443,9 @@ class DocumentUploadParseService:
             ]
             await KnowledgeMineruParseDetailTaskDao.batch_add_details(new_details)
 
-            # 上传记录改为 PENDING
-            await KnowledgeUploadRecordDao.update_status(
-                record.record_id, DocumentUploadStatus.PENDING.value
+            # 上传任务改为 PENDING
+            await KnowledgeUploadTaskDao.update_status(
+                record.task_id, DocumentUploadStatus.PENDING.value
             )
 
             # 锁内收集新任务ID，锁外发布消息（防锁竞争导致消费者跳过）
@@ -485,7 +485,7 @@ class DocumentUploadParseService:
         return output.read()
 
     @classmethod
-    async def _download_source_file(cls, record: KnowledgeUploadDocumentRecord) -> bytes:
+    async def _download_source_file(cls, record: KnowledgeUploadDocumentParseTask) -> bytes:
         """从 MinIO 下载原始文件"""
         if not record.original_doc_key:
             raise ServiceException('原始文件对象键为空')
@@ -497,7 +497,7 @@ class DocumentUploadParseService:
     @classmethod
     async def _apply_upload_urls(
             cls,
-            record: KnowledgeUploadDocumentRecord,
+            record: KnowledgeUploadDocumentParseTask,
             task: KnowledgeMineruParseTask,
             existing_details: list[KnowledgeMineruParseDetailTask]
     ) -> MinerUApplyUploadUrlsVo:
@@ -533,7 +533,7 @@ class DocumentUploadParseService:
     @classmethod
     async def _upload_segments(
             cls,
-            record: KnowledgeUploadDocumentRecord,
+            record: KnowledgeUploadDocumentParseTask,
             file_urls: list[str],
     ) -> list[bool]:
         """下载源文件到本地后，上传至 MinerU 预签名链接
@@ -570,9 +570,9 @@ class DocumentUploadParseService:
             logger.info(f'解析任务不存在或状态非 PENDING/LINK_FAILED, 跳过: parse_task_id={parse_task_id}')
             return
 
-        record = await KnowledgeUploadRecordDao.get_record_by_id(task.record_id)
+        record = await KnowledgeUploadTaskDao.get_task_by_id(task.task_id)
         if not record:
-            logger.info(f'上传记录不存在: record_id={task.record_id}')
+            logger.info(f'上传任务不存在: task_id={task.task_id}')
             return
 
         existing_details = await KnowledgeMineruParseDetailTaskDao.get_details_by_task_id(parse_task_id)
@@ -598,9 +598,9 @@ class DocumentUploadParseService:
             batch_id=batch_id,
             clear_errors=True,
         )
-        # 更新上传记录状态为 WAITING_UPLOAD
-        await KnowledgeUploadRecordDao.update_status(
-            record_id=record.record_id, status=DocumentUploadStatus.WAITING_UPLOAD.value, clear_errors=True
+        # 更新上传任务状态为 WAITING_UPLOAD
+        await KnowledgeUploadTaskDao.update_status(
+            task_id=record.task_id, status=DocumentUploadStatus.WAITING_UPLOAD.value, clear_errors=True
         )
 
         # 生成分段上传链接过期时间
@@ -658,17 +658,17 @@ class DocumentUploadParseService:
         # 全部成功 → 进入解析中
         if parsing_count == len(upload_results):
             await KnowledgeMineruParseTaskDao.update_status(parse_task_id, MineruParseTaskStatus.PARSING.value, clear_errors=True)
-            await KnowledgeUploadRecordDao.update_status(record.record_id, DocumentUploadStatus.PARSING.value, clear_errors=True)
+            await KnowledgeUploadTaskDao.update_status(record.task_id, DocumentUploadStatus.PARSING.value, clear_errors=True)
             return
         # 全部失败 → 标记上传中
         if failed_count == len(upload_results):
             await KnowledgeMineruParseTaskDao.update_status(parse_task_id, MineruParseTaskStatus.UPLOADING.value)
-            await KnowledgeUploadRecordDao.update_status(record.record_id, DocumentUploadStatus.UPLOADING.value)
+            await KnowledgeUploadTaskDao.update_status(record.task_id, DocumentUploadStatus.UPLOADING.value)
             return
 
         # 部分成功 → 进入解析中 不影响后续获取结果针对分段获取结果
         await KnowledgeMineruParseTaskDao.update_status(parse_task_id, MineruParseTaskStatus.PARSING.value, clear_errors=True)
-        await KnowledgeUploadRecordDao.update_status(record.record_id, DocumentUploadStatus.PARSING.value, clear_errors=True)
+        await KnowledgeUploadTaskDao.update_status(record.task_id, DocumentUploadStatus.PARSING.value, clear_errors=True)
 
     # endregion
 
@@ -676,15 +676,15 @@ class DocumentUploadParseService:
 
     @classmethod
     @transactional(rollback_for=(Exception,))
-    async def process_md_pending(cls, record_id: int) -> None:
+    async def process_md_pending(cls, task_id: int) -> None:
         """
         Stage4 消费者：合并 Markdown 并入库
 
-        :param record_id: 上传记录ID
+        :param task_id: 上传任务ID
         """
-        record = await KnowledgeUploadRecordDao.get_record_by_id(record_id)
+        record = await KnowledgeUploadTaskDao.get_task_by_id(task_id)
         if not record:
-            logger.warning(f'上传记录不存在: record_id={record_id}')
+            logger.warning(f'上传任务不存在: task_id={task_id}')
             return
 
         # 状态守卫：已转换或需用户决策的终态记录无需再次处理
@@ -692,18 +692,18 @@ class DocumentUploadParseService:
             DocumentUploadStatus.CONVERTED.value,
             DocumentUploadStatus.USER_DECISION.value,
         ):
-            logger.info(f'上传记录已是终态({record.status}), 跳过: record_id={record_id}')
+            logger.info(f'上传任务已是终态({record.status}), 跳过: task_id={task_id}')
             return
 
-        active_task = await KnowledgeMineruParseTaskDao.get_active_task_by_record_id(record_id)
+        active_task = await KnowledgeMineruParseTaskDao.get_active_task_by_upload_task_id(task_id)
         if active_task:
-            logger.info(f'存在进行中的解析任务, 跳过: record_id={record_id}')
+            logger.info(f'存在进行中的解析任务, 跳过: task_id={task_id}')
             return
 
         try:
-            # 查询该上传记录下已完成（即所有分段均已上传完毕）的解析任务列表
-            completed_tasks = await KnowledgeMineruParseTaskDao.get_tasks_by_record_id_and_status(
-                record_id, MineruParseTaskStatus.COMPLETED.value
+            # 查询该上传任务下已完成（即所有分段均已上传完毕）的解析任务列表
+            completed_tasks = await KnowledgeMineruParseTaskDao.get_tasks_by_upload_task_id_and_status(
+                task_id, MineruParseTaskStatus.COMPLETED.value
             )
             # 提取已完成任务的 parse_task_id，用于下一步查询分段明细
             parse_task_ids = [task.parse_task_id for task in completed_tasks]
@@ -713,7 +713,7 @@ class DocumentUploadParseService:
             )
 
             if not all_details:
-                logger.warning(f'没有可合并的解析分段: record_id={record_id}')
+                logger.warning(f'没有可合并的解析分段: task_id={task_id}')
                 return
 
             all_details.sort(key=lambda d: d.sequence_number)
@@ -736,7 +736,7 @@ class DocumentUploadParseService:
                     await MineruZipMergeService.replace_image_references(
                         merge_result.merged_markdown,
                         merge_result.image_map,
-                        record.record_id,
+                        record.task_id,
                     )
                 )
 
@@ -744,13 +744,13 @@ class DocumentUploadParseService:
             await cls._save_final_markdown(record, merge_result.merged_markdown)
 
         except Exception as e:
-            logger.error(f'Stage4 md 合并失败: record_id={record_id}, error={e}')
+            logger.error(f'Stage4 md 合并失败: task_id={task_id}, error={e}')
             raise
 
     @classmethod
-    async def _save_final_markdown(cls, record: KnowledgeUploadDocumentRecord, markdown: str) -> None:
+    async def _save_final_markdown(cls, record: KnowledgeUploadDocumentParseTask, markdown: str) -> None:
         """保存最终 Markdown 到 MinIO 并创建 knowledge_document"""
-        object_name = f'{MinioConfig.minio_object_markdown_prefix}/{record.record_id}/{record.doc_title}.md'
+        object_name = f'{MinioConfig.minio_object_markdown_prefix}/{record.task_id}/{record.doc_title}.md'
         await KnowledgeMinioService.upload_stream(markdown.encode('utf-8'), object_name)
         doc_key = object_name
 
@@ -760,7 +760,7 @@ class DocumentUploadParseService:
         )
         if existing:
             db = get_current_session()
-            existing.record_id = record.record_id
+            existing.task_id = record.task_id
             existing.source_type = DocumentSourceType.UPLOAD.value
             existing.doc_desc = record.doc_desc
             existing.doc_name = record.doc_name
@@ -786,7 +786,7 @@ class DocumentUploadParseService:
                 is_latest = '0'
 
             document = KnowledgeDocument(
-                record_id=record.record_id,
+                task_id=record.task_id,
                 source_type=DocumentSourceType.UPLOAD.value,
                 doc_title=record.doc_title,
                 doc_desc=record.doc_desc,
@@ -805,8 +805,8 @@ class DocumentUploadParseService:
             )
             await KnowledgeDocumentDao.add_document(document)
 
-        await KnowledgeUploadRecordDao.update_status(
-            record.record_id, DocumentUploadStatus.CONVERTED.value, clear_errors=True
+        await KnowledgeUploadTaskDao.update_status(
+            record.task_id, DocumentUploadStatus.CONVERTED.value, clear_errors=True
         )
 
     # endregion
@@ -832,8 +832,8 @@ class DocumentUploadParseService:
                     error_code='UPLOAD_TIMEOUT',
                     error_message='所有分段上传链接均已过期',
                 )
-                await KnowledgeUploadRecordDao.update_status(
-                    task.record_id,
+                await KnowledgeUploadTaskDao.update_status(
+                    task.task_id,
                     DocumentUploadStatus.USER_DECISION.value,
                     error_code='UPLOAD_TIMEOUT',
                     error_message='所有分段上传链接均已过期',
@@ -867,9 +867,9 @@ class DocumentUploadParseService:
             logger.warning(f'[Stage2-B] 解析任务不存在: parse_task_id={parse_task_id}')
             return
 
-        record = await KnowledgeUploadRecordDao.get_record_by_id(task.record_id)
+        record = await KnowledgeUploadTaskDao.get_task_by_id(task.task_id)
         if not record:
-            logger.warning(f'[Stage2-B] 上传记录不存在: record_id={task.record_id}')
+            logger.warning(f'[Stage2-B] 上传任务不存在: task_id={task.task_id}')
             return
 
         file_urls = [d.upload_url for d in batch_details]
@@ -894,12 +894,12 @@ class DocumentUploadParseService:
 
     @classmethod
     @transactional(rollback_for=(Exception,))
-    async def poll_parse_results(cls, parse_task_id: int, record_id: int, batch_id: str) -> bool:
+    async def poll_parse_results(cls, parse_task_id: int, task_id: int, batch_id: str) -> bool:
         """
         Stage3：轮询单次 MinerU 解析结果并收敛状态
 
         :param parse_task_id: 解析任务ID
-        :param record_id: 上传记录ID
+        :param task_id: 上传任务ID
         :param batch_id: MinerU 批次ID
         """
         client = MineUClient()
@@ -957,8 +957,8 @@ class DocumentUploadParseService:
             await KnowledgeMineruParseTaskDao.update_status(
                 parse_task_id, MineruParseTaskStatus.COMPLETED.value, clear_errors=True
             )
-            await KnowledgeUploadRecordDao.update_status(
-                record_id, DocumentUploadStatus.COMPLETED.value, clear_errors=True
+            await KnowledgeUploadTaskDao.update_status(
+                task_id, DocumentUploadStatus.COMPLETED.value, clear_errors=True
             )
             # 通知调度器在锁外发布 Stage4 消息
             return True
@@ -970,8 +970,8 @@ class DocumentUploadParseService:
                 error_code='PARSE_FAILED',
                 error_message='部分分段解析失败',
             )
-            await KnowledgeUploadRecordDao.update_status(
-                record_id,
+            await KnowledgeUploadTaskDao.update_status(
+                task_id,
                 DocumentUploadStatus.USER_DECISION.value,
                 error_code='PARSE_FAILED',
                 error_message='部分分段解析失败',

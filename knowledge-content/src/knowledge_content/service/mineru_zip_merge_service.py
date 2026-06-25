@@ -105,7 +105,7 @@ class MineruZipMergeService:
         cls,
         markdown: str,
         image_map: dict[str, bytes],
-        record_id: int,
+        task_id: int,
     ) -> str:
         """
         替换 Markdown 中的图片引用为 MinIO URL，并生成图片描述替代文本
@@ -118,7 +118,7 @@ class MineruZipMergeService:
 
         :param markdown: 原始合并后的 Markdown 内容（含相对路径图片引用）
         :param image_map: 图片相对路径到字节数据的映射
-        :param record_id: 文档上传记录 ID，用于构造 MinIO 对象路径
+        :param task_id: 上传任务 ID，用于构造 MinIO 对象路径
         :return: 图片引用和替代文本全部替换完成后的 Markdown 内容
         """
         updated_markdown = markdown
@@ -126,7 +126,7 @@ class MineruZipMergeService:
         for rel_path, img_bytes in image_map.items():
             # 1. 上传图片至 MinIO，获取公网可访问 URL
             object_name = (
-                f'{MinioConfig.minio_object_image_prefix}/{record_id}/{rel_path}'
+                f'{MinioConfig.minio_object_image_prefix}/{task_id}/{rel_path}'
             )
             await KnowledgeMinioService.upload_stream(img_bytes, object_name)
             image_url = KnowledgeMinioService.get_object_url(object_name)

@@ -19,7 +19,7 @@ from knowledge_content.mapper.dao.mineru_parse_detail_task_dao import (
     KnowledgeMineruParseDetailTaskDao,
 )
 from knowledge_content.mapper.dao.mineru_parse_task_dao import KnowledgeMineruParseTaskDao
-from knowledge_content.mapper.dao.upload_record_dao import KnowledgeUploadRecordDao
+from knowledge_content.mapper.dao.upload_task_dao import KnowledgeUploadTaskDao
 from knowledge_content.mapper.do.parse_detail_task_do import KnowledgeMineruParseDetailTask
 from knowledge_content.service.document_upload_parse_service import DocumentUploadParseService
 
@@ -38,12 +38,12 @@ class DocumentParseScheduler:
         logger.info(f'[Stage2-A] 扫描到 {len(tasks)} 个 LINK_FAILED 任务')
         for task in tasks:
             try:
-                # 分布式锁：基于 record_id，与删除接口互斥
-                lock_key = LockKey.upload_record_key(task.record_id)
+                # 分布式锁：基于 task_id，与删除接口互斥
+                lock_key = LockKey.upload_task_key(task.task_id)
                 async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
                     if not acquired:
                         logger.info(
-                            f'[Stage2-A] 上传记录正在处理中，跳过: parse_task_id={task.parse_task_id}, record_id={task.record_id}')
+                            f'[Stage2-A] 上传任务正在处理中，跳过: parse_task_id={task.parse_task_id}, task_id={task.task_id}')
                         continue
 
                     await DocumentUploadParseService.process_pending_task(task.parse_task_id)
@@ -57,12 +57,12 @@ class DocumentParseScheduler:
         logger.info(f'[Stage2-A] 扫描到 {len(pending_tasks)} 个 PENDING 任务')
         for task in pending_tasks:
             try:
-                # 分布式锁：基于 record_id，与删除接口互斥
-                lock_key = LockKey.upload_record_key(task.record_id)
+                # 分布式锁：基于 task_id，与删除接口互斥
+                lock_key = LockKey.upload_task_key(task.task_id)
                 async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
                     if not acquired:
                         logger.info(
-                            f'[Stage2-A] 上传记录正在处理中，跳过: parse_task_id={task.parse_task_id}, record_id={task.record_id}')
+                            f'[Stage2-A] 上传任务正在处理中，跳过: parse_task_id={task.parse_task_id}, task_id={task.task_id}')
                         continue
 
                     await DocumentUploadParseService.process_pending_task(task.parse_task_id)
@@ -85,18 +85,18 @@ class DocumentParseScheduler:
         for parse_task_id, batch_details in batch_groups.items():
             # 按batch_id处理一个文档中上传失败的分段
             try:
-                # 先查询任务获取 record_id
+                # 先查询任务获取 task_id
                 task = await KnowledgeMineruParseTaskDao.get_task_by_id(parse_task_id)
                 if not task:
                     logger.info(f'[Stage2-B] 解析任务不存在，跳过: parse_task_id={parse_task_id}')
                     continue
 
-                # 分布式锁：基于 record_id，与删除接口互斥
-                lock_key = LockKey.upload_record_key(task.record_id)
+                # 分布式锁：基于 task_id，与删除接口互斥
+                lock_key = LockKey.upload_task_key(task.task_id)
                 async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
                     if not acquired:
                         logger.info(
-                            f'[Stage2-B] 上传记录正在处理中，跳过: parse_task_id={parse_task_id}, record_id={task.record_id}')
+                            f'[Stage2-B] 上传任务正在处理中，跳过: parse_task_id={parse_task_id}, task_id={task.task_id}')
                         continue
 
                     DocumentUploadParseService.stage2_path_b_upload_failed(parse_task_id, batch_details)
@@ -115,28 +115,28 @@ class DocumentParseScheduler:
             if not task.batch_id:
                 continue
             try:
-                # 分布式锁：基于 record_id，与删除接口互斥
-                lock_key = LockKey.upload_record_key(task.record_id)
+                # 分布式锁：基于 task_id，与删除接口互斥
+                lock_key = LockKey.upload_task_key(task.task_id)
                 need_publish = False
                 async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
                     if not acquired:
                         logger.info(
-                            f'[Stage3] 上传记录正在处理中，跳过: parse_task_id={task.parse_task_id}, record_id={task.record_id}')
+                            f'[Stage3] 上传任务正在处理中，跳过: parse_task_id={task.parse_task_id}, task_id={task.task_id}')
                         continue
 
                     need_publish = await DocumentUploadParseService.poll_parse_results(
-                        task.parse_task_id, task.record_id, task.batch_id
+                        task.parse_task_id, task.task_id, task.batch_id
                     )
                 if need_publish:
-                    await DocumentUploadParseService.publish_md_pending(task.record_id)
-                    logger.info(f'[Stage3] 发布 md pending: record_id={task.record_id}')
+                    await DocumentUploadParseService.publish_md_pending(task.task_id)
+                    logger.info(f'[Stage3] 发布 md pending: task_id={task.task_id}')
             except Exception as e:
                 logger.error(f'[Stage3] 轮询失败: parse_task_id={task.parse_task_id}, error={e}')
 
     @classmethod
     async def stage4_retry_convert_failed(cls) -> None:
         """Stage4：重新触发 md 合并（CONVERT_FAILED + COMPLETED 兜底）"""
-        records = await KnowledgeUploadRecordDao.get_records_by_statuses(
+        records = await KnowledgeUploadTaskDao.get_tasks_by_statuses(
             [DocumentUploadStatus.CONVERT_FAILED.value, DocumentUploadStatus.COMPLETED.value]
         )
         if not records:
@@ -145,17 +145,17 @@ class DocumentParseScheduler:
 
         for record in records:
 
-            lock_key = LockKey.upload_record_key(record.record_id)
+            lock_key = LockKey.upload_task_key(record.task_id)
             async with DistributedLock(lock_key, expire=180, timeout=0) as acquired:
                 if not acquired:
-                    logger.info(f'[Stage4] 上传记录正在处理中，跳过: record_id={record.record_id}')
+                    logger.info(f'[Stage4] 上传任务正在处理中，跳过: task_id={record.task_id}')
                     continue
                 try:
-                    await DocumentUploadParseService.process_md_pending(record.record_id)
+                    await DocumentUploadParseService.process_md_pending(record.task_id)
                 except Exception as e:
-                    logger.error(f'[Stage4] 处理失败: record_id={record.record_id}, error={e}')
-                    await KnowledgeUploadRecordDao.update_status(
-                        record.record_id,
+                    logger.error(f'[Stage4] 处理失败: task_id={record.task_id}, error={e}')
+                    await KnowledgeUploadTaskDao.update_status(
+                        record.task_id,
                         DocumentUploadStatus.CONVERT_FAILED.value,
                         error_code='STAGE4_ERROR',
                         error_message=str(e),

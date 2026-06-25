@@ -11,7 +11,7 @@ from knowledge_common.common.vo import DataResponseModel, PageResponseModel, Res
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import ResponseUtil
 from knowledge_content.enums.document_upload_status_enum import DocumentUploadStatus
-from knowledge_content.mapper.do.upload_record_do import KnowledgeUploadDocumentRecord
+from knowledge_content.mapper.do.upload_task_do import KnowledgeUploadDocumentParseTask
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy import ColumnElement
 
@@ -96,7 +96,7 @@ async def upload_document(
     upload_model: Annotated[UploadDocumentModel, Depends(upload_document_form)],
 ) -> Response:
     result = await DocumentUploadParseService.upload_document(file=file, upload_model=upload_model)
-    logger.info(f'文档上传成功: record_id={result.record_id}')
+    logger.info(f'文档上传成功: task_id={result.task_id}')
     return ResponseUtil.success(data=result)
 
 
@@ -110,7 +110,7 @@ async def upload_document(
 async def list_document_records(
     request: Request,
     query_object: Annotated[ListDocumentRecordsQueryModel, Query()],
-    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(KnowledgeUploadDocumentRecord)],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(KnowledgeUploadDocumentParseTask)],
 ) -> Response:
     result = await DocumentUploadParseService.list_records(query_object, data_scope_sql)
     return ResponseUtil.success(model_content=result)
@@ -147,34 +147,34 @@ async def get_parse_task_details(
 
 
 @document_upload_parse_controller.get(
-    '/{record_id}/parse-tasks',
-    summary='获取上传记录下的所有解析任务',
-    description='返回该上传记录关联的所有解析任务列表（按创建时间降序）',
+    '/{task_id}/parse-tasks',
+    summary='获取上传任务下的所有解析任务',
+    description='返回该上传任务关联的所有解析任务列表（按创建时间降序）',
     response_model=DataResponseModel[list[ParseTaskItemResponseModel]],
     dependencies=[UserInterfaceAuthDependency('rag:document:parse-task:query')],
 )
 async def get_parse_tasks(
     request: Request,
-    record_id: Annotated[int, Path(description='上传记录ID')],
+    task_id: Annotated[int, Path(description='上传任务ID')],
 ) -> Response:
-    result = await DocumentUploadParseService.get_parse_tasks_by_record(record_id)
+    result = await DocumentUploadParseService.get_parse_tasks_by_record(task_id)
     return ResponseUtil.success(data=result)
 
 
 @document_upload_parse_controller.delete(
-    '/{record_id}',
-    summary='删除上传记录',
-    description='仅允许删除尚未生成 knowledge_document 的记录',
+    '/{task_id}',
+    summary='删除上传任务',
+    description='仅允许删除尚未生成 knowledge_document 的任务',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('rag:document:remove')],
 )
 @Log(title='资料上传', business_type=BusinessType.DELETE)
 async def delete_document_record(
     request: Request,
-    record_id: Annotated[int, Path(description='上传记录ID')],
+    task_id: Annotated[int, Path(description='上传任务ID')],
 ) -> Response:
-    await DocumentUploadParseService.delete_record(record_id)
-    logger.info(f'上传记录删除成功: record_id={record_id}')
+    await DocumentUploadParseService.delete_record(task_id)
+    logger.info(f'上传任务删除成功: task_id={task_id}')
     return ResponseUtil.success(msg='删除成功')
 
 @document_upload_parse_controller.post(

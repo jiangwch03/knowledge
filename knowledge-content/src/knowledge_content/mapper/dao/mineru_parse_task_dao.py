@@ -39,11 +39,11 @@ class KnowledgeMineruParseTaskDao:
         )
 
     @staticmethod
-    async def get_active_task_by_record_id(record_id: int) -> KnowledgeMineruParseTask | None:
+    async def get_active_task_by_upload_task_id(task_id: int) -> KnowledgeMineruParseTask | None:
         """
-        根据上传记录ID获取进行中的解析任务
+        根据上传任务ID获取进行中的解析任务
 
-        :param record_id: 上传记录ID
+        :param task_id: 上传任务ID
         :return: 解析任务对象
         """
         db = get_current_session()
@@ -52,7 +52,7 @@ class KnowledgeMineruParseTaskDao:
                 await db.execute(
                     select(KnowledgeMineruParseTask)
                     .where(
-                        KnowledgeMineruParseTask.record_id == record_id, # type: ignore
+                        KnowledgeMineruParseTask.task_id == task_id, # type: ignore
                         KnowledgeMineruParseTask.status.in_(KnowledgeMineruParseTaskDao.get_active_statuses()),
                         KnowledgeMineruParseTask.del_flag == DeleteFlag.NORMAL.value # type: ignore
                     )
@@ -64,13 +64,13 @@ class KnowledgeMineruParseTaskDao:
         )
 
     @staticmethod
-    async def get_tasks_by_record_id_and_status(
-        record_id: int, status: str
+    async def get_tasks_by_upload_task_id_and_status(
+        task_id: int, status: str
     ) -> list[KnowledgeMineruParseTask]:
         """
-        根据上传记录ID和任务状态获取解析任务列表
+        根据上传任务ID和状态获取解析任务列表
 
-        :param record_id: 上传记录ID
+        :param task_id: 上传任务ID
         :param status: 任务状态
         :return: 解析任务列表
         """
@@ -80,7 +80,7 @@ class KnowledgeMineruParseTaskDao:
                 await db.execute(
                     select(KnowledgeMineruParseTask)
                     .where(
-                        KnowledgeMineruParseTask.record_id == record_id, # type: ignore
+                        KnowledgeMineruParseTask.task_id == task_id, # type: ignore
                         KnowledgeMineruParseTask.status == status, # type: ignore
                         KnowledgeMineruParseTask.del_flag == DeleteFlag.NORMAL.value # type: ignore
                     )
@@ -92,11 +92,11 @@ class KnowledgeMineruParseTaskDao:
         ))
 
     @staticmethod
-    async def get_tasks_by_record_id(record_id: int) -> list[KnowledgeMineruParseTask]:
+    async def get_tasks_by_upload_task_id(task_id: int) -> list[KnowledgeMineruParseTask]:
         """
-        根据上传记录ID获取所有解析任务列表（按创建时间降序）
+        根据上传任务ID获取所有解析任务列表（按创建时间降序）
 
-        :param record_id: 上传记录ID
+        :param task_id: 上传任务ID
         :return: 解析任务列表
         """
         db = get_current_session()
@@ -105,7 +105,7 @@ class KnowledgeMineruParseTaskDao:
                 await db.execute(
                     select(KnowledgeMineruParseTask)
                     .where(
-                        KnowledgeMineruParseTask.record_id == record_id,  # type: ignore
+                        KnowledgeMineruParseTask.task_id == task_id,  # type: ignore
                         KnowledgeMineruParseTask.del_flag == DeleteFlag.NORMAL.value  # type: ignore
                     )
                     .order_by(KnowledgeMineruParseTask.create_time.desc())
@@ -183,18 +183,18 @@ class KnowledgeMineruParseTaskDao:
         )
 
     @staticmethod
-    async def soft_delete_by_record_id(record_id: int, update_by: str = '') -> None:
+    async def soft_delete_by_upload_task_id(task_id: int, update_by: str = '') -> None:
         """
-        根据上传记录ID软删除解析任务
+        根据上传任务ID软删除解析任务
 
-        :param record_id: 上传记录ID
+        :param task_id: 上传任务ID
         :param update_by: 更新者
         :return:
         """
         db = get_current_session()
         await db.execute(
             update(KnowledgeMineruParseTask)
-            .where(KnowledgeMineruParseTask.record_id == record_id) # type: ignore
+            .where(KnowledgeMineruParseTask.task_id == task_id) # type: ignore
             .values(del_flag=DeleteFlag.DELETED.value, update_by=update_by, update_time=datetime.now())
         )
 

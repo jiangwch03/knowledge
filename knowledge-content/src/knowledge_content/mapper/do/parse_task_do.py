@@ -17,11 +17,11 @@ class KnowledgeMineruParseTask(Base):
     __table_args__ = {'comment': 'MinerU解析任务表'}
 
     parse_task_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='解析任务ID')
-    record_id = Column(
+    task_id = Column(
         BigInteger,
         nullable=True,
         server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type, False),
-        comment='关联上传记录ID',
+        comment='关联上传任务ID',
     )
     parse_mode = Column(String(20), nullable=True, server_default='document', comment='解析模式 html/document')
     enable_formula = Column(CHAR(1), nullable=True, server_default=FormulaSwitch.YES.value, comment='公式识别（0-否 1-是）')

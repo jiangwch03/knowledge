@@ -29,11 +29,12 @@ class KnowledgeDocumentDao:
         )
 
     @staticmethod
-    async def get_document_by_record_id(record_id: int) -> KnowledgeDocument | None:
+    async def get_document_by_task_id(task_id: int, source_type: str = '0') -> KnowledgeDocument | None:
         """
-        根据上传记录ID获取文档
+        根据任务ID获取文档
 
-        :param record_id: 上传记录ID
+        :param task_id: 任务ID
+        :param source_type: 来源类型（0-手动上传 1-网页爬取）
         :return: 文档对象
         """
         db = get_current_session()
@@ -41,7 +42,9 @@ class KnowledgeDocumentDao:
             (
                 await db.execute(
                     select(KnowledgeDocument).where(
-                        KnowledgeDocument.record_id == record_id, KnowledgeDocument.del_flag == DeleteFlag.NORMAL.value  # type: ignore
+                        KnowledgeDocument.task_id == task_id,  # type: ignore
+                        KnowledgeDocument.source_type == source_type,  # type: ignore
+                        KnowledgeDocument.del_flag == DeleteFlag.NORMAL.value  # type: ignore
                     )
                 )
             )

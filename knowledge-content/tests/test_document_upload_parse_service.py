@@ -80,7 +80,7 @@ class TestHandleParseDecision:
         """测试用户选择删除"""
         async def mock_get_task(_):
             task = MagicMock()
-            task.record_id = 1
+            task.task_id = 1
             task.status = 'FAILED'
             return task
 
@@ -94,21 +94,21 @@ class TestHandleParseDecision:
                 side_effect=mock_get_task,
             ),
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.get_record_by_id',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.get_task_by_id',
                 new_callable=AsyncMock,
-                return_value=MagicMock(record_id=1),
+                return_value=MagicMock(task_id=1),
             ),
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeDocumentDao.get_document_by_record_id',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeDocumentDao.get_document_by_task_id',
                 new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.soft_delete',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.soft_delete',
                 new_callable=AsyncMock,
             ) as mock_delete_record,
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeMineruParseTaskDao.soft_delete_by_record_id',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeMineruParseTaskDao.soft_delete_by_upload_task_id',
                 new_callable=AsyncMock,
             ) as mock_delete_task,
             patch(
@@ -129,7 +129,7 @@ class TestHandleParseDecision:
         """测试非 FAILED 状态不可重试"""
         async def mock_get_task(_):
             task = MagicMock()
-            task.record_id = 1
+            task.task_id = 1
             task.status = 'PENDING'
             return task
 
@@ -140,9 +140,9 @@ class TestHandleParseDecision:
                 side_effect=mock_get_task,
             ),
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.get_record_by_id',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.get_task_by_id',
                 new_callable=AsyncMock,
-                return_value=MagicMock(record_id=1, status='USER_DECISION'),
+                return_value=MagicMock(task_id=1, status='USER_DECISION'),
             ),
         ):
             decision = HandleParseDecisionModel(action=ParseDecisionAction.RETRY)

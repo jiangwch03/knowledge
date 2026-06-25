@@ -7,15 +7,15 @@ from knowledge_common.config.env import DataBaseConfig
 from knowledge_common.utils.common_util import SqlalchemyUtil
 
 
-class KnowledgeUploadDocumentRecord(Base):
+class KnowledgeUploadDocumentParseTask(Base):
     """
-    文档上传记录表
+    文档上传任务表
     """
 
-    __tablename__ = 'knowledge_upload_document_record'
-    __table_args__ = {'comment': '文档上传记录表'}
+    __tablename__ = 'knowledge_upload_document_parse_task'
+    __table_args__ = {'comment': '文档上传任务表'}
 
-    record_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='上传记录ID')
+    task_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='上传任务ID')
     doc_title = Column(String(255), nullable=False, comment='文档标题')
     doc_desc = Column(
         String(500),

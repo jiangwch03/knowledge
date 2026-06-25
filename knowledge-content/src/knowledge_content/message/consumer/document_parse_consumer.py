@@ -15,7 +15,7 @@ from knowledge_common.utils.log_util import logger
 
 from knowledge_content.enums.mineru_parse_task_status_enum import MineruParseTaskStatus
 from knowledge_content.mapper.dao.mineru_parse_task_dao import KnowledgeMineruParseTaskDao
-from knowledge_content.mapper.dao.upload_record_dao import KnowledgeUploadRecordDao
+from knowledge_content.mapper.dao.upload_task_dao import KnowledgeUploadTaskDao
 from knowledge_content.service.document_upload_parse_service import DocumentUploadParseService
 from knowledge_content.service.vo.message_stream_topic_vo import DocumentMdPending, DocumentParsePending
 
@@ -31,17 +31,17 @@ async def handle_document_parse_pending(msg: Message) -> None:
     payload = DocumentParsePending.model_validate(value)
     parse_task_id = payload.parse_task_id
     
-    # 先查询任务获取 record_id
+    # 先查询任务获取 task_id
     task = await KnowledgeMineruParseTaskDao.get_task_by_id(parse_task_id)
     if not task:
         logger.info(f'[Stage2-consumer] 解析任务不存在，跳过: parse_task_id={parse_task_id}')
         return
     
-    # 分布式锁：基于 record_id，与删除接口互斥
-    lock_key = LockKey.upload_record_key(task.record_id)
+    # 分布式锁：基于 task_id，与删除接口互斥
+    lock_key = LockKey.upload_task_key(task.task_id)
     async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
         if not acquired:
-            logger.info(f'[Stage2-consumer] 上传记录正在处理中，跳过: parse_task_id={parse_task_id}, record_id={task.record_id}')
+            logger.info(f'[Stage2-consumer] 上传任务正在处理中，跳过: parse_task_id={parse_task_id}, task_id={task.task_id}')
             return
         
         logger.info(f'[Stage2-consumer] 开始处理解析任务: parse_task_id={parse_task_id}')
@@ -55,8 +55,8 @@ async def handle_document_parse_pending(msg: Message) -> None:
                     error_code='STAGE2_ERROR',
                     error_message=str(e),
                 )
-                await KnowledgeUploadRecordDao.update_status(
-                    task.record_id,
+                await KnowledgeUploadTaskDao.update_status(
+                    task.task_id,
                     DocumentUploadStatus.LINK_FAILED.value,
                     error_code='STAGE2_ERROR',
                     error_message=str(e),
@@ -74,25 +74,25 @@ async def handle_document_md_pending(msg: Message) -> None:
     """
     value = msg.value or {}
     payload = DocumentMdPending.model_validate(value)
-    record_id = payload.record_id
+    task_id = payload.task_id
     
-    # 分布式锁：防止同时处理同一上传记录
-    lock_key = LockKey.upload_record_key(record_id)
+    # 分布式锁：防止同时处理同一上传任务
+    lock_key = LockKey.upload_task_key(task_id)
     async with DistributedLock(lock_key, expire=180, timeout=0) as acquired:
         if not acquired:
-            logger.info(f'[Stage4-consumer] 上传记录正在处理中，跳过: record_id={record_id}')
+            logger.info(f'[Stage4-consumer] 上传任务正在处理中，跳过: task_id={task_id}')
             return
         
-        logger.info(f'[Stage4-consumer] 开始合并 Markdown: record_id={record_id}')
+        logger.info(f'[Stage4-consumer] 开始合并 Markdown: task_id={task_id}')
         try:
-            await DocumentUploadParseService.process_md_pending(record_id)
+            await DocumentUploadParseService.process_md_pending(task_id)
         except Exception as e:
             async with async_session_scope() as session:
-                await KnowledgeUploadRecordDao.update_status(
-                    record_id,
+                await KnowledgeUploadTaskDao.update_status(
+                    task_id,
                     DocumentUploadStatus.CONVERT_FAILED.value,
                     error_code='STAGE4_ERROR',
                     error_message=str(e),
                 )
                 await session.commit()
-        logger.info(f'[Stage4-consumer] Markdown 合并完成: record_id={record_id}')
+        logger.info(f'[Stage4-consumer] Markdown 合并完成: task_id={task_id}')

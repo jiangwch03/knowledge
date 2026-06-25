@@ -686,7 +686,7 @@ function handleDownload(row) {
 function handleDelete(row) {
   proxy.$modal
     .confirm('确认删除该记录吗？')
-    .then(() => delDocumentRecord(row.recordId))
+    .then(() => delDocumentRecord(row.taskId))
     .then(() => {
       proxy.$modal.msgSuccess("删除成功");
       getList();
@@ -701,9 +701,9 @@ function openTaskDetail(row) {
   taskDetailList.value = [];
   taskList.value = [];
   selectedTaskId.value = row.parseTaskId;
-  // 加载该记录下的所有任务列表
-  if (row.recordId) {
-    getParseTasksByRecord(row.recordId).then((response) => {
+  // 加载该任务下的所有解析任务列表
+  if (row.taskId) {
+    getParseTasksByRecord(row.taskId).then((response) => {
       taskList.value = response.data || [];
     });
   }

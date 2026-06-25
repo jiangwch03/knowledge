@@ -113,7 +113,7 @@ class LockKey:
     PREFIX = 'lock'
     UPLOAD_DOCUMENT = 'upload:doc'
     PARSE_TASK = 'parse:task'
-    UPLOAD_RECORD = 'upload:record'
+    UPLOAD_TASK = 'upload:task'
     USER_DECISION = 'user:decision'
 
     # ==================== Key 生成方法 ====================
@@ -151,15 +151,15 @@ class LockKey:
         return f'{LockKey.PREFIX}:{LockKey.PARSE_TASK}:{parse_task_id}'
 
     @staticmethod
-    def upload_record_key(record_id: int) -> str:
+    def upload_task_key(task_id: int) -> str:
         """
-        上传记录锁 key
+        上传任务锁 key
 
-        用于删除接口和 Stage4，防止同时操作同一上传记录。
+        用于删除接口和 Stage4，防止同时操作同一上传任务。
 
-        :param record_id: 上传记录ID
+        :param task_id: 上传任务ID
         """
-        return f'{LockKey.PREFIX}:{LockKey.UPLOAD_RECORD}:{record_id}'
+        return f'{LockKey.PREFIX}:{LockKey.UPLOAD_TASK}:{task_id}'
 
     @staticmethod
     def user_decision_key(parse_task_id: int) -> str:

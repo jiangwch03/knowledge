@@ -3,9 +3,9 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
-class UploadRecordUpdateVO(BaseModel):
+class UploadTaskUpdateVO(BaseModel):
     """
-    上传记录更新值对象（DAO 层 update 操作的字段契约）
+    上传任务更新值对象（DAO 层 update 操作的字段契约）
     """
 
     status: str = Field(..., description='状态')

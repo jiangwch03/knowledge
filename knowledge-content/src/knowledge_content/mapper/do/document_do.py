@@ -16,11 +16,11 @@ class KnowledgeDocument(Base):
     __table_args__ = {'comment': '文档主表'}
 
     doc_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='文档主键')
-    record_id = Column(
+    task_id = Column(
         BigInteger,
         nullable=True,
         server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type, False),
-        comment='关联上传记录ID',
+        comment='关联任务ID（source_type=0时为上传任务ID，source_type=1时为爬取任务ID）',
     )
     source_type = Column(CHAR(1), nullable=True, server_default='0', comment='来源类型（0-手动上传 1-网页爬取）')
     doc_title = Column(String(255), nullable=False, comment='文档标题')

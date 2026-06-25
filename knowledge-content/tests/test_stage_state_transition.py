@@ -28,7 +28,7 @@ from knowledge_content.enums.mineru_parse_detail_state_enum import MineruParseDe
 from knowledge_content.enums.mineru_parse_task_status_enum import MineruParseTaskStatus
 from knowledge_content.mapper.do.parse_detail_task_do import KnowledgeMineruParseDetailTask
 from knowledge_content.mapper.do.parse_task_do import KnowledgeMineruParseTask
-from knowledge_content.mapper.do.upload_record_do import KnowledgeUploadDocumentRecord
+from knowledge_content.mapper.do.upload_task_do import KnowledgeUploadDocumentParseTask
 from knowledge_content.service.document_upload_parse_service import DocumentUploadParseService
 
 
@@ -60,7 +60,7 @@ class TestStage2PathARetryLinkFailed:
         """测试 LINK_FAILED 任务重新申请链接成功"""
         mock_task = MagicMock(spec=KnowledgeMineruParseTask)
         mock_task.parse_task_id = 10
-        mock_task.record_id = 1
+        mock_task.task_id = 1
         mock_task.status = MineruParseTaskStatus.PENDING.value
         mock_task.parse_mode = 'document'
         mock_task.enable_formula = '1'
@@ -68,8 +68,8 @@ class TestStage2PathARetryLinkFailed:
         mock_task.language = 'ch'
         mock_task.is_ocr = '0'
 
-        mock_record = MagicMock(spec=KnowledgeUploadDocumentRecord)
-        mock_record.record_id = 1
+        mock_record = MagicMock(spec=KnowledgeUploadDocumentParseTask)
+        mock_record.task_id = 1
         mock_record.total_pages = 100
         mock_record.original_doc_key = 'https://minio/test.pdf'
         mock_record.doc_name = 'test.pdf'
@@ -87,7 +87,7 @@ class TestStage2PathARetryLinkFailed:
                 return_value=mock_task,
             ),
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.get_record_by_id',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.get_task_by_id',
                 new_callable=AsyncMock,
                 return_value=mock_record,
             ),
@@ -107,7 +107,7 @@ class TestStage2PathARetryLinkFailed:
                 new_callable=AsyncMock,
             ) as mock_update_task,
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.update_status',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.update_status',
                 new_callable=AsyncMock,
             ) as mock_update_record,
             patch(
@@ -177,7 +177,7 @@ class TestStage2PathBUploadFailed:
 
         mock_task = MagicMock(spec=KnowledgeMineruParseTask)
         mock_task.parse_task_id = parse_task_id
-        mock_task.record_id = 2
+        mock_task.task_id = 2
 
         with (
             patch(
@@ -199,7 +199,7 @@ class TestStage2PathBUploadFailed:
                 new_callable=AsyncMock,
             ) as mock_update_task,
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.update_status',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.update_status',
                 new_callable=AsyncMock,
             ) as mock_update_record,
         ):
@@ -228,7 +228,7 @@ class TestStage3PollResults:
 
         mock_task = MagicMock(spec=KnowledgeMineruParseTask)
         mock_task.parse_task_id = parse_task_id
-        mock_task.record_id = record_id
+        mock_task.task_id = record_id
         mock_task.batch_id = batch_id
 
         # 第一次查询返回 PARSING 状态（用于更新）
@@ -291,7 +291,7 @@ class TestStage3PollResults:
                 new_callable=AsyncMock,
             ) as mock_update_task,
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.update_status',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.update_status',
                 new_callable=AsyncMock,
             ) as mock_update_record,
         ):
@@ -359,7 +359,7 @@ class TestStage3PollResults:
                 new_callable=AsyncMock,
             ) as mock_update_task,
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.update_status',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.update_status',
                 new_callable=AsyncMock,
             ) as mock_update_record,
         ):
@@ -378,7 +378,7 @@ class TestStage3PollResults:
                 error_code='PARSE_FAILED',
                 error_message='部分分段解析失败',
             )
-            # 验证上传记录等待用户决策
+            # 验证上传任务等待用户决策
             mock_update_record.assert_called_with(
                 record_id,
                 DocumentUploadStatus.USER_DECISION.value,
@@ -395,8 +395,8 @@ class TestStage4MarkdownMerge:
         """测试 Markdown 合并并入库成功"""
         record_id = 5
 
-        mock_record = MagicMock(spec=KnowledgeUploadDocumentRecord)
-        mock_record.record_id = record_id
+        mock_record = MagicMock(spec=KnowledgeUploadDocumentParseTask)
+        mock_record.task_id = record_id
         mock_record.doc_title = '测试文档'
         mock_record.doc_desc = '描述'
         mock_record.doc_name = 'test.pdf'
@@ -415,17 +415,17 @@ class TestStage4MarkdownMerge:
 
         with (
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.get_record_by_id',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.get_task_by_id',
                 new_callable=AsyncMock,
                 return_value=mock_record,
             ),
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeMineruParseTaskDao.get_active_task_by_record_id',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeMineruParseTaskDao.get_active_task_by_upload_task_id',
                 new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeMineruParseTaskDao.get_tasks_by_record_id_and_status',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeMineruParseTaskDao.get_tasks_by_upload_task_id_and_status',
                 new_callable=AsyncMock,
                 return_value=[MagicMock(parse_task_id=50)],
             ),
@@ -467,13 +467,13 @@ class TestStage4MarkdownMerge:
                 new_callable=AsyncMock,
             ),
             patch(
-                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadRecordDao.update_status',
+                'knowledge_content.service.document_upload_parse_service.KnowledgeUploadTaskDao.update_status',
                 new_callable=AsyncMock,
             ) as mock_update_status,
         ):
             await DocumentUploadParseService.process_md_pending(record_id)
 
-            # 验证上传记录状态更新为 CONVERTED
+            # 验证上传任务状态更新为 CONVERTED
             mock_update_status.assert_called_with(
                 record_id, DocumentUploadStatus.CONVERTED.value
             )

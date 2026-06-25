@@ -42,10 +42,10 @@ export function listDocumentRecord(query) {
   });
 }
 
-// 删除上传记录
-export function delDocumentRecord(recordId) {
+// 删除上传任务
+export function delDocumentRecord(taskId) {
   return request({
-    url: "/document-parse/" + recordId,
+    url: "/document-parse/" + taskId,
     method: "delete",
     baseURL: contentBase,
   });
@@ -79,10 +79,10 @@ export function getParseTaskDetails(parseTaskId) {
   });
 }
 
-// 获取上传记录下的所有解析任务
-export function getParseTasksByRecord(recordId) {
+// 获取上传任务下的所有解析任务
+export function getParseTasksByRecord(taskId) {
   return request({
-    url: "/document-parse/" + recordId + "/parse-tasks",
+    url: "/document-parse/" + taskId + "/parse-tasks",
     method: "get",
     baseURL: contentBase,
   });

@@ -4,14 +4,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
-class UploadRecordRow(BaseModel):
+class UploadTaskRow(BaseModel):
     """
-    上传记录行（DAO 层返回的原始数据结构，camelCase 字典）
+    上传任务行（DAO 层返回的原始数据结构，camelCase 字典）
     """
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    record_id: int = Field(..., description='上传记录ID')
+    task_id: int = Field(..., description='上传任务ID')
     doc_id: int | None = Field(default=None, description='关联文档ID')
     doc_title: str = Field(..., description='文档标题')
     doc_desc: str | None = Field(default=None, description='文档描述')

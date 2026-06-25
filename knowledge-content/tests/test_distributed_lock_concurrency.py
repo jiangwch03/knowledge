@@ -2,8 +2,8 @@
 分布式锁并发测试
 
 验证文件上传功能中分布式锁的互斥性：
-- 同一 record_id 的操作互斥
-- 不同 record_id 的操作可并发
+- 同一 task_id 的操作互斥
+- 不同 task_id 的操作可并发
 - 锁获取失败时正确返回
 """
 
@@ -27,10 +27,10 @@ from knowledge_common.redis.key import LockKey
 class TestLockKeyGeneration:
     """测试锁 Key 生成"""
 
-    def test_upload_record_key(self):
-        """测试上传记录锁 Key 生成"""
-        key = LockKey.upload_record_key(123)
-        assert key == 'lock:upload:record:123'
+    def test_upload_task_key(self):
+        """测试上传任务锁 Key 生成"""
+        key = LockKey.upload_task_key(123)
+        assert key == 'lock:upload:task:123'
 
     def test_parse_task_key(self):
         """测试解析任务锁 Key 生成"""
@@ -49,14 +49,14 @@ class TestLockKeyGeneration:
 
     def test_different_ids_different_keys(self):
         """不同 ID 生成不同的 Key"""
-        key1 = LockKey.upload_record_key(1)
-        key2 = LockKey.upload_record_key(2)
+        key1 = LockKey.upload_task_key(1)
+        key2 = LockKey.upload_task_key(2)
         assert key1 != key2
 
     def test_same_id_same_keys(self):
         """相同 ID 生成相同的 Key"""
-        key1 = LockKey.upload_record_key(123)
-        key2 = LockKey.upload_record_key(123)
+        key1 = LockKey.upload_task_key(123)
+        key2 = LockKey.upload_task_key(123)
         assert key1 == key2
 
 
@@ -64,12 +64,12 @@ class TestDistributedLockConcurrency:
     """测试分布式锁并发场景"""
 
     @pytest.mark.asyncio
-    async def test_same_record_id_mutual_exclusion(self):
-        """同一 record_id 的操作应该互斥"""
+    async def test_same_task_id_mutual_exclusion(self):
+        """同一 task_id 的操作应该互斥"""
         from knowledge_common.redis import DistributedLock
 
-        record_id = 1
-        lock_key = LockKey.upload_record_key(record_id)
+        task_id = 1
+        lock_key = LockKey.upload_task_key(task_id)
 
         # 模拟锁状态：第一次获取成功，第二次失败
         acquire_count = 0
@@ -100,14 +100,14 @@ class TestDistributedLockConcurrency:
                     assert acquired2 is False
 
     @pytest.mark.asyncio
-    async def test_different_record_ids_can_concurrent(self):
-        """不同 record_id 的操作可以并发"""
+    async def test_different_task_ids_can_concurrent(self):
+        """不同 task_id 的操作可以并发"""
         from knowledge_common.redis import DistributedLock
 
-        record_id_1 = 1
-        record_id_2 = 2
-        lock_key_1 = LockKey.upload_record_key(record_id_1)
-        lock_key_2 = LockKey.upload_record_key(record_id_2)
+        task_id_1 = 1
+        task_id_2 = 2
+        lock_key_1 = LockKey.upload_task_key(task_id_1)
+        lock_key_2 = LockKey.upload_task_key(task_id_2)
 
         # 模拟 Redis：不同 key 都能获取成功
         async def mock_set(key, value, nx=False, ex=None):
@@ -134,7 +134,7 @@ class TestDistributedLockConcurrency:
         """锁超时后应该返回 False"""
         from knowledge_common.redis import DistributedLock
 
-        lock_key = LockKey.upload_record_key(1)
+        lock_key = LockKey.upload_task_key(1)
 
         # 模拟 Redis：锁一直被占用
         async def mock_set(key, value, nx=False, ex=None):
@@ -156,7 +156,7 @@ class TestDistributedLockConcurrency:
         """锁释放后可以重新获取"""
         from knowledge_common.redis import DistributedLock
 
-        lock_key = LockKey.upload_record_key(1)
+        lock_key = LockKey.upload_task_key(1)
         acquire_count = 0
 
         async def mock_set(key, value, nx=False, ex=None):
@@ -189,47 +189,47 @@ class TestLockKeyConsistency:
     """测试锁 Key 一致性 - 确保删除与其他操作使用相同的 Key"""
 
     def test_delete_and_decision_use_same_key_type(self):
-        """删除和用户决策都应该使用 upload_record_key"""
-        record_id = 123
+        """删除和用户决策都应该使用 upload_task_key"""
+        task_id = 123
 
         # 删除接口使用的 key
-        delete_key = LockKey.upload_record_key(record_id)
+        delete_key = LockKey.upload_task_key(task_id)
 
-        # 用户决策接口：先查询 task 获取 record_id，然后使用相同的 key
-        # 这里模拟 task.record_id == record_id 的情况
-        decision_key = LockKey.upload_record_key(record_id)
+        # 用户决策接口：先查询 task 获取 task_id，然后使用相同的 key
+        # 这里模拟 task.task_id == task_id 的情况
+        decision_key = LockKey.upload_task_key(task_id)
 
         assert delete_key == decision_key
-        assert delete_key == 'lock:upload:record:123'
+        assert delete_key == 'lock:upload:task:123'
 
-    def test_stage2_uses_upload_record_key(self):
-        """Stage2 应该使用 upload_record_key（不是 parse_task_key）"""
-        record_id = 100
+    def test_stage2_uses_upload_task_key(self):
+        """Stage2 应该使用 upload_task_key（不是 parse_task_key）"""
+        task_id = 100
         parse_task_id = 200
 
-        # Stage2 应该使用 record_id 的 key
-        stage2_key = LockKey.upload_record_key(record_id)
+        # Stage2 应该使用 task_id 的 key
+        stage2_key = LockKey.upload_task_key(task_id)
 
         # 而不是 parse_task_id 的 key
         wrong_key = LockKey.parse_task_key(parse_task_id)
 
         assert stage2_key != wrong_key
-        assert stage2_key == 'lock:upload:record:100'
+        assert stage2_key == 'lock:upload:task:100'
 
-    def test_all_operations_use_record_id_key(self):
-        """验证所有操作都使用 upload_record_key"""
-        record_id = 42
+    def test_all_operations_use_task_id_key(self):
+        """验证所有操作都使用 upload_task_key"""
+        task_id = 42
 
-        expected_key = f'lock:upload:record:{record_id}'
+        expected_key = f'lock:upload:task:{task_id}'
 
         # 删除接口
-        assert LockKey.upload_record_key(record_id) == expected_key
+        assert LockKey.upload_task_key(task_id) == expected_key
 
-        # 用户决策接口（通过 record_id）
-        assert LockKey.upload_record_key(record_id) == expected_key
+        # 用户决策接口（通过 task_id）
+        assert LockKey.upload_task_key(task_id) == expected_key
 
-        # Stage2/3/4（通过 record_id）
-        assert LockKey.upload_record_key(record_id) == expected_key
+        # Stage2/3/4（通过 task_id）
+        assert LockKey.upload_task_key(task_id) == expected_key
 
 
 if __name__ == '__main__':

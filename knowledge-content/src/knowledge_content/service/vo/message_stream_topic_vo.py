@@ -7,4 +7,4 @@ class DocumentParsePending(BaseModel):
 
 class DocumentMdPending(BaseModel):
     """document.md.pending 消息载荷"""
-    record_id: int = Field(description='上传记录ID')
+    task_id: int = Field(description='上传任务ID')

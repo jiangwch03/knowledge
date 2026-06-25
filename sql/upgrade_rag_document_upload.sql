@@ -10,7 +10,7 @@
 DROP TABLE IF EXISTS `knowledge_document`;
 CREATE TABLE `knowledge_document` (
     `doc_id` bigint NOT NULL AUTO_INCREMENT COMMENT '文档主键',
-    `record_id` bigint DEFAULT NULL COMMENT '关联上传记录ID',
+    `task_id` bigint DEFAULT NULL COMMENT '关联任务ID（source_type=0时为上传任务ID，source_type=1时为爬取任务ID）',
     `source_type` char(1) DEFAULT '0' COMMENT '来源类型（0-手动上传 1-网页爬取）',
     `doc_title` varchar(255) NOT NULL COMMENT '文档标题',
     `doc_desc` varchar(500) DEFAULT NULL COMMENT '文档描述',
@@ -36,16 +36,15 @@ CREATE TABLE `knowledge_document` (
     UNIQUE KEY `uk_doc_title_version` (`doc_title`, `doc_version`),
     KEY `idx_doc_title` (`doc_title`),
     KEY `idx_source_type` (`source_type`),
-    KEY `idx_is_latest` (`is_latest`),
-    KEY `idx_record_id` (`record_id`)
+    KEY `idx_is_latest` (`is_latest`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档主表';
 
 -- ----------------------------
--- 2、文档上传记录表
+-- 2、文档上传任务表
 -- ----------------------------
-DROP TABLE IF EXISTS `knowledge_upload_document_record`;
-CREATE TABLE `knowledge_upload_document_record` (
-    `record_id` bigint NOT NULL AUTO_INCREMENT COMMENT '上传记录ID',
+DROP TABLE IF EXISTS `knowledge_upload_document_parse_task`;
+CREATE TABLE `knowledge_upload_document_parse_task` (
+    `task_id` bigint NOT NULL AUTO_INCREMENT COMMENT '上传任务ID',
     `doc_title` varchar(255) NOT NULL COMMENT '文档标题',
     `doc_desc` varchar(500) DEFAULT NULL COMMENT '文档描述',
     `doc_name` varchar(255) DEFAULT NULL COMMENT '文件名',
@@ -67,11 +66,11 @@ CREATE TABLE `knowledge_upload_document_record` (
     `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
     `remark` varchar(500) DEFAULT NULL COMMENT '备注',
-    PRIMARY KEY (`record_id`),
+    PRIMARY KEY (`task_id`),
     UNIQUE KEY `uk_doc_title_version` (`doc_title`, `doc_version`),
     KEY `idx_doc_title` (`doc_title`),
     KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档上传记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档上传任务表';
 
 -- ----------------------------
 -- 3、MinerU解析任务表
@@ -79,7 +78,7 @@ CREATE TABLE `knowledge_upload_document_record` (
 DROP TABLE IF EXISTS `knowledge_mineru_parse_task`;
 CREATE TABLE `knowledge_mineru_parse_task` (
     `parse_task_id` bigint NOT NULL AUTO_INCREMENT COMMENT '解析任务ID',
-    `record_id` bigint DEFAULT NULL COMMENT '关联上传记录ID',
+    `task_id` bigint DEFAULT NULL COMMENT '关联上传任务ID',
     `parse_mode` varchar(20) DEFAULT 'document' COMMENT '解析模式 html/document',
     `enable_formula` char(1) DEFAULT '1' COMMENT '公式识别（0-否 1-是）',
     `enable_table` char(1) DEFAULT '1' COMMENT '表格识别（0-否 1-是）',
@@ -98,7 +97,7 @@ CREATE TABLE `knowledge_mineru_parse_task` (
     `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
     `remark` varchar(500) DEFAULT NULL COMMENT '备注',
     PRIMARY KEY (`parse_task_id`),
-    KEY `idx_record_id` (`record_id`),
+    KEY `idx_task_id` (`task_id`),
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MinerU解析任务表';
 
@@ -138,15 +137,14 @@ CREATE TABLE `knowledge_ai_model_function_adapter` (
     `adapter_id` bigint NOT NULL AUTO_INCREMENT COMMENT '适配ID',
     `function_point` varchar(100) NOT NULL COMMENT '业务功能点',
     `param_id` varchar(64) NOT NULL COMMENT '参数ID，唯一标识业务功能',
-    `model_id` bigint NOT NULL COMMENT '关联模型ID',
+    `model_id` varchar(500) NOT NULL COMMENT '关联模型ID，多个用|分隔',
     `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
     `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
     PRIMARY KEY (`adapter_id`),
-    UNIQUE KEY `uk_param_id` (`param_id`),
-    KEY `idx_model_id` (`model_id`)
+    UNIQUE KEY `uk_param_id` (`param_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型功能适配表';
 
 -- ----------------------------
