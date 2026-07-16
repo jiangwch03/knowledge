@@ -1,10 +1,8 @@
-import io
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import ColumnElement
 
-import pypdf
 from fastapi import UploadFile
 from knowledge_common.common.context import RequestContext
 from knowledge_common.common.transactional import get_current_session, transactional
@@ -469,45 +467,6 @@ class DocumentUploadParseService:
             return new_task.parse_task_id
 
     @classmethod
-    def _slice_pdf_to_segment(
-            cls,
-            source_bytes: bytes,
-            page_ranges: str,
-            suffix: str,
-    ) -> bytes:
-        """按页码范围切分 PDF"""
-        reader = pypdf.PdfReader(io.BytesIO(source_bytes))
-        writer = pypdf.PdfWriter()
-
-        for part in page_ranges.split(','):
-            part = part.strip()
-            if '-' in part:
-                start, end = part.split('-', 1)
-                start_idx = int(start) - 1
-                end_idx = int(end) - 1
-            else:
-                start_idx = int(part) - 1
-                end_idx = start_idx
-
-            for idx in range(start_idx, min(end_idx + 1, len(reader.pages))):
-                writer.add_page(reader.pages[idx])
-
-        output = io.BytesIO()
-        writer.write(output)
-        output.seek(0)
-        return output.read()
-
-    @classmethod
-    async def _download_source_file(cls, record: KnowledgeUploadDocumentParseTask) -> bytes:
-        """从 MinIO 下载原始文件"""
-        if not record.original_doc_key:
-            raise ServiceException('原始文件对象键为空')
-
-        local_path = await KnowledgeMinioService.download_file(record.original_doc_key)
-        with open(local_path.local_path, 'rb') as f:
-            return f.read()
-
-    @classmethod
     async def _apply_upload_urls(
             cls,
             record: KnowledgeUploadDocumentParseTask,
@@ -553,21 +512,24 @@ class DocumentUploadParseService:
 
         不切分文件，所有分段均上传同一份完整源文件，
         MinerU 根据 page_ranges 参数自行处理页码范围。
+        上传结束后删除本地下载文件，避免磁盘堆积。
         """
         if not record.original_doc_key:
             raise ServiceException('原始文件对象键为空')
 
-        # 1. 下载源文件到本地（幂等，已存在则复用）
+        # 1. 下载源文件到本地（大文件落盘，避免整文件进内存）
         download_result = await KnowledgeMinioService.download_file(record.original_doc_key)
         source_path = download_result.local_path
+        try:
+            # 2. 所有分段均指向同一份完整源文件，MinerU 自行按 page_ranges 解析
+            segment_paths = [source_path] * len(file_urls)
 
-        # 2. 所有分段均指向同一份完整源文件，MinerU 自行按 page_ranges 解析
-        segment_paths = [source_path] * len(file_urls)
-
-        # 3. 调用 MinerU 客户端上传本地文件
-        client = MineUClient()
-        result = await client.upload_files(file_urls, segment_paths)
-        return result.upload_results
+            # 3. 调用 MinerU 客户端上传本地文件
+            client = MineUClient()
+            result = await client.upload_files(file_urls, segment_paths)
+            return result.upload_results
+        finally:
+            await FileUtil.clean_temp_file(source_path)
 
     @classmethod
     @transactional(rollback_for=(Exception,))
