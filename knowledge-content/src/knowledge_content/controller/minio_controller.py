@@ -8,8 +8,6 @@ from knowledge_common.utils.response_util import ResponseUtil
 
 from knowledge_content.service.minio_service import MinioService
 from knowledge_content.vo.minio_vo import (
-    MinioDownloadReqVo,
-    MinioDownloadRespVo,
     MinioUploadLocalReqVo,
     MinioUploadRespVo,
 )
@@ -60,25 +58,4 @@ async def upload_stream(
     # 取前端原始文件名，若未提供则降级为 unknown
     filename = file.filename or 'unknown'
     result = await MinioService.upload_stream(content, filename)
-    return ResponseUtil.success(data=result)
-
-
-@router.post(
-    '/download',
-    dependencies=[UserInterfaceAuthDependency('knowledge_content:minio:download')],
-    response_model=DataResponseModel[MinioDownloadRespVo],
-)
-async def download_file(request: MinioDownloadReqVo) -> dict:
-    """根据桶文件路径从 MinIO 下载文件到本地
-
-    通过上传接口返回的 object_name 定位桶内文件，
-    下载到 UploadSettings.DOWNLOAD_PATH/minio 目录下。
-
-    幂等性：若该文件已存在于本地目标路径，则直接返回已有路径，
-    不会重复向 MinIO 发起下载请求。
-
-    :param request: 包含 object_name（桶内文件路径）的请求体
-    :return: 统一成功响应，data 为 MinioDownloadRespVo（含 local_path）
-    """
-    result = await MinioService.download_file(request.object_name)
     return ResponseUtil.success(data=result)
