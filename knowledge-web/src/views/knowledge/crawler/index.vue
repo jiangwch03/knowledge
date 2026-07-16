@@ -492,10 +492,11 @@ import {
   closeCrawlerSession, delCrawlerSession,
   listCrawlerMessages, confirmCrawlerStrategy,
   listCrawlTask, getCrawlTask, delCrawlTask, pauseCrawlTask, resumeCrawlTask, mergeCrawlResults,
-  listCrawlerDocument, previewCrawlerDocument, downloadCrawlerDocument,
+  listCrawlerDocument,
   listCrawlUrlRecords, listCrawlerModels,
   getTaskStatusOptions, getTaskErrorCodeOptions,
 } from '@/api/content/crawler';
+import { previewDocument, downloadDocument } from '@/api/content/document';
 import { MarkdownRender } from 'markstream-vue';
 import 'markstream-vue/index.css';
 import StrategyConfirmCard from './components/StrategyConfirmCard.vue';
@@ -1507,7 +1508,7 @@ const previewContent = ref('');
 
 async function handlePreviewDoc(docId) {
   try {
-    const res = await previewCrawlerDocument(docId);
+    const res = await previewDocument(docId);
     previewContent.value = renderMarkdown(res.data || res);
     previewVisible.value = true;
   } catch (e) {
@@ -1517,7 +1518,7 @@ async function handlePreviewDoc(docId) {
 
 async function handleDownloadDoc(docId) {
   try {
-    const res = await downloadCrawlerDocument(docId);
+    const res = await downloadDocument(docId);
     const blob = new Blob([res.data || res]);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

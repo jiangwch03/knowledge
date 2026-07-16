@@ -239,23 +239,3 @@ export function listCrawlerDocument(query) {
     baseURL: contentBase,
   });
 }
-
-// 预览爬取文档
-export function previewCrawlerDocument(docId) {
-  return request({
-    url: "/crawler/document/" + docId + "/preview",
-    method: "get",
-    baseURL: contentBase,
-    responseType: "text",
-  });
-}
-
-// 下载爬取文档
-export function downloadCrawlerDocument(docId) {
-  return request({
-    url: "/crawler/document/" + docId + "/download",
-    method: "get",
-    baseURL: contentBase,
-    responseType: "blob",
-  });
-}
