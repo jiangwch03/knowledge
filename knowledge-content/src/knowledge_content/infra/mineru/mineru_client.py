@@ -97,7 +97,7 @@ class MineUClient:
                 if len(file_urls) != len(file_items):
                     raise ServiceException('返回的上传链接数量与文件数量不匹配')
         except Exception as e:
-            logger.error(f'MineU 申请上传链接异常: {e}')
+            logger.exception('MineU 申请上传链接异常: {}', e)
             raise ServiceException(f'MineU 申请上传链接异常: {e}') from e
 
         return MinerUApplyUploadUrlsVo(
@@ -134,7 +134,7 @@ class MineUClient:
                         )
                         success = upload_resp.status_code == 200
                     except Exception as upload_err:
-                        logger.warning(f'文件上传异常: {file_path.name}, error={upload_err}')
+                        logger.opt(exception=True).warning('文件上传异常: {}, error={}', file_path.name, upload_err)
                         success = False
 
                     upload_results.append(success)
@@ -143,7 +143,7 @@ class MineUClient:
                     else:
                         logger.warning(f'文件上传失败: {file_path.name}')
         except Exception as e:
-            logger.error(f'批量上传文件整体异常: {e}')
+            logger.exception('批量上传文件整体异常: {}', e)
             raise ServiceException(f'批量上传文件异常: {e}') from e
 
         return MinerUUploadFilesRespVo(upload_results=upload_results)
@@ -241,5 +241,5 @@ class MineUClient:
                 return MinerUBatchResultRespVo.model_validate(data)
 
         except Exception as e:
-            logger.error(f'MinerU 获取批量任务结果异常: {e}')
+            logger.exception('MinerU 获取批量任务结果异常: {}', e)
             raise ServiceException(f'MineU 获取批量任务结果异常: {e}') from e

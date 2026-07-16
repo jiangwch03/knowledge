@@ -49,6 +49,7 @@ class RedisConnection:
             encoding='utf-8',
             decode_responses=True,
             socket_timeout=None,
+            socket_connect_timeout=5,
             health_check_interval=30,
         )
         if log_start_enabled is None:

@@ -51,13 +51,38 @@ class AiModelFunctionAdapterService:
         return AiModelConfigModel(**CamelCaseUtil.transform_result(config))
 
     @classmethod
-    async def _validate_model(cls, model_id: int) -> None:
-        """校验模型是否存在且启用"""
-        model = await AiModelDao.get_ai_model_detail_by_id(model_id)
-        if not model:
-            raise ServiceException('模型不存在')
-        if model.status != '0':
-            raise ServiceException('模型已停用')
+    async def get_adapter_configs_by_param_id_services(cls, param_id: str) -> list[AiModelConfigModel]:
+        """
+        根据参数ID获取所有配置的模型列表
+
+        :param param_id: 参数ID
+        :return: 模型配置列表（含业务元数据 + 技术参数）
+        """
+        configs = await AiModelFunctionAdapterDao.get_adapters_by_param_id(param_id)
+        if not configs:
+            raise ServiceException(f'参数ID [{param_id}] 未配置模型适配')
+        return [AiModelConfigModel(**CamelCaseUtil.transform_result(c)) for c in configs]
+
+    @classmethod
+    async def _validate_models(cls, model_id_str: str) -> None:
+        """
+        校验所有模型是否存在且启用
+
+        model_id 字段以管道符（|）分隔存储多个模型ID，此方法对每个ID校验。
+
+        :param model_id_str: 管道符分隔的模型ID字符串
+        """
+        ids = [x.strip() for x in model_id_str.split('|') if x.strip()]
+        if not ids:
+            raise ServiceException('模型ID不能为空')
+        for mid in ids:
+            if not mid.isdigit():
+                raise ServiceException(f'模型ID格式不合法: {mid}')
+            model = await AiModelDao.get_ai_model_detail_by_id(int(mid))
+            if not model:
+                raise ServiceException(f'模型ID [{mid}] 不存在')
+            if model.status != '0':
+                raise ServiceException(f'模型ID [{mid}] 已停用')
 
     @classmethod
     @transactional(rollback_for=(Exception,))
@@ -75,7 +100,7 @@ class AiModelFunctionAdapterService:
         """
         if await AiModelFunctionAdapterDao.check_param_id_exists(page_object.param_id):
             raise ServiceException(f'参数ID [{page_object.param_id}] 重复定义')
-        await cls._validate_model(page_object.model_id)
+        await cls._validate_models(page_object.model_id)
 
         page_object.create_by = user_name
         page_object.update_by = user_name
@@ -106,7 +131,7 @@ class AiModelFunctionAdapterService:
             page_object.param_id, exclude_adapter_id=page_object.adapter_id
         ):
             raise ServiceException(f'参数ID [{page_object.param_id}] 重复定义')
-        await cls._validate_model(page_object.model_id)
+        await cls._validate_models(page_object.model_id)
 
         edit_adapter = page_object.model_dump(exclude_unset=True, exclude={'model_code', 'model_name'})
         edit_adapter['update_by'] = user_name

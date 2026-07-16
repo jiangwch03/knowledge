@@ -30,7 +30,7 @@ class TestLangChainModelFactory:
             temperature=0.7,
             max_tokens=2048,
         )
-        model = LangChainModelFactory.create_chat_model(model_config)
+        model = LangChainModelFactory.get_chat_model_with_tools_and_retry(model_config)
         assert isinstance(model, Runnable)
 
     def test_create_openai_model_with_full_params(self):
@@ -43,7 +43,7 @@ class TestLangChainModelFactory:
             temperature=0.5,
             max_tokens=2048,
         )
-        model = LangChainModelFactory.create_chat_model(model_config)
+        model = LangChainModelFactory.get_chat_model_with_tools_and_retry(model_config)
         assert isinstance(model, Runnable)
 
     def test_missing_model_code_raises_exception(self):
@@ -54,7 +54,7 @@ class TestLangChainModelFactory:
     def test_unsupported_provider_raises_exception(self):
         """测试不支持的 provider 抛出异常"""
         with pytest.raises(ServiceException) as exc:
-            LangChainModelFactory.create_chat_model(
+            LangChainModelFactory.get_chat_model_with_tools_and_retry(
                 ChatModelConfigModel(
                     provider='anthropic',
                     model_code='claude-3',

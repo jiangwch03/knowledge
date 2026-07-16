@@ -30,6 +30,8 @@ class ConsumerInfo:
     - business_id_fn:可选,业务幂等键生成函数
     - on_error:异常处理策略(目前仅 'retry' / 'rethrow')
     - max_retries:消费侧最大重试次数
+    - pre_ack:是否在调用 handler 前先 ACK 消息(用于超长任务,避免 claim 空转)
+    - max_concurrency:消息并发处理数(默认 1=串行,>1 启用 Worker 池)
     """
 
     consumer_id: str
@@ -39,6 +41,8 @@ class ConsumerInfo:
     business_id_fn: BusinessIdFn | None = None
     on_error: str = 'retry'
     max_retries: int = 3
+    pre_ack: bool = False
+    max_concurrency: int = 1
 
 
 def consumer(
@@ -49,6 +53,8 @@ def consumer(
     business_id_fn: BusinessIdFn | None = None,
     on_error: str = 'retry',
     max_retries: int = 3,
+    pre_ack: bool = False,
+    max_concurrency: int = 1,
 ) -> Callable[[MessageHandler], MessageHandler]:
     """
     消费者装饰器工厂
@@ -67,6 +73,8 @@ def consumer(
     :param business_id_fn: 可选,业务幂等键生成函数 `func(msg) -> any`
     :param on_error: 异常处理策略,默认 'retry'(重试到 max_retries 后由后端兜底)
     :param max_retries: 消费侧最大重试次数
+    :param pre_ack: 是否在调用 handler 前先 ACK 消息(用于超长任务,避免 claim 空转)
+    :param max_concurrency: 消息并发处理数(默认 1=串行,>1 启用 Worker 池)
     :return: 装饰器
     """
     # 局部 import 避免循环:service.py 也会被装饰器反向引用
@@ -90,6 +98,8 @@ def consumer(
             business_id_fn=business_id_fn,
             on_error=on_error,
             max_retries=max_retries,
+            pre_ack=pre_ack,
+            max_concurrency=max_concurrency,
         )
         MessageStreamService._consumers[consumer_id] = info
         logger.debug(

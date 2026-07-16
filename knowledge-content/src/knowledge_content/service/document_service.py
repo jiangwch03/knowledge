@@ -14,6 +14,26 @@ class DocumentService:
     """
 
     @classmethod
+    async def get_next_version(cls, doc_title: str) -> str:
+        """
+        获取指定文档标题的下一个版本号（主版本递增）
+
+        查询同标题已落库的最大版本号，主版本 +1 返回（如 1.0 → 2.0）。
+        查不到或版本号解析异常时返回 '1.0'。
+
+        :param doc_title: 文档标题
+        :return: 下一版本号，如 '2.0'
+        """
+        max_version = await KnowledgeDocumentDao.get_max_version_by_title(doc_title)
+        if not max_version:
+            return '1.0'
+        try:
+            major = int(float(max_version))
+            return f'{major + 1}.0'
+        except (ValueError, IndexError):
+            return '1.0'
+
+    @classmethod
     async def _get_document(cls, doc_id: int) -> tuple[KnowledgeDocument, str]:
         """查询文档并下载到本地临时目录
 

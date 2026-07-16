@@ -17,7 +17,7 @@ class AiModelFunctionAdapterModel(BaseModel):
     adapter_id: int | None = Field(default=None, description='适配ID')
     function_point: str | None = Field(default=None, description='业务功能点')
     param_id: str | None = Field(default=None, description='参数ID，唯一标识业务功能')
-    model_id: int | None = Field(default=None, description='关联模型ID')
+    model_id: str | None = Field(default=None, description='关联模型ID，多个用|分隔')
     model_code: str | None = Field(default=None, description='模型编码')
     model_name: str | None = Field(default=None, description='模型名称')
     create_by: str | None = Field(default=None, description='创建者')
@@ -37,7 +37,7 @@ class AiModelFunctionAdapterModel(BaseModel):
         return self.param_id
 
     @NotBlank(field_name='model_id', message='模型ID不能为空')
-    def get_model_id(self) -> int | None:
+    def get_model_id(self) -> str | None:
         return self.model_id
 
 

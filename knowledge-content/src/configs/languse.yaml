@@ -1,0 +1,4 @@
+languse:
+  LANGFUSE_SECRET_KEY: "sk-lf-6cd589c2-1b6e-4e45-966c-e46caaaab778"
+  LANGFUSE_PUBLIC_KEY: "pk-lf-4ca9e699-98e6-4c27-a955-63debbb7acbd"
+  LANGFUSE_BASE_URL: "https://cloud.langfuse.com"

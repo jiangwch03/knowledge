@@ -19,7 +19,7 @@ from user_agents import parse
 from knowledge_common.common.context import RequestContext
 from knowledge_common.common.enums import BusinessType
 from knowledge_common.config.env import AppConfig
-from knowledge_common.exceptions.exception import LoginException, ServiceException, ServiceWarning
+from knowledge_common.exceptions.exception import LoginException, ServiceException, ServiceWarning, format_exception_message
 from knowledge_common.vo.log_vo import LogininforModel, OperLogModel
 from knowledge_common.service.log_service import LogQueueService
 from knowledge_common.utils.client_ip_util import ClientIPUtil
@@ -191,14 +191,16 @@ class Log:
                 # 调用原始函数
                 result = await func(*args, **kwargs)
             except (LoginException, ServiceWarning) as e:
-                logger.warning(e.message)
-                result = ResponseUtil.failure(data=e.data, msg=e.message)
+                msg = format_exception_message(e)
+                logger.warning(msg)
+                result = ResponseUtil.failure(data=e.data, msg=msg)
             except ServiceException as e:
-                logger.error(e.message)
-                result = ResponseUtil.error(data=e.data, msg=e.message)
+                msg = format_exception_message(e)
+                logger.exception(msg)
+                result = ResponseUtil.error(data=e.data, msg=msg)
             except Exception as e:
                 logger.exception(e)
-                result = ResponseUtil.error(msg=str(e))
+                result = ResponseUtil.error(msg=format_exception_message(e))
             # 获取请求耗时
             cost_time = float(time.perf_counter() - start_time) * 1000
             # 判断请求是否来自api文档

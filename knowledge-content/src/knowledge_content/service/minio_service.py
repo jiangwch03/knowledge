@@ -73,6 +73,16 @@ class MinioService:
         return path
 
     @classmethod
+    async def download_content(cls, object_name: str) -> str:
+        """从 MinIO 读取对象内容为字符串（内存中读取，不落盘）
+
+        :param object_name: 桶内对象路径
+        :return: 文件内容的 UTF-8 字符串
+        """
+        data = await cls._client.get_object(object_name, cls._bucket)
+        return data.decode('utf-8')
+
+    @classmethod
     async def download_file(cls, object_name: str) -> MinioDownloadRespVo:
         """根据桶内对象名从 MinIO 下载文件到本地
 

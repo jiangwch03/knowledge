@@ -25,6 +25,7 @@ from knowledge_common.utils.transport_crypto_util import TransportKeyProvider
 from knowledge_content.common.root_path import CODE_ROOT
 from knowledge_content.message.broadcast_test_publisher import RagBroadcastTestPublisher
 from knowledge_content.message.test_publisher import RagMessageTestPublisher
+from knowledge_common.agent.memory.short_memory.checkpointer import Checkpointer
 
 async def _start_background_tasks(app: FastAPI) -> None:
     """
@@ -116,6 +117,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     :param app: FastAPI对象
     :return: None
     """
+    # 启动引导日志：在连接任何外部服务之前打印，确保用户第一时间看到启动信息
+    logger.info(f'⏰️ {AppConfig.app_name}开始启动')
+
     #创建 Redis 连接池
     app.state.redis = await RedisConnection.create_redis_pool(log_enabled=False)
 
@@ -140,7 +144,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
 
     with logger.contextualize(startup_phase=True, startup_log_enabled=startup_log_enabled):
-        logger.info(f'⏰️ {AppConfig.app_name}开始启动')
         if startup_log_enabled:
             worship()
 
@@ -159,8 +162,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         #  应用启动时缓存参数配置表
         await ConfigService.init_cache(app.state.redis)
 
-        # 加载提示词配置
-        prompt_config.load('knowledge-content/src/configs/prompts.yaml')
+        # 加载提示词配置（自动发现 src/configs/prompts.yaml）
+        prompt_config.load()
 
         # 启动后台任务（调度器、日志聚合等长运行协程）
         await _start_background_tasks(app)
@@ -170,6 +173,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         # 初始化消息流服务（基础设施注册，独立于后台任务）
         await _init_message_stream(app)
+
+        # 初始化 LangGraph Redis Checkpointer（依赖 Redis）
+        await Checkpointer.init_checkpointer()
 
     # 启动成功日志打印
     if startup_log_enabled:

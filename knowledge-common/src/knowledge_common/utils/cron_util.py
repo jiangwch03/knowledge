@@ -24,9 +24,10 @@ class CronUtil:
     def __valid_sum(
         cls, search_str: str, start_range_a: int, start_range_b: int, end_range_a: int, end_range_b: int, sum_range: int
     ) -> bool:
-        match = re.match(r'^(\d+)/(\d+)$', search_str)
+        match = re.match(r'^(\*|\d+)/(\d+)$', search_str)
         if match:
-            start, end = int(match.group(1)), int(match.group(2))
+            start_str, end = match.group(1), int(match.group(2))
+            start = start_range_a if start_str == '*' else int(start_str)
             return (
                 start_range_a <= start <= start_range_b
                 and end_range_a <= end <= end_range_b

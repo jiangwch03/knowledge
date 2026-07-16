@@ -1,7 +1,6 @@
 from typing import Any
 
 from sqlalchemy import select, update
-from sqlalchemy.orm import aliased
 
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.enums.del_flag_enum import DeleteFlag
@@ -45,45 +44,77 @@ class AiModelFunctionAdapterDao:
     @classmethod
     async def get_adapter_by_param_id(cls, param_id: str) -> AiModelConfigModel | None:
         """
-        根据参数ID获取模型配置
+        根据参数ID获取模型配置（返回第一个可用模型）
+
+        model_id 字段以管道符（|）分隔存储多个模型ID，此方法取第一个
+        状态为启用的模型返回。
 
         :param param_id: 参数ID
         :return: 模型配置 VO（含业务元数据 + 技术参数），未配置时返回 None
         """
+        adapters = await cls.get_adapters_by_param_id(param_id)
+        return adapters[0] if adapters else None
+
+    @classmethod
+    async def get_adapters_by_param_id(cls, param_id: str) -> list[AiModelConfigModel]:
+        """
+        根据参数ID获取所有配置的模型（支持多模型）
+
+        model_id 字段以管道符（|）分隔存储多个模型ID，此方法返回所有
+        状态为启用的模型配置列表。
+
+        :param param_id: 参数ID
+        :return: 模型配置 VO 列表，未配置时返回空列表
+        """
         db = get_current_session()
-        model_alias = aliased(AiModels)
-        result = (
-            (
-                await db.execute(
-                    select(
-                        AiModelFunctionAdapter.adapter_id,
-                        AiModelFunctionAdapter.function_point,
-                        AiModelFunctionAdapter.param_id,
-                        model_alias.model_id,
-                        model_alias.model_code,
-                        model_alias.model_name,
-                        model_alias.provider,
-                        model_alias.api_key,
-                        model_alias.base_url,
-                        model_alias.model_type,
-                        model_alias.max_tokens,
-                        model_alias.temperature,
-                        model_alias.support_reasoning,
-                        model_alias.support_images,
-                    )
-                    .select_from(AiModelFunctionAdapter)
-                    .join(model_alias, AiModelFunctionAdapter.model_id == model_alias.model_id) # type: ignore
-                    .where(
-                        AiModelFunctionAdapter.param_id == param_id,
-                        AiModelFunctionAdapter.del_flag == DeleteFlag.NORMAL.value,
-                        model_alias.status == '0',
-                    )
+        adapter = (
+            (await db.execute(
+                select(AiModelFunctionAdapter).where(
+                    AiModelFunctionAdapter.param_id == param_id,
+                    AiModelFunctionAdapter.del_flag == DeleteFlag.NORMAL.value,
                 )
-            )
-            .mappings()
+            ))
+            .scalars()
             .first()
         )
-        return AiModelConfigModel(**result) if result else None
+        if not adapter or not adapter.model_id:
+            return []
+
+        model_ids = [int(x) for x in str(adapter.model_id).split('|') if x.strip()]
+        if not model_ids:
+            return []
+
+        rows = (
+            (await db.execute(
+                select(
+                    AiModels.model_id,
+                    AiModels.model_code,
+                    AiModels.model_name,
+                    AiModels.provider,
+                    AiModels.api_key,
+                    AiModels.base_url,
+                    AiModels.model_type,
+                    AiModels.max_tokens,
+                    AiModels.temperature,
+                    AiModels.support_reasoning,
+                    AiModels.support_images,
+                ).where(
+                    AiModels.model_id.in_(model_ids),
+                    AiModels.status == '0',
+                )
+            ))
+            .mappings()
+            .all()
+        )
+        return [
+            AiModelConfigModel(
+                adapter_id=adapter.adapter_id,
+                function_point=adapter.function_point,
+                param_id=adapter.param_id,
+                **row,
+            )
+            for row in rows
+        ]
 
     @classmethod
     async def get_adapter_list(
@@ -92,19 +123,16 @@ class AiModelFunctionAdapterDao:
         """
         分页查询模型功能适配列表
 
+        model_id 字段以管道符（|）分隔存储多个模型ID，列表仅展示第一个
+        启用模型的 code 和 name。
+
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
         :return: 适配列表分页结果
         """
-        model_alias = aliased(AiModels)
+        db = get_current_session()
         query = (
-            select(
-                AiModelFunctionAdapter,
-                model_alias.model_code,
-                model_alias.model_name,
-            )
-            .select_from(AiModelFunctionAdapter)
-            .join(model_alias, AiModelFunctionAdapter.model_id == model_alias.model_id) # type: ignore
+            select(AiModelFunctionAdapter)
             .where(
                 AiModelFunctionAdapter.del_flag == DeleteFlag.NORMAL.value,
                 AiModelFunctionAdapter.function_point.like(f'%{query_object.function_point}%')
@@ -114,7 +142,51 @@ class AiModelFunctionAdapterDao:
             )
             .order_by(AiModelFunctionAdapter.create_time.desc())
         )
-        return await PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
+        result = await PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
+
+        # 两步查询：批量收集首个有效 model_id，查询对应模型信息
+        adapters: list = result.rows if isinstance(result, PageModel) else result
+        primary_model_ids: list[int] = []
+        for adapter in adapters:
+            raw = adapter.model_id if hasattr(adapter, 'model_id') else adapter.get('model_id', '')
+            first_id = str(raw).split('|')[0].strip() if raw else ''
+            if first_id.isdigit() and int(first_id) not in primary_model_ids:
+                primary_model_ids.append(int(first_id))
+
+        model_map: dict[int, dict] = {}
+        if primary_model_ids:
+            rows = (
+                (await db.execute(
+                    select(
+                        AiModels.model_id,
+                        AiModels.model_code,
+                        AiModels.model_name,
+                    ).where(AiModels.model_id.in_(primary_model_ids))
+                ))
+                .mappings()
+                .all()
+            )
+            model_map = {r['model_id']: dict(r) for r in rows}
+
+        # 拼装结果：adapter + model_code/model_name
+        enriched: list[dict] = []
+        for adapter in adapters:
+            if hasattr(adapter, '__dict__'):
+                row = {c.name: getattr(adapter, c.name) for c in adapter.__table__.columns}
+            else:
+                row = dict(adapter)
+            raw = row.get('model_id', '')
+            first_id = int(str(raw).split('|')[0].strip()) if str(raw).split('|')[0].strip().isdigit() else None
+            m = model_map.get(first_id) if first_id else None
+            row['model_code'] = m['model_code'] if m else None
+            row['model_name'] = m['model_name'] if m else None
+            enriched.append(row)
+
+        if isinstance(result, PageModel):
+            result.rows = enriched
+        else:
+            result = enriched
+        return result
 
     @classmethod
     async def add_adapter_dao(cls, adapter: AiModelFunctionAdapterModel) -> AiModelFunctionAdapter:

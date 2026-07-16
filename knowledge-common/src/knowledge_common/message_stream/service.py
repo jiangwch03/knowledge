@@ -21,6 +21,7 @@ from typing import Any
 from knowledge_common.message_stream.backends.base import StreamBackend
 from knowledge_common.message_stream.consumer import ConsumerInfo
 from knowledge_common.message_stream.exceptions import MessageStreamError
+from knowledge_common.message_stream.message import Message
 from knowledge_common.utils.log_util import logger
 
 
@@ -160,8 +161,9 @@ class MessageStreamService:
             try:
                 await cls._backend.create_group(info.topic, info.group_id)
             except MessageStreamError as e:
-                logger.error(
-                    f'❌ 消费组创建失败,跳过该消费者: id={consumer_id} topic={info.topic} err={e}',
+                logger.exception(
+                    '❌ 消费组创建失败,跳过该消费者: id={} topic={} err={}',
+                    consumer_id, info.topic, e,
                 )
                 continue
 
@@ -211,7 +213,7 @@ class MessageStreamService:
             try:
                 await cls._backend.shutdown()
             except Exception as e:
-                logger.warning(f'⚠️ backend.shutdown 异常(忽略): {e}')
+                logger.opt(exception=True).warning('⚠️ backend.shutdown 异常(忽略): {}', e)
 
         logger.info('🛑 MessageStreamService 已关闭')
 
@@ -268,21 +270,23 @@ class MessageStreamService:
             except MessageStreamError as e:
                 last_exc = e
                 if attempt < max_retries:
-                    logger.warning(
-                        f'⚠️ push 失败(第 {attempt}/{max_retries} 次): topic={topic} err={e},'
-                        f'{retry_interval}s 后重试',
+                    logger.opt(exception=True).warning(
+                        '⚠️ push 失败(第 {}/{} 次): topic={} err={}, {}s 后重试',
+                        attempt, max_retries, topic, e, retry_interval,
                     )
                     await asyncio.sleep(retry_interval)
                 else:
-                    logger.error(
-                        f'❌ push 失败(已重试 {max_retries} 次): topic={topic} err={e}',
+                    logger.exception(
+                        '❌ push 失败(已重试 {} 次): topic={} err={}',
+                        max_retries, topic, e,
                     )
             except Exception as e:
                 # 兜底:任何非 MessageStreamError 也包装为 MessageStreamError
                 last_exc = e
                 if attempt < max_retries:
-                    logger.warning(
-                        f'⚠️ push 未知异常(第 {attempt}/{max_retries} 次): topic={topic} err={e!r}',
+                    logger.opt(exception=True).warning(
+                        '⚠️ push 未知异常(第 {}/{} 次): topic={} err={!r}',
+                        attempt, max_retries, topic, e,
                     )
                     await asyncio.sleep(retry_interval)
 
@@ -304,7 +308,7 @@ class MessageStreamService:
         try:
             package = importlib.import_module(package_name)
         except ImportError as e:
-            logger.error(f'❌ 扫描路径 import 失败: {package_name} err={e}')
+            logger.exception('❌ 扫描路径 import 失败: {} err={}', package_name, e)
             return
 
         for _finder, name, is_pkg in pkgutil.iter_modules(package.__path__):
@@ -312,7 +316,7 @@ class MessageStreamService:
             try:
                 importlib.import_module(full_name)
             except ImportError as e:
-                logger.error(f'❌ 扫描子模块 import 失败: {full_name} err={e}')
+                logger.exception('❌ 扫描子模块 import 失败: {} err={}', full_name, e)
                 continue
             if is_pkg:
                 cls._import_subtree(full_name)
@@ -320,15 +324,52 @@ class MessageStreamService:
     @classmethod
     async def _consume_loop(cls, info: ConsumerInfo) -> None:
         """
-        单个消费者的后台消费循环
+        单个消费者的后台消费循环(Worker 池模型)
 
-        - 外层 while True:外层重连 / 后端启动失败重试
-        - 内层 while True:阻塞拉取,处理单批消息
+        - 按 max_concurrency 控制并发度,同一批消息可并发处理
+        - 每条消息独立处理、独立 ACK,单条失败不影响同批其他消息
         - 业务正常返回 → ack
         - 业务抛异常 → 不 ack,由后端协议兜底(PEL 接管 / Kafka 重平衡)
         """
         assert cls._backend is not None
         backend = cls._backend
+        sem = asyncio.Semaphore(info.max_concurrency)
+
+        async def _process_one(msg: Message) -> None:
+            """
+            单条消息处理(受 Semaphore 限流)
+
+            - Semaphore 保证同时最多 max_concurrency 条消息在执行
+            - 单条 handler 抛异常 → 捕获日志,不 ACK(由后端 claim 兜底)
+            - 单条 handler 正常返回 → 自动 ACK
+            - pre_ack 模式:handler 执行前先 ACK,消息移出 PEL
+            """
+            async with sem:
+                try:
+                    if info.pre_ack:
+                        await backend.ack(
+                            info.topic, info.group_id, msg.offset,
+                        )
+                    await info.handler(msg)
+                    if not info.pre_ack:
+                        await backend.ack(
+                            info.topic, info.group_id, msg.offset,
+                        )
+                except Exception as e:
+                    if info.pre_ack:
+                        logger.error(
+                            f'❌ 消费处理异常(已前置 ACK,需业务自行兜底): '
+                            f'consumer={info.consumer_id} offset={msg.offset} '
+                            f'err={e!r}',
+                            exc_info=True,
+                        )
+                    else:
+                        logger.error(
+                            f'❌ 消费处理异常(不 ack,后端兜底): '
+                            f'consumer={info.consumer_id} topic={info.topic} '
+                            f'offset={msg.offset} err={e!r}',
+                            exc_info=True,
+                        )
 
         while True:
             try:
@@ -343,36 +384,14 @@ class MessageStreamService:
                     if not messages:
                         continue  # 空闲,继续阻塞拉取
 
-                    ack_offsets: list[str] = []
-                    for msg in messages:
-                        try:
-                            await info.handler(msg)
-                            ack_offsets.append(msg.offset)
-                        except Exception as e:
-                            # 业务异常:不 ack,日志记录
-                            logger.error(
-                                f'❌ 消费处理异常(不 ack,后端兜底): '
-                                f'consumer={info.consumer_id} topic={info.topic} '
-                                f'offset={msg.offset} err={e!r}',
-                                exc_info=True,
-                            )
-                            # 立即跳出本批,剩下的也走兜底
-                            break
-
-                    if ack_offsets:
-                        try:
-                            n = await backend.ack(
-                                info.topic, info.group_id, *ack_offsets,
-                            )
-                            if n:
-                                logger.debug(
-                                    f'✅ ack 成功: consumer={info.consumer_id} n={n}',
-                                )
-                        except MessageStreamError as e:
-                            logger.error(
-                                f'❌ ack 失败(消息会由后端协议重新投递): '
-                                f'consumer={info.consumer_id} err={e}',
-                            )
+                    # 批次内消息并发处理(Worker 池)
+                    # Semaphore 控制同时最多 max_concurrency 条,其余排队等待
+                    tasks = [
+                        asyncio.create_task(_process_one(msg))
+                        for msg in messages
+                    ]
+                    # return_exceptions=True:单条 handler 异常不传播,gather 正常返回
+                    await asyncio.gather(*tasks, return_exceptions=True)
 
             except asyncio.CancelledError:
                 logger.info(
@@ -380,14 +399,15 @@ class MessageStreamService:
                 )
                 raise
             except MessageStreamError as e:
-                logger.warning(
-                    f'⚠️ 消费异常,5s 后重试: consumer={info.consumer_id} topic={info.topic} err={e}',
+                logger.opt(exception=True).warning(
+                    '⚠️ 消费异常,5s 后重试: consumer={} topic={} err={}',
+                    info.consumer_id, info.topic, e,
                 )
                 await asyncio.sleep(5.0)
             except Exception as e:
-                logger.error(
-                    f'❌ 消费未知异常,5s 后重试: consumer={info.consumer_id} err={e!r}',
-                    exc_info=True,
+                logger.exception(
+                    '❌ 消费未知异常,5s 后重试: consumer={} err={!r}',
+                    info.consumer_id, e,
                 )
                 await asyncio.sleep(5.0)
 
@@ -416,10 +436,9 @@ class MessageStreamService:
                         await info.handler(msg)
                         await backend.ack(info.topic, info.group_id, msg.offset)
                     except Exception as e:
-                        logger.error(
-                            f'❌ idle 消息处理失败: consumer={info.consumer_id} '
-                            f'offset={msg.offset} err={e!r}',
-                            exc_info=True,
+                        logger.exception(
+                            '❌ idle 消息处理失败: consumer={} offset={} err={!r}',
+                            info.consumer_id, msg.offset, e,
                         )
             except asyncio.CancelledError:
                 logger.info(
@@ -427,13 +446,14 @@ class MessageStreamService:
                 )
                 raise
             except MessageStreamError as e:
-                logger.warning(
-                    f'⚠️ idle 接管异常: consumer={info.consumer_id} err={e}',
+                logger.opt(exception=True).warning(
+                    '⚠️ idle 接管异常: consumer={} err={}',
+                    info.consumer_id, e,
                 )
             except Exception as e:
-                logger.error(
-                    f'❌ idle 接管未知异常: consumer={info.consumer_id} err={e!r}',
-                    exc_info=True,
+                logger.exception(
+                    '❌ idle 接管未知异常: consumer={} err={!r}',
+                    info.consumer_id, e,
                 )
             await asyncio.sleep(_CLAIM_INTERVAL_MS / 1000.0)
 

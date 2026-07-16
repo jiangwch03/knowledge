@@ -94,6 +94,8 @@
         <el-form-item label="选择模型" prop="modelId">
           <el-select
             v-model="form.modelId"
+            multiple
+            popper-class="adapter-model-popper"
             placeholder="请选择模型"
             style="width: 100%"
             @change="handleModelChange"
@@ -194,18 +196,20 @@ function reset() {
     adapterId: undefined,
     functionPoint: undefined,
     paramId: undefined,
-    modelId: undefined,
+    modelId: [],
     modelCode: undefined,
     modelName: undefined,
   };
   proxy.resetForm("adapterRef");
 }
 
-function handleModelChange(modelId) {
-  const selected = modelOptions.value.find((item) => item.modelId === modelId);
-  if (selected) {
-    form.value.modelCode = selected.modelCode;
-    form.value.modelName = selected.modelName;
+function handleModelChange(modelIdArr) {
+  if (Array.isArray(modelIdArr) && modelIdArr.length > 0) {
+    const selected = modelOptions.value.find((item) => item.modelId === modelIdArr[modelIdArr.length - 1]);
+    if (selected) {
+      form.value.modelCode = selected.modelCode;
+      form.value.modelName = selected.modelName;
+    }
   }
 }
 
@@ -217,11 +221,17 @@ function handleAdd() {
 
 function handleUpdate(row) {
   reset();
+  // modelId 存储为管道符分隔的字符串（如 "3" 或 "3|5|8"）
+  // 拆分为数字数组，与 el-select multiple 的 v-model 类型匹配
+  const rawModelId = row.modelId;
+  const modelIds = rawModelId
+    ? String(rawModelId).split('|').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+    : [];
   form.value = {
     adapterId: row.adapterId,
     functionPoint: row.functionPoint,
     paramId: row.paramId,
-    modelId: row.modelId,
+    modelId: modelIds,
     modelCode: row.modelCode,
     modelName: row.modelName,
   };
@@ -232,14 +242,19 @@ function handleUpdate(row) {
 function submitForm() {
   proxy.$refs["adapterRef"].validate((valid) => {
     if (!valid) return;
+    // 将多选的 modelId 数组转为管道符分隔的字符串提交后端
+    const submitData = { ...form.value };
+    if (Array.isArray(submitData.modelId)) {
+      submitData.modelId = submitData.modelId.join('|');
+    }
     if (form.value.adapterId != undefined) {
-      updateAdapter(form.value.adapterId, form.value).then(() => {
+      updateAdapter(form.value.adapterId, submitData).then(() => {
         proxy.$modal.msgSuccess("修改成功");
         open.value = false;
         getList();
       });
     } else {
-      addAdapter(form.value).then(() => {
+      addAdapter(submitData).then(() => {
         proxy.$modal.msgSuccess("新增成功");
         open.value = false;
         getList();
@@ -262,3 +277,9 @@ function handleDelete(row) {
 getList();
 loadModelOptions();
 </script>
+
+<style scoped>
+.adapter-model-popper {
+  min-width: 420px !important;
+}
+</style>

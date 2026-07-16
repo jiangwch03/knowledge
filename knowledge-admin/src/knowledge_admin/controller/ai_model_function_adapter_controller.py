@@ -59,6 +59,21 @@ async def get_adapter_config_by_param_id(
     return ResponseUtil.success(data=result)
 
 
+@ai_model_function_adapter_controller.get(
+    '/{param_id}/models',
+    summary='根据参数ID获取模型配置列表',
+    description='用于业务模块按参数ID读取该功能点下所有配置的模型',
+    response_model=DataResponseModel[list[AiModelConfigModel]],
+)
+async def get_adapter_configs_by_param_id(
+    request: Request,
+    param_id: Annotated[str, Path(description='参数ID')],
+) -> Response:
+    result = await AiModelFunctionAdapterService.get_adapter_configs_by_param_id_services(param_id)
+    logger.info(f'获取参数ID [{param_id}] 模型配置列表成功')
+    return ResponseUtil.success(data=result)
+
+
 @ai_model_function_adapter_controller.post(
     '',
     summary='新增模型功能适配',

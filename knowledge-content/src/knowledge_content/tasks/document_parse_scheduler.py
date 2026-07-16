@@ -38,9 +38,9 @@ class DocumentParseScheduler:
         logger.info(f'[Stage2-A] 扫描到 {len(tasks)} 个 LINK_FAILED 任务')
         for task in tasks:
             try:
-                # 分布式锁：基于 task_id，与删除接口互斥
+                # 分布式锁(renew=True)：看门狗自动续期,防止长任务期间锁过期
                 lock_key = LockKey.upload_task_key(task.task_id)
-                async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
+                async with DistributedLock(lock_key, expire=120, timeout=0, renew=True) as acquired:
                     if not acquired:
                         logger.info(
                             f'[Stage2-A] 上传任务正在处理中，跳过: parse_task_id={task.parse_task_id}, task_id={task.task_id}')
@@ -48,7 +48,7 @@ class DocumentParseScheduler:
 
                     await DocumentUploadParseService.process_pending_task(task.parse_task_id)
             except Exception as e:
-                logger.error(f'[Stage2-A] 处理 LINK_FAILED 失败: parse_task_id={task.parse_task_id}, error={e}')
+                logger.exception('[Stage2-A] 处理 LINK_FAILED 失败: parse_task_id={}, error={}', task.parse_task_id, e)
 
         # PENDING 兜底：消息流消费失败时，由定时任务接管处理
         pending_tasks = await KnowledgeMineruParseTaskDao.get_tasks_by_status(
@@ -57,9 +57,9 @@ class DocumentParseScheduler:
         logger.info(f'[Stage2-A] 扫描到 {len(pending_tasks)} 个 PENDING 任务')
         for task in pending_tasks:
             try:
-                # 分布式锁：基于 task_id，与删除接口互斥
+                # 分布式锁(renew=True)：看门狗自动续期,防止长任务期间锁过期
                 lock_key = LockKey.upload_task_key(task.task_id)
-                async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
+                async with DistributedLock(lock_key, expire=120, timeout=0, renew=True) as acquired:
                     if not acquired:
                         logger.info(
                             f'[Stage2-A] 上传任务正在处理中，跳过: parse_task_id={task.parse_task_id}, task_id={task.task_id}')
@@ -67,7 +67,7 @@ class DocumentParseScheduler:
 
                     await DocumentUploadParseService.process_pending_task(task.parse_task_id)
             except Exception as e:
-                logger.error(f'[Stage2-A] 处理 PENDING 兜底失败: parse_task_id={task.parse_task_id}, error={e}')
+                logger.exception('[Stage2-A] 处理 PENDING 兜底失败: parse_task_id={}, error={}', task.parse_task_id, e)
 
     @classmethod
     async def stage2_path_b_upload_failed(cls) -> None:
@@ -91,9 +91,9 @@ class DocumentParseScheduler:
                     logger.info(f'[Stage2-B] 解析任务不存在，跳过: parse_task_id={parse_task_id}')
                     continue
 
-                # 分布式锁：基于 task_id，与删除接口互斥
+                # 分布式锁(renew=True)：看门狗自动续期,防止长任务期间锁过期
                 lock_key = LockKey.upload_task_key(task.task_id)
-                async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
+                async with DistributedLock(lock_key, expire=120, timeout=0, renew=True) as acquired:
                     if not acquired:
                         logger.info(
                             f'[Stage2-B] 上传任务正在处理中，跳过: parse_task_id={parse_task_id}, task_id={task.task_id}')
@@ -101,7 +101,7 @@ class DocumentParseScheduler:
 
                     DocumentUploadParseService.stage2_path_b_upload_failed(parse_task_id, batch_details)
             except Exception as e:
-                logger.error(f'[Stage2-B] 处理分段失败: parse_task_id={parse_task_id}, error={e}')
+                logger.exception('[Stage2-B] 处理分段失败: parse_task_id={}, error={}', parse_task_id, e)
 
     @classmethod
     async def stage3_poll_results(cls) -> None:
@@ -115,10 +115,10 @@ class DocumentParseScheduler:
             if not task.batch_id:
                 continue
             try:
-                # 分布式锁：基于 task_id，与删除接口互斥
+                # 分布式锁(renew=True)：看门狗自动续期,防止长任务期间锁过期
                 lock_key = LockKey.upload_task_key(task.task_id)
                 need_publish = False
-                async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
+                async with DistributedLock(lock_key, expire=120, timeout=0, renew=True) as acquired:
                     if not acquired:
                         logger.info(
                             f'[Stage3] 上传任务正在处理中，跳过: parse_task_id={task.parse_task_id}, task_id={task.task_id}')
@@ -131,7 +131,7 @@ class DocumentParseScheduler:
                     await DocumentUploadParseService.publish_md_pending(task.task_id)
                     logger.info(f'[Stage3] 发布 md pending: task_id={task.task_id}')
             except Exception as e:
-                logger.error(f'[Stage3] 轮询失败: parse_task_id={task.parse_task_id}, error={e}')
+                logger.exception('[Stage3] 轮询失败: parse_task_id={}, error={}', task.parse_task_id, e)
 
     @classmethod
     async def stage4_retry_convert_failed(cls) -> None:
@@ -146,14 +146,14 @@ class DocumentParseScheduler:
         for record in records:
 
             lock_key = LockKey.upload_task_key(record.task_id)
-            async with DistributedLock(lock_key, expire=180, timeout=0) as acquired:
+            async with DistributedLock(lock_key, expire=180, timeout=0, renew=True) as acquired:
                 if not acquired:
                     logger.info(f'[Stage4] 上传任务正在处理中，跳过: task_id={record.task_id}')
                     continue
                 try:
                     await DocumentUploadParseService.process_md_pending(record.task_id)
                 except Exception as e:
-                    logger.error(f'[Stage4] 处理失败: task_id={record.task_id}, error={e}')
+                    logger.exception('[Stage4] 处理失败: task_id={}, error={}', record.task_id, e)
                     await KnowledgeUploadTaskDao.update_status(
                         record.task_id,
                         DocumentUploadStatus.CONVERT_FAILED.value,

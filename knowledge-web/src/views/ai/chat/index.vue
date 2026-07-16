@@ -2,7 +2,7 @@
   <div class="app-container chat-container">
     <el-container style="height: 100%">
       <!-- 侧边栏：会话历史 -->
-      <el-aside width="260px" class="session-sidebar">
+      <el-aside :width="sidebarWidth + 'px'" class="session-sidebar">
         <div class="sidebar-header">
           <el-button
             type="primary"
@@ -49,6 +49,12 @@
           </div>
         </div>
       </el-aside>
+
+      <!-- 拖拽调整宽度的手柄 -->
+      <div
+        class="resize-handle"
+        @mousedown="startResize"
+      ></div>
 
       <!-- 主区域：对话框 -->
       <el-main class="chat-main">
@@ -411,6 +417,8 @@
 </template>
 
 <script setup name="AiChat">
+import { useResizeObserver, useEventListener } from '@vueuse/core';
+import { onMounted } from 'vue';
 import { listModelAll } from "@/api/ai/model";
 import {
   listChatSession,
@@ -424,7 +432,6 @@ import { getToken } from "@/utils/auth";
 import AiMessage from "./components/AiMessage.vue";
 import { Picture, DocumentCopy } from "@element-plus/icons-vue";
 import { v4 as uuidv4 } from "uuid";
-import { useResizeObserver } from "@vueuse/core";
 import { getUseMonaco } from 'markstream-vue'
 
 getUseMonaco()
@@ -450,6 +457,46 @@ const isAutoScroll = ref(true);
 const currentSessionAgentData = ref(null);
 const isProgrammaticScroll = ref(false);
 let scrollTimeout = null;
+
+// 可拖拽调整侧边栏宽度
+const sidebarWidth = ref(220);
+const minSidebarWidth = 180;
+const maxSidebarWidth = 500;
+const isResizing = ref(false);
+
+function startResize(e) {
+  isResizing.value = true;
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+}
+
+function doResize(e) {
+  if (!isResizing.value) return;
+  // 计算相对于 chat-container 左侧的偏移量
+  const containerEl = document.querySelector('.chat-container');
+  if (!containerEl) return;
+  const containerRect = containerEl.getBoundingClientRect();
+  let newWidth = e.clientX - containerRect.left;
+  if (newWidth < minSidebarWidth) newWidth = minSidebarWidth;
+  if (newWidth > maxSidebarWidth) newWidth = maxSidebarWidth;
+  sidebarWidth.value = newWidth;
+}
+
+function stopResize() {
+  if (isResizing.value) {
+    isResizing.value = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+}
+
+onMounted(() => {
+  useEventListener(document, 'mousemove', doResize);
+  useEventListener(document, 'mouseup', stopResize);
+  getModels();
+  getSessions();
+  loadUserConfig();
+});
 
 function generateSessionId() {
   return uuidv4();
@@ -892,11 +939,6 @@ useResizeObserver(chatContentRef, () => {
   }
 });
 
-onMounted(() => {
-  getModels();
-  getSessions();
-  loadUserConfig();
-});
 </script>
 
 <style scoped lang="scss">
@@ -1334,5 +1376,49 @@ onMounted(() => {
     font-size: 13px;
     color: var(--el-text-color-secondary);
   }
+}
+
+/* 可拖拽调整宽度的分隔条 */
+.resize-handle {
+  width: 8px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
+  background: var(--el-border-color);
+  transition: background-color 0.15s;
+}
+
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 40px;
+  border-radius: 2px;
+  background: var(--el-border-color-extra-light, #dcdfe6);
+  transition: background-color 0.15s;
+  pointer-events: none;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--el-color-primary-light-5, #79bbff);
+}
+
+.resize-handle:hover::before,
+.resize-handle:active::before {
+  background: #fff;
+}
+
+/* 深色模式适配 */
+html.dark .resize-handle {
+  background: var(--el-border-color-darker, #555);
+}
+html.dark .resize-handle:hover,
+html.dark .resize-handle:active {
+  background: var(--el-color-primary-light-5);
 }
 </style>

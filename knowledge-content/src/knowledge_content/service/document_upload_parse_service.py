@@ -9,9 +9,10 @@ from fastapi import UploadFile
 from knowledge_common.common.context import RequestContext
 from knowledge_common.common.transactional import get_current_session, transactional
 from knowledge_common.common.vo import PageModel
+from knowledge_common.enums.boolean_char_flag_enum import BooleanCharFlag
 from knowledge_common.enums.document_status_enum import DocumentStatus
 from knowledge_common.enums.document_source_type_enum import DocumentSourceType
-from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.exceptions.exception import ServiceException, format_exception_message
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.file_util import FileUtil
 from knowledge_common.config.env import MinioConfig, UploadConfig, StreamTopicConfig
@@ -110,7 +111,6 @@ class DocumentUploadParseService:
         return cls._resolve_next_version(max_version)
 
     @classmethod
-    @transactional()
     async def upload_document(
             cls,
             file: UploadFile,
@@ -123,9 +123,6 @@ class DocumentUploadParseService:
         :param upload_model: 上传参数（含自动注入的 userInfo）
         :return: 上传任务
         """
-        user_id = upload_model.userInfo.user.user_id
-        dept_id = upload_model.userInfo.user.dept_id
-        user_name = upload_model.userInfo.user.user_name
         filename = file.filename
         if not filename:
             raise ServiceException('文件名为空')
@@ -140,22 +137,25 @@ class DocumentUploadParseService:
             if not acquired:
                 raise ServiceException('该文件正在上传中，请稍后重试')
 
-            _upload_document = await cls._upload_document(file, upload_model, ext)
-            return _upload_document
+            response, parse_task_id = await cls._upload_document(file, upload_model, ext)
+
+        # 事务提交后再发消息，避免消费者读不到未提交的解析任务
+        if parse_task_id is not None:
+            await cls._publish_parse_pending(parse_task_id)
+        return response
 
     @classmethod
+    @transactional()
     async def _upload_document(
             cls,
             file: UploadFile,
             upload_model: UploadDocumentModel, ext: str
-    ) -> UploadDocumentResponseModel:
+    ) -> tuple[UploadDocumentResponseModel, int | None]:
         """
-                文档上传入口 私有方法
+        文档上传落库（私有）
 
-                :param file: 上传文件
-                :param upload_model: 上传参数（含自动注入的 userInfo）
-                :return: 上传任务
-                """
+        :return: (上传响应, 需发消息的 parse_task_id；MD 直落库则为 None)
+        """
         user_id = upload_model.userInfo.user.user_id
         dept_id = upload_model.userInfo.user.dept_id
         user_name = upload_model.userInfo.user.user_name
@@ -182,18 +182,18 @@ class DocumentUploadParseService:
             await KnowledgeUploadTaskDao.update_latest_by_title(doc_title)
 
             # 是否需要MinerU解析（PDF/DOCX/XLSX需要解析，MD直接落库）
-            parse_required = '1' if ext in cls.PARSE_TYPES else '0'
+            parse_required = BooleanCharFlag.YES.value if ext in cls.PARSE_TYPES else BooleanCharFlag.NO.value
             record = KnowledgeUploadDocumentParseTask(
                 doc_title=doc_title,  # 文档标题（优先使用上传参数，否则取文件名）
                 doc_desc=upload_model.doc_desc,  # 文档描述
                 doc_name=filename,  # 原始文件名
                 doc_type=ext.upper(),  # 文档格式（如 PDF/DOC/DOCX/XLSX/MD）
                 doc_version=next_version,  # 文档版本号（上传时预占）
-                is_latest='1',  # 标记为最新版本
+                is_latest=BooleanCharFlag.YES.value,  # 标记为最新版本
                 version_remark=upload_model.version_remark,  # 版本说明
                 parse_required=parse_required,  # 是否需要MinerU解析（1-是 0-否）
                 original_doc_key=original_doc_key,  # MinIO上的原始文件对象键
-                total_pages=FileUtil.resolve_total_pages(temp_path, ext) if parse_required == '1' else 0,
+                total_pages=FileUtil.resolve_total_pages(temp_path, ext) if parse_required == BooleanCharFlag.YES.value else 0,
                 # 总页数（从临时文件解析）
                 status=DocumentUploadStatus.PENDING.value,  # 初始状态：待处理
                 user_id=user_id,  # 上传用户ID
@@ -218,19 +218,19 @@ class DocumentUploadParseService:
                     create_by=user_name,
                     update_by=user_name,
                 )
-                # 持久化解析任务
+                # 持久化解析任务；消息由 upload_document 在事务提交后发布
                 await KnowledgeMineruParseTaskDao.add_task(parse_task)
-                # 发布 document.parse.pending 消息
-                await cls._publish_parse_pending(parse_task.parse_task_id)
-                # 返回上传结果
-                return UploadDocumentResponseModel(**CamelCaseUtil.transform_result(record))
+                return (
+                    UploadDocumentResponseModel(**CamelCaseUtil.transform_result(record)),
+                    parse_task.parse_task_id,
+                )
 
             # MD 直接落库
             await cls._create_knowledge_document(record, original_doc_key, user_name)  # 创建知识库文档并落库
             await KnowledgeUploadTaskDao.update_status(record.task_id,
                                                          DocumentUploadStatus.CONVERTED.value)  # 更新上传任务状态为"已转换"
             record.status = DocumentUploadStatus.CONVERTED.value  # 同步内存记录状态
-            return UploadDocumentResponseModel(**CamelCaseUtil.transform_result(record))
+            return UploadDocumentResponseModel(**CamelCaseUtil.transform_result(record)), None
 
         finally:
             # 清理临时文件
@@ -246,9 +246,9 @@ class DocumentUploadParseService:
         """创建 knowledge_document 并处理 is_latest"""
         await KnowledgeDocumentDao.update_latest_by_title(record.doc_title)
         max_version = await KnowledgeDocumentDao.get_max_version_by_title(record.doc_title)
-        is_latest = '1'
+        is_latest = BooleanCharFlag.YES.value
         if max_version and record.doc_version < max_version:
-            is_latest = '0'
+            is_latest = BooleanCharFlag.NO.value
 
         document = KnowledgeDocument(
             task_id=record.task_id,
@@ -280,8 +280,10 @@ class DocumentUploadParseService:
                 key=str(parse_task_id),
             )
         except Exception as e:
-            logger.error(
-                f'发布 {StreamTopicConfig.document_parse_pending} 消息失败: parse_task_id={parse_task_id}, error={e}')
+            logger.exception(
+                '发布 {} 消息失败: parse_task_id={}, error={}',
+                StreamTopicConfig.document_parse_pending, parse_task_id, e,
+            )
             raise ServiceException(f'发布解析消息失败: {e}') from e
 
     @classmethod
@@ -294,7 +296,12 @@ class DocumentUploadParseService:
                 key=str(task_id),
             )
         except Exception as e:
-            logger.error(f'发布 {StreamTopicConfig.document_md_pending} 消息失败: task_id={task_id}, error={e}')
+            err = format_exception_message(e)
+            logger.exception(
+                '发布 {} 消息失败: task_id={}, error={}',
+                StreamTopicConfig.document_md_pending, task_id, err,
+            )
+            raise ServiceException(f'发布 MD 合并消息失败: {err}') from e
 
     @classmethod
     async def list_records(
@@ -327,7 +334,7 @@ class DocumentUploadParseService:
             if not record:
                 raise ServiceException('上传任务不存在')
 
-            document = await KnowledgeDocumentDao.get_document_by_task_id(task_id, source_type='0')
+            document = await KnowledgeDocumentDao.get_document_by_task_id(task_id, source_type=DocumentSourceType.UPLOAD.value)
             if document:
                 raise ServiceException('已生成文档，不允许删除')
 
@@ -359,7 +366,6 @@ class DocumentUploadParseService:
         return [ParseTaskItemResponseModel(**CamelCaseUtil.transform_result(t)) for t in tasks]
 
     @classmethod
-    @transactional(rollback_for=(Exception,))
     async def handle_parse_decision(
             cls,
             parse_task_id: int,
@@ -368,22 +374,35 @@ class DocumentUploadParseService:
         """
         处理用户决策
 
-        :param parse_task_id: 解析任务ID
-        :param decision: 决策模型（含自动注入的 userInfo）
+        落库在事务内完成并提交后，再发布 document.parse.pending。
         """
-        
+        new_parse_task_id = await cls._handle_parse_decision(parse_task_id, decision)
+        if new_parse_task_id is not None:
+            await cls._publish_parse_pending(new_parse_task_id)
+
+    @classmethod
+    @transactional(rollback_for=(Exception,))
+    async def _handle_parse_decision(
+            cls,
+            parse_task_id: int,
+            decision: HandleParseDecisionModel,
+    ) -> int | None:
+        """
+        处理用户决策的落库部分。
+
+        :return: 需发消息的新 parse_task_id；删除操作返回 None
+        """
         # 先查询任务获取 task_id
         task = await KnowledgeMineruParseTaskDao.get_task_by_id(parse_task_id)
         if not task:
             raise ServiceException('解析任务不存在')
-        
+
         # 分布式锁：基于 task_id，与删除接口互斥
         lock_key = LockKey.upload_task_key(task.task_id)
-        new_parse_task_id: int | None = None
         async with DistributedLock(lock_key, expire=60, timeout=0) as acquired:
             if not acquired:
                 raise ServiceException('该记录正在处理中，请稍后重试')
-            
+
             user_name = decision.userInfo.user.user_name
             record = await KnowledgeUploadTaskDao.get_task_by_id(task.task_id)
             if not record:
@@ -391,7 +410,7 @@ class DocumentUploadParseService:
             # 删除
             if decision.action == ParseDecisionAction.DELETE:
                 await cls.delete_record(record.task_id)
-                return
+                return None
 
             # 重试
             if decision.action != ParseDecisionAction.RETRY:
@@ -447,13 +466,7 @@ class DocumentUploadParseService:
             await KnowledgeUploadTaskDao.update_status(
                 record.task_id, DocumentUploadStatus.PENDING.value
             )
-
-            # 锁内收集新任务ID，锁外发布消息（防锁竞争导致消费者跳过）
-            new_parse_task_id = new_task.parse_task_id
-
-        # 锁外发布 document.parse.pending 消息
-        if new_parse_task_id is not None:
-            await cls._publish_parse_pending(new_parse_task_id)
+            return new_task.parse_task_id
 
     @classmethod
     def _slice_pdf_to_segment(
@@ -583,7 +596,7 @@ class DocumentUploadParseService:
             apply_result = await cls._apply_upload_urls(record, task, existing_details)
         except Exception as e:
             # 申请上传链接失败，重新抛出让 @transactional 回滚，由调用方更新状态
-            logger.error(f'Stage2 处理失败: parse_task_id={parse_task_id}, error={e}')
+            logger.exception('Stage2 处理失败: parse_task_id={}, error={}', parse_task_id, e)
             raise
 
         batch_id = apply_result.batch_id
@@ -744,7 +757,7 @@ class DocumentUploadParseService:
             await cls._save_final_markdown(record, merge_result.merged_markdown)
 
         except Exception as e:
-            logger.error(f'Stage4 md 合并失败: task_id={task_id}, error={e}')
+            logger.exception('Stage4 md 合并失败: task_id={}, error={}', task_id, e)
             raise
 
     @classmethod
@@ -776,14 +789,14 @@ class DocumentUploadParseService:
             await KnowledgeDocumentDao.update_latest_by_title(
                 record.doc_title, exclude_doc_id=existing.doc_id
             )
-            existing.is_latest = '1'
+            existing.is_latest = BooleanCharFlag.YES.value
             await db.flush()
         else:
             await KnowledgeDocumentDao.update_latest_by_title(record.doc_title)
             max_version = await KnowledgeDocumentDao.get_max_version_by_title(record.doc_title)
-            is_latest = '1'
+            is_latest = BooleanCharFlag.YES.value
             if max_version and record.doc_version < max_version:
-                is_latest = '0'
+                is_latest = BooleanCharFlag.NO.value
 
             document = KnowledgeDocument(
                 task_id=record.task_id,

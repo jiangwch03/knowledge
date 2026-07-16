@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from knowledge_common.vo.base_page_query_vo import BasePageQueryModel
@@ -36,6 +36,13 @@ class OperLogModel(BaseModel):
     oper_time: datetime | None = Field(default=None, description='操作时间')
     cost_time: int | None = Field(default=None, description='消耗时间')
 
+    @field_validator('error_msg', mode='before')
+    @classmethod
+    def truncate_error_msg(cls, v: str | None) -> str | None:
+        if v and len(v) > 2000:
+            return v[:2000]
+        return v
+
 
 class LogininforModel(BaseModel):
     """
@@ -53,6 +60,13 @@ class LogininforModel(BaseModel):
     status: Literal['0', '1'] | None = Field(default=None, description='登录状态（0成功 1失败）')
     msg: str | None = Field(default=None, description='提示消息')
     login_time: datetime | None = Field(default=None, description='访问时间')
+
+    @field_validator('msg', mode='before')
+    @classmethod
+    def truncate_msg(cls, v: str | None) -> str | None:
+        if v and len(v) > 255:
+            return v[:255]
+        return v
 
 
 class OperLogQueryModel(OperLogModel):

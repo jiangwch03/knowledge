@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings
 from pydantic_settings.sources import NoDecode
+from knowledge_common.utils.project_path_util import infer_current_project, resolve_workspace_root
 
 
 class AppSettings(BaseSettings):
@@ -77,6 +78,8 @@ class RedisSettings(BaseSettings):
     redis_username: str = ''
     redis_password: str = ''
     redis_database: int = 0
+    # LangGraph 短期记忆独立 Redis 库，默认与业务库隔离
+    redis_saver_database: int = 1
 
 
 class LogSettings(BaseSettings):
@@ -198,6 +201,10 @@ class StreamTopicSettings(BaseSettings):
     document_parse_pending: str = 'document.parse.pending'
     # 文档 Markdown 合并待处理队列
     document_md_pending: str = 'document.md.pending'
+    # 爬取任务执行队列
+    crawl_task_pending: str = 'crawl.task.pending'
+    # 爬取文档持久化（合并 Markdown 并落库）
+    crawl_document_pending: str = 'crawl.document.pending'
 
 class UploadSettings(BaseSettings):
     """
@@ -262,6 +269,146 @@ class MinerUSettings(BaseSettings):
     mineru_seed: str = ''
 
 
+class Crawl4aiSettings(BaseSettings):
+    """
+    crawl4ai 爬取引擎配置
+
+    支持两种调用模式（通过 crawl4ai_mode 切换）：
+    - sdk: 本地 SDK 模式，进程内直接调用 crawl4ai Python 库（默认）
+    - service: 远程服务模式，通过 HTTP 调用独立部署的 crawl4ai Docker 服务
+
+    所有字段均可通过 .env 环境变量覆盖。
+    """
+
+    # ---------- 模式切换 ----------
+
+    # 调用模式：sdk（本地SDK）或 service（远程服务）
+    crawl4ai_mode: str = 'sdk'
+    # 远程服务地址（service 模式必填）
+    crawl4ai_service_url: str = 'http://localhost:11235'
+    # 远程服务认证 Token（对应 Docker 部署的 CRAWL4AI_API_TOKEN，0.9.0+ 默认开启认证）
+    crawl4ai_api_token: str = 'CRAWL4AI_API_TOKEN_123456'
+    # HTTP 请求超时秒数（service 模式）
+    crawl4ai_request_timeout: int = 300
+
+    # ---------- BrowserConfig 相关（sdk 模式 + service 模式共用） ----------
+
+    # 无头浏览器模式
+    crawl4ai_headless: bool = True
+    # 浏览器 User-Agent
+    crawl4ai_user_agent: str = (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/120.0.0.0 Safari/537.36'
+    )
+    # 视口宽度（标准桌面，避免移动端布局）
+    crawl4ai_viewport_width: int = 1920
+    # 视口高度
+    crawl4ai_viewport_height: int = 1080
+    # 基础反爬防御，无副作用，始终开启
+    crawl4ai_enable_stealth: bool = True
+    # 生产环境关闭 crawl4ai 内部日志，保持日志干净
+    crawl4ai_verbose: bool = False
+
+    # ---------- CrawlerRunConfig 相关 ----------
+
+    # 始终排除的噪音标签，确保 Markdown 输出干净
+    crawl4ai_excluded_tags: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ['nav', 'footer', 'header', 'aside', 'script', 'style', 'form', 'iframe']
+    )
+    # 保留结构化输出，不提取纯文本
+    crawl4ai_only_text: bool = False
+    # 过滤零碎内容块（少于此词数的块丢弃）
+    crawl4ai_word_count_threshold: int = 10
+    # 深度爬取时流式返回结果，边爬边处理
+    crawl4ai_stream: bool = True
+
+
+    # ---------- 任务超时控制 ----------
+
+    # 爬取任务超时阈值（分钟）：RUNNING 且 started_time 超此值时触发超时兜底
+    # - 执行锁仍被占用：仅写 Redis 取消标志，由活执行器自报 FAILED+TIMEOUT
+    # - 执行锁可抢到：判定进程已死，由僵尸扫描直接 PENDING 续跑（不计 retry_count）
+    crawl4ai_task_timeout_minutes: int = 60
+
+    # 僵尸 RUNNING 检测宽限（分钟）：update_time 超过此值且 crawl_task 锁可抢到，视为进程中断并直接 PENDING 续跑（不计 retry_count）
+    # 须大于 DistributedLock 默认 expire（30s）并留足看门狗停更后的余量；生产发版/OOM 后靠此快速收尸
+    crawl4ai_zombie_detect_minutes: int = 2
+
+    # ---------- 失败重试控制 ----------
+
+    # 规则自动重试次数上限（任务创建时写入 max_retry_count；LLM 人工重试时 max_retry_count += 本值）
+    # 超过任务自身 max_retry_count 后升级为用户人工决策
+    crawl4ai_rule_retry_limit: int = 2
+
+    @field_validator('crawl4ai_excluded_tags', mode='before')
+    @classmethod
+    def _parse_excluded_tags(cls, v: str | list[str]) -> list[str]:
+        """
+        从 .env 文件读取时支持两种格式：
+        - 逗号分隔：crawl4ai_excluded_tags = nav,footer,header
+        - JSON 数组：crawl4ai_excluded_tags = '["nav","footer","header"]'
+        """
+        if isinstance(v, list):
+            return v
+        v_stripped = v.strip().strip("'\"")
+        if v_stripped.startswith('[') and v_stripped.endswith(']'):
+            try:
+                return json.loads(v_stripped)
+            except json.JSONDecodeError:
+                pass
+        return [item.strip() for item in v_stripped.split(',') if item.strip()]
+
+
+class AiModelFunctionAdapterSettings(BaseSettings):
+    """
+    模型功能适配配置
+
+    用于配置各业务功能的模型适配参数，如功能点 param_id 等。
+    所有字段均可通过 .env 环境变量覆盖。
+    """
+
+    # 爬取Agent功能适配参数ID
+    crawler_agent_param_id: str = 'web_crawler_agent'
+    # Markdown图片描述生成功能适配参数ID
+    md_image_description_param_id: str = 'md_image_description'
+    # TXT转Markdown功能适配参数ID
+    txt_to_markdown_param_id: str = 'txt_to_markdown'
+
+
+class SemaphoreSettings(BaseSettings):
+    """
+    分布式信号量配置
+
+    各业务场景的令牌池大小，通过 .env 环境变量覆盖（如 SEMAPHORE_CRAWL_PIPELINE_SIZE=20）。
+    """
+
+    # 爬取流水线令牌池大小（DistributedSemaphore.create_pool size）
+    # 对应 SemaphoreKey.crawl_pipeline_key()
+    semaphore_crawl_pipeline_size: int = 10
+
+
+class CrawlerAgentSettings(BaseSettings):
+    """
+    网页爬取 Agent 配置
+
+    网页爬取 Agent 的业务运行参数，通过 .env 环境变量覆盖（如 CRAWLER_AGENT_MAX_REACT_ROUNDS=10）。
+    """
+
+    # ReAct 分析阶段最大轮次，达到上限后 LLM 停止工具调用
+    crawler_agent_max_react_rounds: int = 50
+
+    # 是否使用 deepagents create_deep_agent 作为 Supervisor（已固定为 deepagents，保留字段兼容旧 .env）
+    crawler_agent_use_deepagents: bool = True
+
+    # ── LangGraph interrupt 类型（Agent 图中断点标识）──
+
+    # 用户提问节点：Agent 向用户发起业务提问
+    interrupt_ask_user: str = 'ask_user'
+    # 策略确认节点：用户确认/修改爬取策略配置
+    interrupt_strategy_confirmation: str = 'strategy_confirmation'
+    interrupt_rescope_confirmation: str = 'rescope_confirmation'
+
+
 class MinioSettings(BaseSettings):
     """
     MinIO 配置
@@ -291,35 +438,6 @@ class MinioSettings(BaseSettings):
     minio_download_subdir: str = 'minio'
 
 
-def _resolve_workspace_root() -> str | None:
-    """
-    从 knowledge_common 包位置回溯 workspace 根目录
-    """
-    try:
-        # env.py 位于 knowledge-common/src/knowledge_common/config/env.py
-        # 回溯 3 层到达 knowledge-common/，再上一层即为 workspace 根
-        env_dir = os.path.dirname(os.path.abspath(__file__))
-        knowledge_common_dir = os.path.dirname(os.path.dirname(os.path.dirname(env_dir)))
-        workspace_root = os.path.dirname(knowledge_common_dir)
-        if os.path.isdir(workspace_root):
-            return workspace_root
-    except Exception:
-        pass
-    return None
-
-
-def _infer_current_project() -> str | None:
-    """
-    根据 sys.argv 推断当前启动的是哪个子项目
-    """
-    argv_str = ' '.join(sys.argv)
-    if 'knowledge_admin' in argv_str or 'knowledge-admin' in argv_str:
-        return 'knowledge-admin'
-    if 'knowledge_content' in argv_str or 'knowledge-content' in argv_str:
-        return 'knowledge-content'
-    return None
-
-
 def _find_env_file(run_env: str) -> str | None:
     """
     按优先级在多个候选路径中查找 .env 文件
@@ -338,8 +456,8 @@ def _find_env_file(run_env: str) -> str | None:
         current = os.path.dirname(current)
 
     # 2. workspace 下各子项目的 src/configs/，优先检查推断出的当前项目
-    workspace_root = _resolve_workspace_root()
-    current_project = _infer_current_project()
+    workspace_root = resolve_workspace_root()
+    current_project = infer_current_project()
     if workspace_root:
         try:
             entries = sorted(os.listdir(workspace_root))
@@ -425,6 +543,30 @@ class GetConfig:
         """
         return MinerUSettings()
 
+    def get_crawl4ai_config(self) -> Crawl4aiSettings:
+        """
+        获取 crawl4ai 爬取引擎配置
+        """
+        return Crawl4aiSettings()
+
+    def get_ai_model_function_adapter_config(self) -> AiModelFunctionAdapterSettings:
+        """
+        获取模型功能适配配置
+        """
+        return AiModelFunctionAdapterSettings()
+
+    def get_semaphore_config(self) -> SemaphoreSettings:
+        """
+        获取分布式信号量配置
+        """
+        return SemaphoreSettings()
+
+    def get_crawler_agent_config(self) -> CrawlerAgentSettings:
+        """
+        获取网页爬取Agent配置
+        """
+        return CrawlerAgentSettings()
+
     def get_minio_config(self) -> MinioSettings:
         """
         获取MinIO配置
@@ -500,6 +642,14 @@ TransportCryptoConfig = get_config.get_transport_crypto_config()
 UploadConfig = get_config.get_upload_config()
 # MineU配置
 MinerUConfig = get_config.get_mineru_config()
+# crawl4ai 爬取引擎配置
+Crawl4aiConfig = get_config.get_crawl4ai_config()
+# 模型功能适配配置
+AiModelFunctionAdapterConfig = get_config.get_ai_model_function_adapter_config()
+# 分布式信号量配置
+SemaphoreConfig = get_config.get_semaphore_config()
+# 网页爬取Agent配置
+CrawlerAgentConfig = get_config.get_crawler_agent_config()
 # MinIO配置
 MinioConfig = get_config.get_minio_config()
 # 消息流后端配置

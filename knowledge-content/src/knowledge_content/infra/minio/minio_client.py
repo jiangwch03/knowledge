@@ -88,7 +88,7 @@ class MinioClient:
             )
             logger.info(f'本地文件上传至 MinIO 成功: object_name={object_name}, bucket={bucket}')
         except Exception as e:
-            logger.error(f'本地文件上传至 MinIO 失败: object_name={object_name}, error={e}')
+            logger.exception('本地文件上传至 MinIO 失败: object_name={}, error={}', object_name, e)
             raise ServiceException(f'本地文件上传至 MinIO 失败: {e}') from e
 
         return object_name
@@ -120,7 +120,7 @@ class MinioClient:
             )
             logger.info(f'文件流上传至 MinIO 成功: object_name={object_name}, bucket={bucket}, size={len(data)}')
         except Exception as e:
-            logger.error(f'文件流上传至 MinIO 失败: object_name={object_name}, error={e}')
+            logger.exception('文件流上传至 MinIO 失败: object_name={}, error={}', object_name, e)
             raise ServiceException(f'文件流上传至 MinIO 失败: {e}') from e
 
         return object_name
@@ -160,6 +160,36 @@ class MinioClient:
         if object_name.startswith(prefix):
             return object_name[len(prefix):]
         return object_name
+
+    async def get_object(
+        self,
+        object_name: str,
+        bucket_name: str | None = None,
+    ) -> bytes:
+        """从 MinIO 读取对象内容为字节（内存中读取，不落盘）
+
+        :param object_name: 桶内对象路径（对象名）
+        :param bucket_name: 目标存储桶名称，为 None 时使用配置中的默认桶
+        :return: 对象内容的原始字节数据
+        :raises ServiceException: MinIO 读取失败或超时时抛出
+        """
+        bucket = bucket_name or self._config.minio_bucket_name
+        object_name = self._strip_bucket_prefix(object_name, bucket)
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(lambda: self._client.get_object(bucket, object_name)),
+                timeout=180,
+            )
+            data = response.read()
+            response.close()
+            response.release_conn()
+            return data
+        except asyncio.TimeoutError:
+            logger.error(f'从 MinIO 读取对象超时(3分钟): object_name={object_name}, bucket={bucket}')
+            raise ServiceException(f'从 MinIO 读取对象超时(3分钟): {object_name}') from None
+        except Exception as e:
+            logger.exception('从 MinIO 读取对象失败: object_name={}, error={}', object_name, e)
+            raise ServiceException(f'从 MinIO 读取对象失败: {e}') from e
 
     async def download_file(
         self,
@@ -202,12 +232,34 @@ class MinioClient:
         try:
             # fget_object 是同步阻塞方法，通过 to_thread 在线程池中执行
             # 使用 lambda 包装零参函数，避免 ParamSpec 中间可选参数推导断裂误报
-            await asyncio.to_thread(
-                lambda: self._client.fget_object(bucket, object_name, str(local_path))
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: self._client.fget_object(bucket, object_name, str(local_path))
+                ),
+                timeout=180,
             )
             logger.info(f'文件从 MinIO 下载成功: object_name={object_name}, local_path={local_path}')
+        except asyncio.TimeoutError:
+            logger.error(f'从 MinIO 下载文件超时(3分钟): object_name={object_name}, local_path={local_path}')
+            raise ServiceException(f'从 MinIO 下载文件超时(3分钟): {object_name}') from None
         except Exception as e:
-            logger.error(f'文件从 MinIO 下载失败: object_name={object_name}, error={e}')
+            logger.exception('文件从 MinIO 下载失败: object_name={}, error={}', object_name, e)
             raise ServiceException(f'文件从 MinIO 下载失败: {e}') from e
 
         return str(local_path)
+
+    async def remove_object(
+        self,
+        object_name: str,
+        bucket_name: str | None = None,
+    ) -> None:
+        """从 MinIO 删除对象（rescope 删页时清理 doc_key）"""
+        if not object_name:
+            return
+        bucket = bucket_name or self._config.minio_bucket_name
+        object_name = self._strip_bucket_prefix(object_name, bucket)
+        try:
+            await asyncio.to_thread(lambda: self._client.remove_object(bucket, object_name))
+            logger.info(f'MinIO 对象已删除: object_name={object_name}, bucket={bucket}')
+        except Exception as e:
+            logger.opt(exception=True).warning('MinIO 对象删除失败（继续）: object_name={}, error={}', object_name, e)

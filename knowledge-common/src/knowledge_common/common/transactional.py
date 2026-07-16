@@ -33,7 +33,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextvars
 import functools
 import threading
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
@@ -43,9 +42,11 @@ from enum import Enum
 from typing import Any, TypeVar
 from uuid import uuid4
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from knowledge_common.common.context_var_task_local import ContextVarTaskLocal
 from knowledge_common.config.database import AsyncSessionLocal, SyncSessionLocal
 
 __all__ = [
@@ -61,6 +62,7 @@ __all__ = [
     'async_session_scope',
     'session_scope',
     'SessionContextMiddleware',
+    'ContextVarTaskLocal',
 ]
 
 # =============================================================================
@@ -109,28 +111,39 @@ class _AsyncTxContext:
 
 
 class _AsyncTransactionContextManager:
-    """异步事务上下文栈管理器（ContextVar 实现）"""
+    """异步事务上下文栈管理器（ContextVarTaskLocal 实现）
 
-    _ctx_var: contextvars.ContextVar[list[_AsyncTxContext]] = contextvars.ContextVar(
-        'async_transaction_context', default=[]
+    使用 ContextVarTaskLocal（按 Task ID 隔离）而非原生 ContextVar，
+    避免 asyncio.create_task 创建子 Task 时自动复制父 Task 的事务上下文，
+    导致子 Task 意外继承父 Task 的 session，引发 'prepared' state 等异常。
+    同一 Task 内的嵌套 @transactional 调用仍通过同一 list 栈正确传播。
+    """
+
+    _ctx_var: ContextVarTaskLocal[list[_AsyncTxContext] | None] = ContextVarTaskLocal(
+        'async_transaction_context', default=None
     )
 
     @classmethod
     def get_stack(cls) -> list[_AsyncTxContext]:
-        """获取当前协程的事务上下文栈"""
-        return cls._ctx_var.get()
+        """获取当前 Task 的事务上下文栈（未初始化时返回新的空列表）"""
+        stack = cls._ctx_var.get()
+        if stack is None:
+            return []
+        return stack
 
     @classmethod
     def push(cls, ctx: _AsyncTxContext) -> None:
         """将事务上下文压入栈"""
-        stack = cls.get_stack()
+        stack = cls._ctx_var.get()
+        if stack is None:
+            stack = []
         stack.append(ctx)
         cls._ctx_var.set(stack)
 
     @classmethod
     def pop(cls) -> _AsyncTxContext | None:
         """弹出栈顶事务上下文"""
-        stack = cls.get_stack()
+        stack = cls._ctx_var.get()
         if not stack:
             return None
         ctx = stack.pop()
@@ -140,7 +153,7 @@ class _AsyncTransactionContextManager:
     @classmethod
     def current(cls) -> _AsyncTxContext | None:
         """获取当前活跃的事务上下文（栈顶）"""
-        stack = cls.get_stack()
+        stack = cls._ctx_var.get()
         if not stack:
             return None
         return stack[-1]
@@ -211,7 +224,7 @@ class _SyncTransactionContextManager:
 class _AsyncSessionContextManager:
     """异步 session 请求/任务级上下文（非事务场景）"""
 
-    _ctx_var: contextvars.ContextVar[AsyncSession | None] = contextvars.ContextVar(
+    _ctx_var: ContextVarTaskLocal[AsyncSession | None] = ContextVarTaskLocal(
         'async_session_context', default=None
     )
 
@@ -382,7 +395,7 @@ async def _run_in_async_transaction(
         _AsyncTransactionContextManager.push(tx_ctx)
         try:
             if read_only:
-                await session.execute('SET TRANSACTION READ ONLY')
+                await session.execute(text('SET TRANSACTION READ ONLY'))
 
             if timeout:
                 result = await asyncio.wait_for(func(*args, **kwargs), timeout=timeout)
@@ -418,7 +431,7 @@ async def _run_in_async_nested_transaction(
 
     session = current_tx.session
     savepoint_name = f'sp_{uuid4().hex[:16]}'
-    await session.execute(f'SAVEPOINT {savepoint_name}')
+    await session.execute(text(f'SAVEPOINT {savepoint_name}'))
 
     tx_ctx = _AsyncTxContext(
         session=session,
@@ -434,13 +447,13 @@ async def _run_in_async_nested_transaction(
         else:
             result = await func(*args, **kwargs)
 
-        await session.execute(f'RELEASE SAVEPOINT {savepoint_name}')
+        await session.execute(text(f'RELEASE SAVEPOINT {savepoint_name}'))
         tx_ctx.is_active = False
         return result
 
     except Exception as exc:
         if _should_rollback(exc, rollback_for, no_rollback_for):
-            await session.execute(f'ROLLBACK TO SAVEPOINT {savepoint_name}')
+            await session.execute(text(f'ROLLBACK TO SAVEPOINT {savepoint_name}'))
         tx_ctx.is_active = False
         raise
     finally:
@@ -557,7 +570,7 @@ def _run_in_sync_transaction(
         _SyncTransactionContextManager.push(tx_ctx)
         try:
             if read_only:
-                session.execute('SET TRANSACTION READ ONLY')
+                session.execute(text('SET TRANSACTION READ ONLY'))
 
             # TODO: 同步超时实现（signal / threading.Timer）
             result = func(*args, **kwargs)
@@ -591,7 +604,7 @@ def _run_in_sync_nested_transaction(
 
     session = current_tx.session
     savepoint_name = f'sp_{uuid4().hex[:16]}'
-    session.execute(f'SAVEPOINT {savepoint_name}')
+    session.execute(text(f'SAVEPOINT {savepoint_name}'))
 
     tx_ctx = _SyncTxContext(
         session=session,
@@ -604,13 +617,13 @@ def _run_in_sync_nested_transaction(
     try:
         result = func(*args, **kwargs)
 
-        session.execute(f'RELEASE SAVEPOINT {savepoint_name}')
+        session.execute(text(f'RELEASE SAVEPOINT {savepoint_name}'))
         tx_ctx.is_active = False
         return result
 
     except Exception as exc:
         if _should_rollback(exc, rollback_for, no_rollback_for):
-            session.execute(f'ROLLBACK TO SAVEPOINT {savepoint_name}')
+            session.execute(text(f'ROLLBACK TO SAVEPOINT {savepoint_name}'))
         tx_ctx.is_active = False
         raise
     finally:
@@ -684,6 +697,7 @@ def with_session(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., C
 
     为异步函数自动创建 AsyncSession 并注入上下文。
     适用于后台任务、定时任务、RPC 调用等非 Web 场景。
+    若已有 session（事务或请求上下文），则直接复用，不再创建冗余 session。
 
     :param func: 被装饰的异步函数
     :return: 包装后的函数
@@ -691,6 +705,13 @@ def with_session(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., C
 
     @functools.wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> T:
+        # 预检：已有 session 时复用，不创建冗余 session
+        try:
+            get_current_session()
+            return await func(*args, **kwargs)
+        except TransactionException:
+            pass
+
         async with AsyncSessionLocal() as session:
             _AsyncSessionContextManager.set(session)
             try:
@@ -706,11 +727,20 @@ async def async_session_scope() -> AsyncGenerator[AsyncSession, None]:
     """异步 session 上下文管理器
 
     适用于需要在代码块中使用 session 的非 Web 异步场景。
+    若已有 session（事务或请求上下文），则直接复用该 session。
 
     示例:
         >>> async with async_session_scope() as session:
         ...     result = await session.execute(select(User))
     """
+    # 预检：已有 session 时直接复用
+    try:
+        session = get_current_session()
+        yield session
+        return
+    except TransactionException:
+        pass
+
     async with AsyncSessionLocal() as session:
         _AsyncSessionContextManager.set(session)
         try:
@@ -724,6 +754,7 @@ def with_session_sync(func: Callable[..., T]) -> Callable[..., T]:
 
     为同步函数自动创建 Session 并注入上下文。
     适用于同步定时任务、脚本执行等场景。
+    若已有 session（事务或任务上下文），则直接复用。
 
     :param func: 被装饰的同步函数
     :return: 包装后的函数
@@ -731,6 +762,13 @@ def with_session_sync(func: Callable[..., T]) -> Callable[..., T]:
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> T:
+        # 预检：已有 session 时复用
+        try:
+            get_current_session_sync()
+            return func(*args, **kwargs)
+        except TransactionException:
+            pass
+
         with SyncSessionLocal() as session:
             _SyncSessionContextManager.set(session)
             try:
@@ -746,11 +784,20 @@ def session_scope() -> Generator[Session, None, None]:
     """同步 session 上下文管理器
 
     适用于需要在代码块中使用 session 的同步场景。
+    若已有 session（事务或任务上下文），则直接复用该 session。
 
     示例:
         >>> with session_scope() as session:
         ...     result = session.execute(select(User))
     """
+    # 预检：已有 session 时直接复用
+    try:
+        session = get_current_session_sync()
+        yield session
+        return
+    except TransactionException:
+        pass
+
     with SyncSessionLocal() as session:
         _SyncSessionContextManager.set(session)
         try:
@@ -769,6 +816,7 @@ class SessionContextMiddleware:
 
     在每个请求进入时将 get_db() 创建的 AsyncSession 存入 ContextVar，
     使 get_current_session() 在非 @transactional 装饰的方法中也能返回当前请求的 session。
+    若进入时已有 session（如子应用嵌套），则直接复用，不重复创建。
 
     注册方式:
         >>> from fastapi import FastAPI
@@ -783,6 +831,14 @@ class SessionContextMiddleware:
         if scope['type'] != 'http':
             await self.app(scope, receive, send)
             return
+
+        # 预检：已有 session 时复用，不重复创建
+        try:
+            get_current_session()
+            await self.app(scope, receive, send)
+            return
+        except TransactionException:
+            pass
 
         from knowledge_common.config.get_db import get_db
 

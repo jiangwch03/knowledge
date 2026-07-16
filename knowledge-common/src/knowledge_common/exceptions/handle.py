@@ -9,6 +9,7 @@ from knowledge_common.exceptions.exception import (
     PermissionException,
     ServiceException,
     ServiceWarning,
+    format_exception_message,
 )
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.response_util import JSONResponse, ResponseUtil, jsonable_encoder
@@ -22,18 +23,19 @@ def handle_exception(app: FastAPI) -> None:
     # 自定义token检验异常
     @app.exception_handler(AuthException)
     async def auth_exception_handler(request: Request, exc: AuthException) -> Response:
-        return ResponseUtil.unauthorized(data=exc.data, msg=exc.message)
+        return ResponseUtil.unauthorized(data=exc.data, msg=format_exception_message(exc))
 
     # 自定义登录检验异常
     @app.exception_handler(LoginException)
     async def login_exception_handler(request: Request, exc: LoginException) -> Response:
-        return ResponseUtil.failure(data=exc.data, msg=exc.message)
+        return ResponseUtil.failure(data=exc.data, msg=format_exception_message(exc))
 
     # 自定义模型检验异常
     @app.exception_handler(ModelValidatorException)
     async def model_validator_exception_handler(request: Request, exc: ModelValidatorException) -> Response:
-        logger.warning(exc.message)
-        return ResponseUtil.failure(data=exc.data, msg=exc.message)
+        msg = format_exception_message(exc)
+        logger.warning(msg)
+        return ResponseUtil.failure(data=exc.data, msg=msg)
 
     # 自定义字段检验异常
     @app.exception_handler(FieldValidationError)
@@ -44,19 +46,21 @@ def handle_exception(app: FastAPI) -> None:
     # 自定义权限检验异常
     @app.exception_handler(PermissionException)
     async def permission_exception_handler(request: Request, exc: PermissionException) -> Response:
-        return ResponseUtil.forbidden(data=exc.data, msg=exc.message)
+        return ResponseUtil.forbidden(data=exc.data, msg=format_exception_message(exc))
 
     # 自定义服务异常
     @app.exception_handler(ServiceException)
     async def service_exception_handler(request: Request, exc: ServiceException) -> Response:
-        logger.error(exc.message or exc.data)
-        return ResponseUtil.error(msg=exc.message or exc.data)
+        msg = format_exception_message(exc, fallback=str(exc.data) if exc.data else None)
+        logger.exception(msg)
+        return ResponseUtil.error(msg=msg)
 
     # 自定义服务警告
     @app.exception_handler(ServiceWarning)
     async def service_warning_handler(request: Request, exc: ServiceWarning) -> Response:
-        logger.warning(exc.message)
-        return ResponseUtil.failure(data=exc.data, msg=exc.message)
+        msg = format_exception_message(exc)
+        logger.warning(msg)
+        return ResponseUtil.failure(data=exc.data, msg=msg)
 
     # 处理其他http请求异常
     @app.exception_handler(HTTPException)
@@ -69,4 +73,4 @@ def handle_exception(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def exception_handler(request: Request, exc: Exception) -> Response:
         logger.exception(exc)
-        return ResponseUtil.error(msg=str(exc))
+        return ResponseUtil.error(msg=format_exception_message(exc))

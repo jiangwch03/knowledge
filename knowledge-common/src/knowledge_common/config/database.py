@@ -88,7 +88,14 @@ def create_async_session_local(engine: AsyncEngine) -> async_sessionmaker:
     :param engine: 异步 SQLAlchemy Engine
     :return: 异步 Session 工厂
     """
-    return async_sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return async_sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=engine,
+        # 短事务场景：提交后保留本事务已加载字段，保证后续发消息等逻辑与刚写入一致；
+        # 需对齐他人并发变更时再显式重查，默认不自动 expire。
+        expire_on_commit=False,
+    )
 
 
 def create_sync_session_local(engine: Engine) -> sessionmaker:
@@ -98,7 +105,13 @@ def create_sync_session_local(engine: Engine) -> sessionmaker:
     :param engine: 同步 SQLAlchemy Engine
     :return: 同步 Session 工厂
     """
-    return sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=engine,
+        # 与异步 Session 一致，见 create_async_session_local
+        expire_on_commit=False,
+    )
 
 
 async_engine = create_async_db_engine()

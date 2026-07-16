@@ -13,6 +13,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable
 
 from knowledge_common.common.factory.langchain_model_factory import LangChainModelFactory
+from knowledge_common.config.env import AiModelFunctionAdapterConfig
 from knowledge_common.config.prompt_config import prompt_config
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.mapper.dao.ai_model_function_adapter_dao import AiModelFunctionAdapterDao
@@ -47,7 +48,7 @@ class LlmChatService:
         if not adapter_config:
             logger.warning(f'未找到 {param_id} 模型适配配置')
             return None
-        return LangChainModelFactory.create_chat_model(
+        return LangChainModelFactory.get_chat_model_with_tools_and_retry(
             ChatModelConfigModel(
                 model_code=adapter_config.model_code,
                 provider=adapter_config.provider,
@@ -69,7 +70,7 @@ class LlmChatService:
         :param image_url: 图片的可访问 URL（需为模型可访问的公网或内网地址）
         :return: 图片描述文本，失败时返回 'image'
         """
-        chat_model = await cls._create_chat_model('md_image_description')
+        chat_model = await cls._create_chat_model(AiModelFunctionAdapterConfig.md_image_description_param_id)
         if not chat_model:
             return 'image'
 
@@ -84,7 +85,7 @@ class LlmChatService:
             resp = await chat_model.ainvoke([message])
             return str(resp.content).strip() or 'image'
         except Exception as e:
-            logger.warning(f'图片描述生成失败: {e}')
+            logger.opt(exception=True).warning('图片描述生成失败: {}', e)
             return 'image'
 
     @classmethod
@@ -98,7 +99,7 @@ class LlmChatService:
         :param image_format: 图片格式后缀，如 'png', 'jpg', 'jpeg', 'gif', 'webp'，默认 'png'
         :return: 图片描述文本，失败时返回 'image'
         """
-        chat_model = await cls._create_chat_model('md_image_description')
+        chat_model = await cls._create_chat_model(AiModelFunctionAdapterConfig.md_image_description_param_id)
         if not chat_model:
             return 'image'
 
@@ -116,7 +117,7 @@ class LlmChatService:
             resp = await chat_model.ainvoke([message])
             return str(resp.content).strip() or 'image'
         except Exception as e:
-            logger.warning(f'图片描述生成失败: {e}')
+            logger.opt(exception=True).warning('图片描述生成失败: {}', e)
             return 'image'
 
     @classmethod
@@ -124,7 +125,7 @@ class LlmChatService:
         """
         TXT 转 Markdown
 
-        根据 'txt_to_markdown' 参数ID获取模型配置和 system prompt，
+        根据 AiModelFunctionAdapterConfig 配置获取模型适配，
         调用大模型将纯文本转换为 Markdown 格式。
 
         :param content: UTF-8 文本内容，大小不超过 512KB
@@ -134,7 +135,7 @@ class LlmChatService:
         if len(content.encode('utf-8')) > cls.TXT_MAX_BYTES:
             raise ServiceException('文本内容超过 512KB，请拆分后重试')
 
-        chat_model = await cls._create_chat_model('txt_to_markdown')
+        chat_model = await cls._create_chat_model(AiModelFunctionAdapterConfig.txt_to_markdown_param_id)
         if not chat_model:
             raise ServiceException('未找到 txt_to_markdown 模型适配配置')
 

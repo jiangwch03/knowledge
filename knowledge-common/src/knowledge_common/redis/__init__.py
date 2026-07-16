@@ -6,16 +6,19 @@ Redis 统一能力包
 
 from knowledge_common.redis.client import RedisClient
 from knowledge_common.redis.connection import RedisConnection
-from knowledge_common.redis.key import LockKey, RedisKey
+from knowledge_common.redis.key import LockKey, RedisKey, SemaphoreKey
 from knowledge_common.redis.lock import DistributedLock
 from knowledge_common.redis.pubsub import PubSubMessage, RedisPubSub
+from knowledge_common.redis.semaphore import DistributedSemaphore
 
 __all__ = [
     'DistributedLock',
+    'DistributedSemaphore',
     'LockKey',
     'PubSubMessage',
     'RedisClient',
     'RedisConnection',
     'RedisKey',
     'RedisPubSub',
+    'SemaphoreKey',
 ]

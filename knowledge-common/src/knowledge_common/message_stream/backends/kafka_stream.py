@@ -498,14 +498,14 @@ class KafkaStreamBackend(StreamBackend):
             try:
                 await consumer.close()
             except Exception as e:
-                logger.warning(f'⚠️ consumer close 异常(忽略): {e}')
+                logger.opt(exception=True).warning('⚠️ consumer close 异常(忽略): {}', e)
         self._consumers.clear()
         # 关闭 producer
         if self._producer is not None:
             try:
                 await self._producer.close()
             except Exception as e:
-                logger.warning(f'⚠️ producer close 异常(忽略): {e}')
+                logger.opt(exception=True).warning('⚠️ producer close 异常(忽略): {}', e)
             self._producer = None
         # AdminClient 是同步 API,无 close 方法
         self._admin = None

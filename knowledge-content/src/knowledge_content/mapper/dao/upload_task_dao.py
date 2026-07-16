@@ -5,7 +5,9 @@ from typing import Any, cast
 from sqlalchemy import ColumnElement, func, select, update
 
 from knowledge_common.common.transactional import get_current_session
+from knowledge_common.enums.boolean_char_flag_enum import BooleanCharFlag
 from knowledge_common.enums.del_flag_enum import DeleteFlag
+from knowledge_common.enums.document_source_type_enum import DocumentSourceType
 from knowledge_common.common.vo import PageModel
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_content.mapper.do.upload_task_do import KnowledgeUploadDocumentParseTask
@@ -78,7 +80,7 @@ class KnowledgeUploadTaskDao:
         ).outerjoin(
             D,
             (D.task_id == R.task_id)  # type: ignore
-            & (D.source_type == '0')
+            & (D.source_type == DocumentSourceType.UPLOAD.value)
             & (D.del_flag == DeleteFlag.NORMAL.value),  # type: ignore
         ).where(
             R.del_flag == DeleteFlag.NORMAL.value,  # type: ignore
@@ -180,7 +182,7 @@ class KnowledgeUploadTaskDao:
                 KnowledgeUploadDocumentParseTask.doc_title == doc_title, # type: ignore
                 KnowledgeUploadDocumentParseTask.del_flag == DeleteFlag.NORMAL.value # type: ignore
             )
-            .values(is_latest='0', update_time=datetime.now())
+            .values(is_latest=BooleanCharFlag.NO.value, update_time=datetime.now())
         )
         if exclude_task_id:
             query = query.where(KnowledgeUploadDocumentParseTask.task_id != exclude_task_id)

@@ -6,7 +6,12 @@
 import sys
 from pathlib import Path
 
+import pytest
 from dotenv import load_dotenv
+
+
+def pytest_configure(config):
+    config.addinivalue_line('markers', 'integration: requires outbound network (milvus.io etc.)')
 
 _PROJECT_ROOT = Path(__file__).resolve().parent  # knowledge-content/tests
 _PROJECT_SRC = _PROJECT_ROOT.parent / 'src'       # knowledge-content/src

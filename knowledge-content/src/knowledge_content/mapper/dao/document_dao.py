@@ -1,6 +1,7 @@
 from sqlalchemy import select, update
 
 from knowledge_common.common.transactional import get_current_session
+from knowledge_common.enums.boolean_char_flag_enum import BooleanCharFlag
 from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_content.mapper.do.document_do import KnowledgeDocument
 
@@ -81,7 +82,7 @@ class KnowledgeDocumentDao:
                 KnowledgeDocument.doc_title == doc_title, # type: ignore
                 KnowledgeDocument.del_flag == DeleteFlag.NORMAL.value  # type: ignore
             )
-            .values(is_latest='0')
+            .values(is_latest=BooleanCharFlag.NO.value)
         )
         if exclude_doc_id:
             query = query.where(KnowledgeDocument.doc_id != exclude_doc_id)

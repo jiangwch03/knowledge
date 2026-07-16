@@ -32,20 +32,10 @@ class TestLockKeyGeneration:
         key = LockKey.upload_task_key(123)
         assert key == 'lock:upload:task:123'
 
-    def test_parse_task_key(self):
-        """测试解析任务锁 Key 生成"""
-        key = LockKey.parse_task_key(456)
-        assert key == 'lock:parse:task:456'
-
     def test_upload_document_key(self):
         """测试文档上传锁 Key 生成"""
         key = LockKey.upload_document_key('test.pdf')
         assert key == 'lock:upload:doc:test.pdf'
-
-    def test_user_decision_key(self):
-        """测试用户决策锁 Key 生成"""
-        key = LockKey.user_decision_key(789)
-        assert key == 'lock:user:decision:789'
 
     def test_different_ids_different_keys(self):
         """不同 ID 生成不同的 Key"""
@@ -203,17 +193,12 @@ class TestLockKeyConsistency:
         assert delete_key == 'lock:upload:task:123'
 
     def test_stage2_uses_upload_task_key(self):
-        """Stage2 应该使用 upload_task_key（不是 parse_task_key）"""
+        """Stage2 应该使用 upload_task_key"""
         task_id = 100
-        parse_task_id = 200
 
         # Stage2 应该使用 task_id 的 key
         stage2_key = LockKey.upload_task_key(task_id)
 
-        # 而不是 parse_task_id 的 key
-        wrong_key = LockKey.parse_task_key(parse_task_id)
-
-        assert stage2_key != wrong_key
         assert stage2_key == 'lock:upload:task:100'
 
     def test_all_operations_use_task_id_key(self):

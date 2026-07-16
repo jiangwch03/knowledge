@@ -23,6 +23,8 @@ _SRC_PATH = _PROJECT_ROOT / 'src'
 sys.path.insert(0, str(_SRC_PATH))
 sys.path.insert(0, str(_PROJECT_ROOT))
 
+from knowledge_common.enums.boolean_char_flag_enum import BooleanCharFlag
+from knowledge_common.enums.document_type_enum import DocumentType
 from knowledge_content.enums.document_upload_status_enum import DocumentUploadStatus
 from knowledge_content.enums.mineru_parse_detail_state_enum import MineruParseDetailState
 from knowledge_content.enums.mineru_parse_task_status_enum import MineruParseTaskStatus
@@ -63,10 +65,10 @@ class TestStage2PathARetryLinkFailed:
         mock_task.task_id = 1
         mock_task.status = MineruParseTaskStatus.PENDING.value
         mock_task.parse_mode = 'document'
-        mock_task.enable_formula = '1'
-        mock_task.enable_table = '1'
+        mock_task.enable_formula = BooleanCharFlag.YES.value
+        mock_task.enable_table = BooleanCharFlag.YES.value
         mock_task.language = 'ch'
-        mock_task.is_ocr = '0'
+        mock_task.is_ocr = BooleanCharFlag.NO.value
 
         mock_record = MagicMock(spec=KnowledgeUploadDocumentParseTask)
         mock_record.task_id = 1
@@ -400,7 +402,7 @@ class TestStage4MarkdownMerge:
         mock_record.doc_title = '测试文档'
         mock_record.doc_desc = '描述'
         mock_record.doc_name = 'test.pdf'
-        mock_record.doc_type = 'PDF'
+        mock_record.doc_type = DocumentType.PDF.value
         mock_record.doc_version = '1.0'
         mock_record.version_remark = None
         mock_record.original_doc_key = 'https://minio/test.pdf'

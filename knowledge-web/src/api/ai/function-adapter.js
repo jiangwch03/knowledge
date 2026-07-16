@@ -42,3 +42,11 @@ export function getAdapterConfig(paramId) {
     method: "get",
   });
 }
+
+// 根据参数ID获取模型配置列表
+export function getAdapterConfigList(paramId) {
+  return request({
+    url: "/ai/model/function-adapter/" + paramId + "/models",
+    method: "get",
+  });
+}

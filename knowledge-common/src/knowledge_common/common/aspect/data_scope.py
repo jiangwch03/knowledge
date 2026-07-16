@@ -6,6 +6,7 @@ from knowledge_common.config.database import Base
 from knowledge_common.mapper.do.dept_do import SysDept
 from knowledge_common.mapper.do.role_do import SysRoleDept
 from knowledge_common.utils.dependency_util import DependencyUtil
+from knowledge_common.vo.user_vo import CurrentUserModel
 
 
 class GetDataScope:
@@ -38,7 +39,14 @@ class GetDataScope:
 
     def __call__(self, request: Request) -> ColumnElement:
         DependencyUtil.check_exclude_routes(request, err_msg='当前路由不在认证规则内，不可使用GetDataScope依赖项')
-        current_user = RequestContext.get_current_user()
+        return self.build_scope_sql(RequestContext.get_current_user())
+
+    def build_scope_sql(self, current_user: CurrentUserModel) -> ColumnElement:
+        """
+        根据当前用户角色构建数据权限 SQL 条件。
+
+        供 Controller 依赖注入与 Service/Agent 等非 HTTP 场景复用。
+        """
         user_id = current_user.user.user_id
         dept_id = current_user.user.dept_id
         custom_data_scope_role_id_list = [
@@ -91,9 +99,7 @@ class GetDataScope:
             else:
                 param_sql_list.append(False)
         param_sql_list = list(dict.fromkeys(param_sql_list))
-        param_sql = or_(*param_sql_list)
-
-        return param_sql
+        return or_(*param_sql_list)
 
 
 def DataScopeDependency(  # noqa: N802

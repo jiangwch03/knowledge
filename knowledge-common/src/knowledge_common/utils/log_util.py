@@ -13,6 +13,7 @@ from loguru._logger import Logger
 
 from knowledge_common.config.env import AppConfig, LogConfig
 from knowledge_common.middlewares.trace_middleware import TraceCtx
+from knowledge_common.utils.project_path_util import infer_current_project, resolve_workspace_root
 from knowledge_common.utils.server_util import WorkerIdUtil
 
 """
@@ -416,8 +417,23 @@ class LoggerInitializer:
         self.instance_id = LogConfig.log_instance_id
         self.service_name = LogConfig.log_service_name or AppConfig.app_name
         self._log_file_enabled = LogConfig.log_file_enabled
-        self._log_base_dir = LogConfig.log_file_base_dir
+        self._log_base_dir = self._build_log_base_dir()
         self._ensure_log_directory_exists()
+
+    @staticmethod
+    def _build_log_base_dir() -> str:
+        """
+        生成日志目录：工作空间/logs/项目名
+
+        :return: 日志基础目录
+        """
+        configured_base_dir = LogConfig.log_file_base_dir or 'logs'
+        if os.path.isabs(configured_base_dir):
+            return configured_base_dir
+
+        workspace_root = resolve_workspace_root() or os.path.abspath(os.getcwd())
+        project_name = infer_current_project() or os.path.basename(os.path.abspath(os.getcwd())) or AppConfig.app_name
+        return os.path.join(workspace_root, configured_base_dir, project_name)
 
     def _ensure_log_directory_exists(self) -> None:
         """
@@ -604,8 +620,8 @@ class LoggerInitializer:
         configured_logger = _logger.patch(self._patch_record)
         InterceptHandler.target_logger = configured_logger
         configured_logger.remove()
-        info_log_path = os.path.join(self._log_base_dir, '{time:YYYY}', '{time:MM}', '{time:DD}', 'info.log')
-        error_log_path = os.path.join(self._log_base_dir, '{time:YYYY}', '{time:MM}', '{time:DD}', 'error.log')
+        info_log_path = os.path.join(self._log_base_dir, '{time:YYYY-MM-DD}', 'info.log')
+        error_log_path = os.path.join(self._log_base_dir, '{time:YYYY-MM-DD}', 'error.log')
         if LogConfig.loguru_stdout:
             if LogConfig.loguru_json:
                 configured_logger.add(

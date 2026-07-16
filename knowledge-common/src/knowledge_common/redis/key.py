@@ -40,6 +40,9 @@ class RedisKey:
     ACCOUNT_LOCK = 'account_lock'
     PASSWORD_ERROR_COUNT = 'password_error_count'
     SMS_CODE = 'sms_code'
+    CRAWL_TASK_CANCEL = 'crawl:task:cancel'
+    CRAWL_TASK_PAUSE = 'crawl:task:pause'
+    CRAWL_TRIAL_VERIFIED = 'crawl:trial:ok'
 
     # ==================== 缓存名称 → 展示名映射 ====================
 
@@ -102,6 +105,42 @@ class RedisKey:
         """短信验证码 key"""
         return f'{RedisKey.SMS_CODE}:{phone}'
 
+    @staticmethod
+    def crawl_task_cancel_key(task_id: int) -> str:
+        """
+        爬取任务取消标志 key
+
+        用于标记任务已被取消（如超时兜底），爬取循环中检查此标志以主动停止执行。
+        非分布式锁，仅作为普通 Redis 数据 key 使用。
+
+        :param task_id: 爬取任务ID
+        """
+        return f'{RedisKey.CRAWL_TASK_CANCEL}:{task_id}'
+
+    @staticmethod
+    def crawl_task_pause_key(task_id: int) -> str:
+        """
+        爬取任务暂停标志 key
+
+        用于标记任务需要暂停，爬取循环中检查此标志以主动停止执行。
+        非分布式锁，仅作为普通 Redis 数据 key 使用。
+
+        :param task_id: 爬取任务ID
+        """
+        return f'{RedisKey.CRAWL_TASK_PAUSE}:{task_id}'
+
+    @staticmethod
+    def crawl_trial_verified_key(session_id: int, fingerprint: str) -> str:
+        """
+        试爬成功凭证 key
+
+        绑定 session + url/config 指纹；提交任务时校验存在与否。
+
+        :param session_id: Agent 会话 ID
+        :param fingerprint: url+策略配置指纹
+        """
+        return f'{RedisKey.CRAWL_TRIAL_VERIFIED}:{session_id}:{fingerprint}'
+
 
 class LockKey:
     """
@@ -112,9 +151,9 @@ class LockKey:
 
     PREFIX = 'lock'
     UPLOAD_DOCUMENT = 'upload:doc'
-    PARSE_TASK = 'parse:task'
     UPLOAD_TASK = 'upload:task'
-    USER_DECISION = 'user:decision'
+    CRAWL_TASK = 'crawl:task'
+    CRAWL_TASK_RETRY_JOB = 'crawl:task:retry:job'
 
     # ==================== Key 生成方法 ====================
 
@@ -140,17 +179,6 @@ class LockKey:
         return f'{LockKey.PREFIX}:{LockKey.UPLOAD_DOCUMENT}:{filename}'
 
     @staticmethod
-    def parse_task_key(parse_task_id: int) -> str:
-        """
-        解析任务锁 key
-
-        用于 Stage2/Stage3 定时任务和消费者，防止同时处理同一解析任务。
-
-        :param parse_task_id: 解析任务ID
-        """
-        return f'{LockKey.PREFIX}:{LockKey.PARSE_TASK}:{parse_task_id}'
-
-    @staticmethod
     def upload_task_key(task_id: int) -> str:
         """
         上传任务锁 key
@@ -162,15 +190,27 @@ class LockKey:
         return f'{LockKey.PREFIX}:{LockKey.UPLOAD_TASK}:{task_id}'
 
     @staticmethod
-    def user_decision_key(parse_task_id: int) -> str:
+    def crawl_task_key(task_id: int) -> str:
         """
-        用户决策锁 key
+        爬取任务统一锁 key
 
-        用于用户决策接口，防止同时对同一任务进行决策。
+        覆盖爬取执行、MD 合并、任务删除、决策重试等所有操作。
+        爬取任务各阶段（PENDING→RUNNING→COMPLETED→CONVERTING→CONVERTED）
+        以及 FAILED→重试→PENDING 严格串行，同一把锁足以互斥所有场景。
 
-        :param parse_task_id: 解析任务ID
+        :param task_id: 爬取任务ID
         """
-        return f'{LockKey.PREFIX}:{LockKey.USER_DECISION}:{parse_task_id}'
+        return f'{LockKey.PREFIX}:{LockKey.CRAWL_TASK}:{task_id}'
+
+    @staticmethod
+    def crawl_task_retry_job_key() -> str:
+        """
+        爬取任务失败重试定时任务锁 key（job 级互斥）
+
+        用于定时任务级别互斥，防止上一次失败重试批次尚未执行完毕时，
+        下一次定时触发重复执行。
+        """
+        return f'{LockKey.PREFIX}:{LockKey.CRAWL_TASK_RETRY_JOB}'
 
     @staticmethod
     def custom_key(name: str) -> str:
@@ -180,3 +220,24 @@ class LockKey:
         :param name: 锁名称（如 'sync:job:xxx'）
         """
         return f'{LockKey.PREFIX}:{name}'
+
+
+class SemaphoreKey:
+    """
+    Redis 分布式信号量键名定义
+
+    所有信号量 key 统一 semaphore: 前缀，避免与其他 key 冲突。
+    """
+
+    PREFIX = 'semaphore'
+
+    # ==================== Key 生成方法 ====================
+
+    @staticmethod
+    def crawl_pipeline_key() -> str:
+        """
+        爬取流水线全局并发信号量 key
+
+        限制多 worker 下同时执行的爬取任务数。
+        """
+        return f'{SemaphoreKey.PREFIX}:crawl_pipeline:global'

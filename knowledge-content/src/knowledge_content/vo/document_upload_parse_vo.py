@@ -107,7 +107,7 @@ class ListDocumentRecordsQueryModel(BaseVo, BasePageQueryModel):
     doc_type: str | None = Field(default=None, description='文档格式')
     status: str | None = Field(default=None, description='状态')
     page_num: int = Field(default=1, ge=1, description='当前页码')
-    page_size: int = Field(default=10, ge=1, le=100, description='每页记录数')
+    page_size: int = Field(default=10, ge=1, le=500, description='每页记录数')
 
 
 class GetParseTaskResponseModel(BaseModel):
