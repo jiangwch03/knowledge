@@ -183,6 +183,10 @@
 - **WHEN** 创建 `knowledge_document` 时
 - **THEN** 系统沿用上传记录版本号，按当前已落库最大版本号动态判断 `is_latest`，若为最新版则将同标题旧版本 `is_latest` 更新为 `'0'`
 
+#### Scenario: 网页爬取文档版本管理
+- **WHEN** 爬取任务完成创建 `knowledge_document` 时
+- **THEN** 系统复用 `/document-parse/next-version` 接口获取新版本号，写入 `doc_version` 字段，并更新该标题其他未删除记录的 `is_latest='0'`
+
 ### Requirement: Markdown 转换页面（参考需求文档 §4.4）
 系统 SHALL 提供独立的 Markdown 转换页面，支持上传 TXT 文件或粘贴纯文本生成 Markdown。
 
