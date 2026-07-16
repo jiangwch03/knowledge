@@ -1,29 +1,31 @@
 -- ----------------------------------------------------------------------------
--- RAG 资料上传与 MinerU 解析能力升级脚本
--- 适用于已有数据库环境（新增 5 张表及相关初始化数据）
--- 创建时间: 2026-06-19
+-- knowledge-content 全量升级脚本（合并版）
+--
+-- 合并自：
+--   upgrade_rag_document_upload.sql
+--   upgrade_web_crawler_agent.sql
+--   （及其历史拆分脚本：agent_chat / crawl_proxy_pool / task_version 等）
+--
+-- 覆盖：资料上传 + MinerU 解析、文档主表/文件子表、网页爬取 Agent
+-- 适用：新环境全量初始化（最终表结构直接写在 CREATE 中；可重复执行）
+-- 创建时间: 2026-07-16
 -- ----------------------------------------------------------------------------
 
--- ----------------------------
--- 1、文档主表
--- ----------------------------
-DROP TABLE IF EXISTS `knowledge_document`;
-CREATE TABLE `knowledge_document` (
+-- ============================================================================
+-- A. 文档域：主表 / 文件子表 / 上传与 MinerU
+-- ============================================================================
+
+-- A.1 文档主表（文件级字段见 knowledge_document_file）
+CREATE TABLE IF NOT EXISTS `knowledge_document` (
     `doc_id` bigint NOT NULL AUTO_INCREMENT COMMENT '文档主键',
     `task_id` bigint DEFAULT NULL COMMENT '关联任务ID（source_type=0时为上传任务ID，source_type=1时为爬取任务ID）',
     `source_type` char(1) DEFAULT '0' COMMENT '来源类型（0-手动上传 1-网页爬取）',
     `doc_title` varchar(255) NOT NULL COMMENT '文档标题',
     `doc_desc` varchar(500) DEFAULT NULL COMMENT '文档描述',
-    `doc_name` varchar(255) DEFAULT NULL COMMENT '文件名',
-    `doc_type` varchar(50) DEFAULT NULL COMMENT '文档格式 PDF/DOC/DOCX/XLSX/MD',
-    `source_url` text COMMENT '网页来源URL',
-    `original_doc_key` varchar(500) DEFAULT NULL COMMENT '原始上传文件MinIO对象键',
-    `doc_key` varchar(500) DEFAULT NULL COMMENT '最终Markdown MinIO对象键',
     `doc_version` varchar(20) DEFAULT '1.0' COMMENT '文档版本',
     `is_latest` char(1) DEFAULT '1' COMMENT '是否最新版本（0-否 1-是）',
     `version_remark` varchar(255) DEFAULT NULL COMMENT '版本说明',
     `status` varchar(20) DEFAULT 'CONVERTED' COMMENT '文档状态 CONVERTED/CHUNKED/VECTOR_STORED',
-    `media_count` int DEFAULT '0' COMMENT '媒体文件数量',
     `user_id` bigint NOT NULL COMMENT '上传用户ID',
     `dept_id` bigint DEFAULT NULL COMMENT '部门ID',
     `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
@@ -37,13 +39,31 @@ CREATE TABLE `knowledge_document` (
     KEY `idx_doc_title` (`doc_title`),
     KEY `idx_source_type` (`source_type`),
     KEY `idx_is_latest` (`is_latest`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档主表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档主表（文件级字段见 knowledge_document_file）';
 
--- ----------------------------
--- 2、文档上传任务表
--- ----------------------------
-DROP TABLE IF EXISTS `knowledge_upload_document_parse_task`;
-CREATE TABLE `knowledge_upload_document_parse_task` (
+-- A.2 文档文件子表
+CREATE TABLE IF NOT EXISTS `knowledge_document_file` (
+    `id` bigint NOT NULL AUTO_INCREMENT COMMENT '文件行主键',
+    `doc_id` bigint NOT NULL COMMENT '关联 knowledge_document.doc_id',
+    `task_id` bigint DEFAULT NULL COMMENT '冗余任务ID（上传任务或爬取任务）',
+    `doc_name` varchar(255) DEFAULT NULL COMMENT '文件名',
+    `doc_type` varchar(50) DEFAULT NULL COMMENT '文档格式 PDF/DOC/DOCX/XLSX/MD',
+    `source_url` text COMMENT '与 doc_key 对应的原始网页URL（上传可空）',
+    `original_doc_key` varchar(500) DEFAULT NULL COMMENT '原始上传文件MinIO对象键',
+    `doc_key` varchar(500) DEFAULT NULL COMMENT '最终Markdown MinIO对象键',
+    `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+    `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
+    PRIMARY KEY (`id`),
+    KEY `idx_doc_id` (`doc_id`),
+    KEY `idx_task_id` (`task_id`),
+    KEY `idx_doc_id_del` (`doc_id`, `del_flag`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档文件子表';
+
+-- A.3 文档上传任务表
+CREATE TABLE IF NOT EXISTS `knowledge_upload_document_parse_task` (
     `task_id` bigint NOT NULL AUTO_INCREMENT COMMENT '上传任务ID',
     `doc_title` varchar(255) NOT NULL COMMENT '文档标题',
     `doc_desc` varchar(500) DEFAULT NULL COMMENT '文档描述',
@@ -72,11 +92,8 @@ CREATE TABLE `knowledge_upload_document_parse_task` (
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档上传任务表';
 
--- ----------------------------
--- 3、MinerU解析任务表
--- ----------------------------
-DROP TABLE IF EXISTS `knowledge_mineru_parse_task`;
-CREATE TABLE `knowledge_mineru_parse_task` (
+-- A.4 MinerU 解析任务表
+CREATE TABLE IF NOT EXISTS `knowledge_mineru_parse_task` (
     `parse_task_id` bigint NOT NULL AUTO_INCREMENT COMMENT '解析任务ID',
     `task_id` bigint DEFAULT NULL COMMENT '关联上传任务ID',
     `parse_mode` varchar(20) DEFAULT 'document' COMMENT '解析模式 html/document',
@@ -101,11 +118,8 @@ CREATE TABLE `knowledge_mineru_parse_task` (
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MinerU解析任务表';
 
--- ----------------------------
--- 4、MinerU解析批次/分段明细表
--- ----------------------------
-DROP TABLE IF EXISTS `knowledge_mineru_parse_detail_task`;
-CREATE TABLE `knowledge_mineru_parse_detail_task` (
+-- A.5 MinerU 解析批次/分段明细表
+CREATE TABLE IF NOT EXISTS `knowledge_mineru_parse_detail_task` (
     `detail_id` bigint NOT NULL AUTO_INCREMENT COMMENT '明细ID',
     `parse_task_id` bigint NOT NULL COMMENT '关联解析任务ID',
     `sequence_number` int NOT NULL COMMENT '分段序号，用于合并排序',
@@ -129,11 +143,8 @@ CREATE TABLE `knowledge_mineru_parse_detail_task` (
     KEY `idx_state` (`state`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MinerU解析批次/分段明细表';
 
--- ----------------------------
--- 5、模型功能适配表
--- ----------------------------
-DROP TABLE IF EXISTS `knowledge_ai_model_function_adapter`;
-CREATE TABLE `knowledge_ai_model_function_adapter` (
+-- A.6 模型功能适配表
+CREATE TABLE IF NOT EXISTS `knowledge_ai_model_function_adapter` (
     `adapter_id` bigint NOT NULL AUTO_INCREMENT COMMENT '适配ID',
     `function_point` varchar(100) NOT NULL COMMENT '业务功能点',
     `param_id` varchar(64) NOT NULL COMMENT '参数ID，唯一标识业务功能',
@@ -147,9 +158,114 @@ CREATE TABLE `knowledge_ai_model_function_adapter` (
     UNIQUE KEY `uk_param_id` (`param_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型功能适配表';
 
--- ----------------------------
--- 6、merio_language 字典初始化
--- ----------------------------
+-- ============================================================================
+-- B. 网页爬取 Agent：会话 / 任务 / URL 记录
+-- ============================================================================
+
+-- B.1 Agent 会话 / 消息表
+CREATE TABLE IF NOT EXISTS `knowledge_agent_session` (
+    `session_id` bigint NOT NULL AUTO_INCREMENT COMMENT '会话ID',
+    `agent_type` varchar(50) NOT NULL DEFAULT 'web_crawler' COMMENT 'Agent类型，如 web_crawler',
+    `session_title` varchar(255) DEFAULT NULL COMMENT '会话标题',
+    `status` varchar(20) DEFAULT 'ACTIVE' COMMENT '会话状态 ACTIVE/CLOSED',
+    `model_id` bigint DEFAULT NULL COMMENT '选择的模型ID',
+    `user_id` bigint NOT NULL COMMENT '用户ID',
+    `dept_id` bigint DEFAULT NULL COMMENT '部门ID',
+    `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+    `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
+    `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`session_id`),
+    KEY `idx_user_agent` (`user_id`, `agent_type`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent 会话表';
+
+CREATE TABLE IF NOT EXISTS `knowledge_agent_message` (
+    `message_id` bigint NOT NULL AUTO_INCREMENT COMMENT '消息ID',
+    `session_id` bigint NOT NULL COMMENT '关联会话ID',
+    `role` varchar(20) NOT NULL COMMENT '消息角色 human/ai/system/tool（与LangChain对齐）',
+    `content` text COMMENT '消息内容',
+    `tool_call_id` varchar(100) DEFAULT NULL COMMENT '工具调用ID（role=tool时使用）',
+    `tool_name` varchar(100) DEFAULT NULL COMMENT '工具名称（role=tool时使用）',
+    `user_id` bigint NOT NULL COMMENT '用户ID',
+    `dept_id` bigint DEFAULT NULL COMMENT '部门ID',
+    `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+    `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
+    `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`message_id`),
+    KEY `idx_session_id` (`session_id`),
+    KEY `idx_role` (`role`),
+    KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent 消息表';
+
+-- B.2 爬取任务表
+CREATE TABLE IF NOT EXISTS `knowledge_web_crawler_task` (
+    `task_id` bigint NOT NULL AUTO_INCREMENT COMMENT '任务ID',
+    `doc_version` varchar(20) DEFAULT NULL COMMENT '文档版本号（创建时预分配，落库时沿用）',
+    `target_url` varchar(1000) NOT NULL COMMENT '目标URL',
+    `crawl_config` text COMMENT 'crawl4ai 爬取策略配置JSON',
+    `status` varchar(20) DEFAULT 'PENDING' COMMENT '任务状态 PENDING/RUNNING/COMPLETED/CONVERTED/CONVERT_FAILED/FAILED/USER_DECISION/PAUSED',
+    `progress` int DEFAULT '0' COMMENT '进度百分比 0-100',
+    `current_step` varchar(255) DEFAULT NULL COMMENT '当前执行步骤描述',
+    `success_count` int DEFAULT '0' COMMENT '成功页面数',
+    `failed_count` int DEFAULT '0' COMMENT '失败页面数',
+    `total_count` int DEFAULT '0' COMMENT '总页面数',
+    `error_code` varchar(50) DEFAULT NULL COMMENT '错误码',
+    `error_message` text COMMENT '错误信息',
+    `retry_count` int DEFAULT '0' COMMENT '已重试次数（达到 max_retry_count 后升级为用户人工决策）',
+    `max_retry_count` int DEFAULT '2' COMMENT '规则自动重试上限；LLM 人工重试时 += crawl4ai_rule_retry_limit',
+    `started_time` datetime DEFAULT NULL COMMENT '任务开始时间',
+    `completed_time` datetime DEFAULT NULL COMMENT '任务完成时间',
+    `user_id` bigint NOT NULL COMMENT '用户ID',
+    `dept_id` bigint DEFAULT NULL COMMENT '部门ID',
+    `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+    `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
+    `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`task_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_target_url` (`target_url`(255)),
+    KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='爬取任务表';
+
+-- B.3 爬取任务 URL 记录表
+CREATE TABLE IF NOT EXISTS `knowledge_web_crawler_task_url_record` (
+    `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `task_id` bigint NOT NULL COMMENT '关联任务ID',
+    `url` varchar(1000) NOT NULL COMMENT '原始页面URL',
+    `status` varchar(20) DEFAULT 'PENDING' COMMENT '记录状态 PENDING/SUCCESS/FAILED',
+    `doc_key` varchar(500) DEFAULT NULL COMMENT '页面markdown的MinIO对象键',
+    `title` varchar(255) DEFAULT NULL COMMENT '页面标题',
+    `status_code` int DEFAULT NULL COMMENT 'HTTP状态码',
+    `error_code` varchar(50) DEFAULT NULL COMMENT '错误码',
+    `error_message` text COMMENT '错误详情',
+    `retry_count` int DEFAULT '0' COMMENT '重试次数',
+    `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+    `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
+    PRIMARY KEY (`id`),
+    KEY `idx_task_id` (`task_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_url` (`url`(255))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='爬取任务URL记录表';
+
+-- B.4 清理废弃表
+DROP TABLE IF EXISTS `knowledge_web_crawler_message_task`;
+
+-- ============================================================================
+-- C. 字典初始化
+-- ============================================================================
+
 INSERT INTO `sys_dict_type` (`dict_name`, `dict_type`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT 'merio语言', 'merio_language', '0', 'admin', NOW(), 'admin', NOW(), 'merio OCR 识别语言配置'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_type` WHERE `dict_type` = 'merio_language');
@@ -168,10 +284,26 @@ INSERT INTO `sys_dict_data` (`dict_sort`, `dict_label`, `dict_value`, `dict_type
 (11, '泰文', 'th', 'merio_language', NULL, NULL, 'N', '0', 'admin', NOW(), 'admin', NOW(), '包含 Thai, English')
 ON DUPLICATE KEY UPDATE `dict_label` = VALUES(`dict_label`), `remark` = VALUES(`remark`);
 
--- ----------------------------
--- 7、大模型配置初始化
--- ----------------------------
--- DeepSeek Chat（TXT 转 Markdown 默认模型）
+INSERT INTO `sys_dict_type` (
+    `dict_name`, `dict_type`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT
+    '爬虫代理池',
+    'crawl_proxy_pool',
+    '0',
+    'admin',
+    NOW(),
+    'admin',
+    NOW(),
+    '网页爬取 Agent 可用代理 IP 池；节点存于 sys_dict_data，dict_value 为 crawl4ai ProxyConfig JSON'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_type` WHERE `dict_type` = 'crawl_proxy_pool'
+);
+
+-- ============================================================================
+-- D. 模型与功能适配初始化
+-- ============================================================================
+
 INSERT INTO `ai_models` (
     `model_code`, `model_name`, `provider`, `model_sort`, `api_key`, `base_url`,
     `model_type`, `max_tokens`, `temperature`, `support_reasoning`, `support_images`,
@@ -184,7 +316,6 @@ INSERT INTO `ai_models` (
     '0', 1, 1, 'admin', NOW(), 'admin', NOW(), 'DeepSeek Chat模型'
 WHERE NOT EXISTS (SELECT 1 FROM `ai_models` WHERE `model_code` = 'deepseek-chat');
 
--- qwen3-vl-plus（Stage4 图片描述模型）
 INSERT INTO `ai_models` (
     `model_code`, `model_name`, `provider`, `model_sort`, `api_key`, `base_url`,
     `model_type`, `max_tokens`, `temperature`, `support_reasoning`, `support_images`,
@@ -197,9 +328,18 @@ INSERT INTO `ai_models` (
     '0', 1, 1, 'admin', NOW(), 'admin', NOW(), 'Qwen3 VL Plus 图片描述模型'
 WHERE NOT EXISTS (SELECT 1 FROM `ai_models` WHERE `model_code` = 'qwen3-vl-plus');
 
--- ----------------------------
--- 8、模型功能适配初始化
--- ----------------------------
+INSERT INTO `ai_models` (
+    `model_code`, `model_name`, `provider`, `model_sort`, `api_key`, `base_url`,
+    `model_type`, `max_tokens`, `temperature`, `support_reasoning`, `support_images`,
+    `status`, `user_id`, `dept_id`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+) SELECT
+    'qwen-plus', 'Qwen-Plus', 'openai', 3,
+    'sk-你自己的key',
+    'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    'LLM', 8192, 0.7, 'N', 'N',
+    '0', 1, 1, 'admin', NOW(), 'admin', NOW(), 'Qwen-Plus 网页爬取Agent模型'
+WHERE NOT EXISTS (SELECT 1 FROM `ai_models` WHERE `model_code` = 'qwen-plus');
+
 INSERT INTO `knowledge_ai_model_function_adapter` (
     `function_point`, `param_id`, `model_id`, `create_by`, `create_time`, `update_by`, `update_time`
 ) SELECT
@@ -224,9 +364,22 @@ WHERE NOT EXISTS (
     WHERE `param_id` = 'md_image_description' AND `del_flag` = '0'
 );
 
--- ----------------------------
--- 9、注册 RAG 解析调度定时任务
--- ----------------------------
+INSERT INTO `knowledge_ai_model_function_adapter` (
+    `function_point`, `param_id`, `model_id`, `create_by`, `create_time`, `update_by`, `update_time`
+) SELECT
+    '网页爬取Agent',
+    'web_crawler_agent',
+    CAST((SELECT `model_id` FROM `ai_models` WHERE `model_code` = 'qwen-plus') AS CHAR),
+    'admin', NOW(), 'admin', NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM `knowledge_ai_model_function_adapter`
+    WHERE `param_id` = 'web_crawler_agent' AND `del_flag` = '0'
+);
+
+-- ============================================================================
+-- E. 定时任务
+-- ============================================================================
+
 INSERT INTO `sys_job` (
     `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
     `cron_expression`, `misfire_policy`, `concurrent`, `status`, `app_scope`,
@@ -271,20 +424,40 @@ INSERT INTO `sys_job` (
     'admin', NOW(), 'admin', NOW(), '每 5 分钟扫描 CONVERT_FAILED 记录并重新触发合并'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_content.tasks.document_parse_scheduler.stage4_retry_job');
 
--- ----------------------------
--- 10、注册菜单与接口权限
--- ----------------------------
--- 新增「知识管理」一级目录
+INSERT INTO `sys_job` (
+    `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
+    `cron_expression`, `misfire_policy`, `concurrent`, `status`, `app_scope`,
+    `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+) SELECT
+    '爬取任务超时兜底', 'default', 'default',
+    'knowledge_content.tasks.web_crawler_task_scheduler.crawl_task_timeout_job',
+    '', '', '0 */5 * * * ?', '3', '1', '0', 'knowledge-content',
+    'admin', NOW(), 'admin', NOW(), '每5分钟扫描超时运行中的爬取任务并标记失败'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_content.tasks.web_crawler_task_scheduler.crawl_task_timeout_job');
+
+INSERT INTO `sys_job` (
+    `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
+    `cron_expression`, `misfire_policy`, `concurrent`, `status`, `app_scope`,
+    `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+) SELECT
+    '爬取失败任务重试', 'default', 'default',
+    'knowledge_content.tasks.web_crawler_task_scheduler.crawl_task_retry_job',
+    '', '', '0 */3 * * * ?', '3', '1', '0', 'knowledge-content',
+    'admin', NOW(), 'admin', NOW(), '每3分钟扫描失败任务并尝试自动修复重试'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_content.tasks.web_crawler_task_scheduler.crawl_task_retry_job');
+
+-- ============================================================================
+-- F. 菜单与权限
+-- ============================================================================
+
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT '知识管理', '0', '5', 'knowledge', NULL, '', '', 1, 0, 'M', '0', '0', '', 'knowledge', 'admin', NOW(), 'admin', NOW(), '知识管理目录'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = 'knowledge' AND `parent_id` = '0');
 
--- 新增「资料上传」二级菜单
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT '资料上传', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'knowledge' AND `parent_id` = '0'), '1', 'document', 'knowledge/document/index', '', '', 1, 0, 'C', '0', '0', 'rag:document:list', 'document', 'admin', NOW(), 'admin', NOW(), '资料上传菜单'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = 'document' AND `component` = 'knowledge/document/index');
 
--- 资料上传按钮权限
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT '资料上传', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'document' AND `component` = 'knowledge/document/index'), '1', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:document:upload', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:document:upload');
@@ -301,7 +474,22 @@ INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `componen
 SELECT '资料下载', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'document' AND `component` = 'knowledge/document/index'), '4', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:document:download', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:document:download');
 
--- 模型适配菜单（直接挂载在AI管理下，不再作为模型管理的子菜单）
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT '网页爬虫', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'knowledge' AND `parent_id` = '0'), '2', 'crawler', 'knowledge/crawler/index', '', '', 1, 0, 'C', '0', '0', 'rag:crawler:list', 'web-crawl', 'admin', NOW(), 'admin', NOW(), '网页爬虫菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = 'crawler' AND `component` = 'knowledge/crawler/index');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT '会话管理', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'crawler' AND `component` = 'knowledge/crawler/index'), '1', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:crawler:session', '#', 'admin', NOW(), 'admin', NOW(), ''
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:crawler:session');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT '爬取任务', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'crawler' AND `component` = 'knowledge/crawler/index'), '2', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:crawler:task', '#', 'admin', NOW(), 'admin', NOW(), ''
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:crawler:task');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT '爬取文档', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'crawler' AND `component` = 'knowledge/crawler/index'), '3', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:crawler:document', '#', 'admin', NOW(), 'admin', NOW(), ''
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:crawler:document');
+
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT '模型适配', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'ai' AND `parent_id` = '0'), '3', 'model-adapter', 'ai/function-adapter/index', '', '', 1, 0, 'C', '0', '0', 'ai:model:function-adapter:list', 'tree', 'admin', NOW(), 'admin', NOW(), '模型适配菜单'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = 'model-adapter');
@@ -317,12 +505,3 @@ WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'ai:model:function-ad
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT '适配删除', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'model-adapter'), '3', '', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:function-adapter:remove', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'ai:model:function-adapter:remove');
-
-
-
-
-
-
-
-
-
