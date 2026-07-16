@@ -98,22 +98,33 @@ export function handleParseDecision(parseTaskId, data) {
   });
 }
 
-// 预览文档
-export function previewDocument(docId) {
+// 预览文档（上传可省略 fileId；爬取须传 fileId）
+export function previewDocument(docId, params = {}) {
   return request({
     url: "/document/" + docId + "/preview",
     method: "get",
+    params,
     baseURL: contentBase,
     responseType: "text",
   });
 }
 
-// 下载文档
-export function downloadDocument(docId) {
+// 下载文档（单文件 / 多 fileIds / all）
+export function downloadDocument(docId, params = {}) {
   return request({
     url: "/document/" + docId + "/download",
     method: "get",
+    params,
     baseURL: contentBase,
     responseType: "blob",
+  });
+}
+
+// 文档文件列表（选页预览/下载）
+export function listDocumentFiles(docId) {
+  return request({
+    url: "/document/" + docId + "/files",
+    method: "get",
+    baseURL: contentBase,
   });
 }

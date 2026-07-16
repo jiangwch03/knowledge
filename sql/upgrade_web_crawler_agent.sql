@@ -311,3 +311,40 @@ WHERE NOT EXISTS (
     SELECT 1 FROM `knowledge_ai_model_function_adapter`
     WHERE `param_id` = 'web_crawler_agent' AND `del_flag` = '0'
 );
+
+
+-- ----------------------------
+-- 1、新建文档文件子表
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `knowledge_document_file` (
+    `id` bigint NOT NULL AUTO_INCREMENT COMMENT '文件行主键',
+    `doc_id` bigint NOT NULL COMMENT '关联 knowledge_document.doc_id',
+    `task_id` bigint DEFAULT NULL COMMENT '冗余任务ID（上传任务或爬取任务）',
+    `doc_name` varchar(255) DEFAULT NULL COMMENT '文件名',
+    `doc_type` varchar(50) DEFAULT NULL COMMENT '文档格式 PDF/DOC/DOCX/XLSX/MD',
+    `source_url` text COMMENT '与 doc_key 对应的原始网页URL（上传可空）',
+    `original_doc_key` varchar(500) DEFAULT NULL COMMENT '原始上传文件MinIO对象键',
+    `doc_key` varchar(500) DEFAULT NULL COMMENT '最终Markdown MinIO对象键',
+    `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+    `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
+    PRIMARY KEY (`id`),
+    KEY `idx_doc_id` (`doc_id`),
+    KEY `idx_task_id` (`task_id`),
+    KEY `idx_doc_id_del` (`doc_id`, `del_flag`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档文件子表';
+
+
+
+-- ----------------------------
+-- 3、主表删除文件级字段
+-- ----------------------------
+ALTER TABLE `knowledge_document`
+    DROP COLUMN `doc_name`,
+    DROP COLUMN `doc_type`,
+    DROP COLUMN `source_url`,
+    DROP COLUMN `original_doc_key`,
+    DROP COLUMN `doc_key`,
+    DROP COLUMN `media_count`;

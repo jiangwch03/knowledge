@@ -6,6 +6,7 @@ knowledge-content 爬取任务定时任务
   - 执行锁仍被占用：仍在跑（如大页后处理），跳过
   - 执行锁可抢到：进程已死 → 直接 PENDING 续跑（不计 retry_count）
 - PENDING 消息重投：扫描卡住的 PENDING 任务，重发 crawl.task.pending（兜底 produce 失败/pre_ack 后丢失）
+- COMPLETED 消息重投：扫描爬取完成但未进入落库链路的任务，重发 crawl.document.pending
 - 失败重试：扫描 FAILED 状态且重试次数未达上限的任务，触发自动重试
 - 文档合并重试：扫描 CONVERT_FAILED 状态的任务，重发 crawl.document.pending 触发合并消费者
 """
@@ -26,8 +27,9 @@ from knowledge_content.service.vo.message_stream_topic_vo import CrawlDocumentPe
 from knowledge_content.service.web_crawler_task_retry_service import WebCrawlerTaskRetryService
 from knowledge_content.service.web_crawler_task_service import WebCrawlerTaskService
 
-# PENDING 创建后至少等待这么久才重投，避免与刚发出的正常消息赛跑
+# 创建/完成后至少等待这么久才重投，避免与刚发出的正常消息赛跑
 _PENDING_REQUEUE_GRACE_MINUTES = 2
+_COMPLETED_REQUEUE_GRACE_MINUTES = 2
 
 
 class WebCrawlerTaskScheduler:
@@ -131,7 +133,7 @@ class WebCrawlerTaskScheduler:
         logger.info(f'[CrawlScheduler] 设置取消标志: task_id={task_id}')
 
     @classmethod
-    async def requeue_stale_pending_tasks(cls) -> None:
+    async def _requeue_stale_pending_tasks(cls) -> None:
         """
         PENDING 消息重投兜底：扫出创建超过宽限期仍停留在 PENDING 的任务，重发执行消息。
 
@@ -158,57 +160,100 @@ class WebCrawlerTaskScheduler:
                 logger.exception('[CrawlScheduler] PENDING 重投失败: task_id={}, error={}', task.task_id, e)
 
     @classmethod
+    async def _requeue_stale_completed_tasks(cls) -> None:
+        """
+        COMPLETED 消息重投兜底：扫出完成超过宽限期仍停留在 COMPLETED 的任务，重发落库消息。
+
+        覆盖场景：
+        - complete_task 落库成功但 produce crawl.document.pending 失败
+        - pre_ack 后消费者拿锁失败 / handler 异常，消息已 ACK 且任务未进入 CONVERTING
+        """
+        cutoff = datetime.now() - timedelta(minutes=_COMPLETED_REQUEUE_GRACE_MINUTES)
+        completed_tasks = await WebCrawlerTaskDao.get_completed_tasks_before(cutoff)
+        logger.info(
+            f'[CrawlScheduler] COMPLETED 重投: 扫描到 {len(completed_tasks)} 个超时未落库任务'
+            f'（宽限={_COMPLETED_REQUEUE_GRACE_MINUTES}分钟）'
+        )
+
+        for task in completed_tasks:
+            try:
+                await MessageStreamService.produce(
+                    topic=StreamTopicConfig.crawl_document_pending,
+                    value=CrawlDocumentPending(task_id=task.task_id, target_url=task.target_url),
+                    key=str(task.task_id),
+                )
+                logger.info(f'[CrawlScheduler] COMPLETED 重投消息已发送: task_id={task.task_id}')
+            except Exception as e:
+                logger.exception('[CrawlScheduler] COMPLETED 重投失败: task_id={}, error={}', task.task_id, e)
+
+    @classmethod
     async def retry_failed_tasks(cls) -> None:
         """
-        失败重试：扫描 PENDING / FAILED / CONVERT_FAILED 任务并兜底处理。
-
-        - PENDING：消息丢失时重投 crawl.task.pending
-        - CONVERT_FAILED：重发 crawl.document.pending（仅合并，不递增 retry_count）
-        - FAILED：通过 WebCrawlerTaskRetryService 尝试自动修复并重试
+        失败重试入口：依次处理 PENDING / COMPLETED / CONVERT_FAILED / FAILED 四类兜底。
 
         分布式锁：job 级互斥，防止上一次重试批次尚未执行完毕时下一次定时触发重复执行。
         新的定时触发若未抢到锁则直接跳过，等下一轮再来。
         """
-        async with DistributedLock(LockKey.crawl_task_retry_job_key(),expire=300,timeout=0,renew=True,) as acquired:
+        async with DistributedLock(
+            LockKey.crawl_task_retry_job_key(),
+            expire=300,
+            timeout=0,
+            renew=True,
+        ) as acquired:
             if not acquired:
                 logger.info('[CrawlScheduler] 失败重试: 上一次重试仍在执行中，跳过本次触发')
                 return
+            await cls._requeue_stale_pending_tasks()
+            await cls._requeue_stale_completed_tasks()
+            await cls._retry_convert_failed_tasks()
+            await cls._auto_retry_failed_tasks()
 
-            # PENDING：消息投递失败 / 消费丢失后的重投兜底（消费者幂等仅处理 PENDING）
-            await cls.requeue_stale_pending_tasks()
+    @classmethod
+    async def _retry_convert_failed_tasks(cls) -> None:
+        """
+        文档合并重试：扫描 CONVERT_FAILED 任务，重发 crawl.document.pending。
 
-            # CONVERT_FAILED：文档合并失败，重发合并消息（不改状态、不递增 retry_count）
-            convert_failed_tasks = await WebCrawlerTaskDao.get_tasks_by_status(
-                status=CrawlTaskStatus.CONVERT_FAILED.value,
-            )
-            logger.info(f'[CrawlScheduler] 文档合并重试: 扫描到 {len(convert_failed_tasks)} 个 CONVERT_FAILED 任务')
+        仅触发合并消费者，不改任务状态、不递增 retry_count。
+        """
+        convert_failed_tasks = await WebCrawlerTaskDao.get_tasks_by_status(
+            status=CrawlTaskStatus.CONVERT_FAILED.value,
+        )
+        logger.info(
+            f'[CrawlScheduler] 文档合并重试: 扫描到 {len(convert_failed_tasks)} 个 CONVERT_FAILED 任务'
+        )
 
-            for task in convert_failed_tasks:
-                try:
-                    await MessageStreamService.produce(
-                        topic=StreamTopicConfig.crawl_document_pending,
-                        value=CrawlDocumentPending(task_id=task.task_id, target_url=task.target_url),
-                        key=str(task.task_id),
+        for task in convert_failed_tasks:
+            try:
+                await MessageStreamService.produce(
+                    topic=StreamTopicConfig.crawl_document_pending,
+                    value=CrawlDocumentPending(task_id=task.task_id, target_url=task.target_url),
+                    key=str(task.task_id),
+                )
+                logger.info(f'[CrawlScheduler] 文档合并重试消息已发送: task_id={task.task_id}')
+            except Exception as e:
+                logger.exception('[CrawlScheduler] 文档合并重试失败: task_id={}, error={}', task.task_id, e)
+
+    @classmethod
+    async def _auto_retry_failed_tasks(cls) -> None:
+        """
+        爬取失败自动重试：扫描 FAILED 任务，通过 WebCrawlerTaskRetryService 尝试修复并重试。
+        """
+        failed_tasks = await WebCrawlerTaskDao.get_tasks_by_status(
+            status=CrawlTaskStatus.FAILED.value,
+        )
+        logger.info(f'[CrawlScheduler] 失败重试: 扫描到 {len(failed_tasks)} 个失败任务')
+
+        for task in failed_tasks:
+            try:
+                retried = await WebCrawlerTaskRetryService.try_auto_retry(task.task_id)
+                if retried:
+                    logger.info(f'[CrawlScheduler] 自动重试成功: task_id={task.task_id}')
+                else:
+                    logger.info(
+                        f'[CrawlScheduler] 自动重试失败或已标记最终状态: task_id={task.task_id}'
                     )
-                    logger.info(f'[CrawlScheduler] 文档合并重试消息已发送: task_id={task.task_id}')
-                except Exception as e:
-                    logger.exception('[CrawlScheduler] 文档合并重试失败: task_id={}, error={}', task.task_id, e)
-
-            # FAILED：自动重试
-            tasks = await WebCrawlerTaskDao.get_tasks_by_status(
-                status=CrawlTaskStatus.FAILED.value,
-            )
-            logger.info(f'[CrawlScheduler] 失败重试: 扫描到 {len(tasks)} 个失败任务')
-
-            for task in tasks:
-                try:
-                    retried = await WebCrawlerTaskRetryService.try_auto_retry(task.task_id)
-                    if retried:
-                        logger.info(f'[CrawlScheduler] 自动重试成功: task_id={task.task_id}')
-                    else:
-                        logger.info(f'[CrawlScheduler] 自动重试失败或已标记最终状态: task_id={task.task_id}')
-                except Exception as e:
-                    logger.exception('[CrawlScheduler] 重试处理异常: task_id={}, error={}', task.task_id, e)
+            except Exception as e:
+                logger.exception('[CrawlScheduler] 重试处理异常: task_id={}, error={}', task.task_id, e)
 
 # APScheduler 可调用的顶层异步函数
 

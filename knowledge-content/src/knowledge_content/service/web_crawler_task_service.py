@@ -757,9 +757,9 @@ class WebCrawlerTaskService:
         }
 
     @classmethod
-    async def merge_crawl_results(cls, task_id: int) -> str:
+    async def persist_crawl_results(cls, task_id: int) -> str:
         """
-        放弃失败的URL，将已成功爬取的页面提交到文档合并队列
+        放弃失败的URL，将已成功爬取的页面提交到文档落库队列
 
         适用状态：FAILED / USER_DECISION / PAUSED / CONVERT_FAILED
         流程：校验状态 → 加锁互斥 → 查询成功URL记录 → 标记COMPLETED → 投递 crawl.document.pending
@@ -768,7 +768,7 @@ class WebCrawlerTaskService:
         :return: 结果描述字符串（仅表示提交成功，不等待落库）
         :raises ServiceException: 状态不允许或无成功URL
         """
-        logger.info('[MergeTask] 开始提交合并已爬内容: task_id={}', task_id)
+        logger.info('[PersistTask] 开始提交入库已爬内容: task_id={}', task_id)
 
         async with DistributedLock(LockKey.crawl_task_key(task_id), expire=60, timeout=3) as acquired:
             if not acquired:
@@ -778,7 +778,6 @@ class WebCrawlerTaskService:
 
             task = await cls.get_task(task_id)
 
-            # 步骤1：校验任务状态
             allowed_statuses = {
                 CrawlTaskStatus.FAILED.value,
                 CrawlTaskStatus.USER_DECISION.value,
@@ -787,24 +786,21 @@ class WebCrawlerTaskService:
             }
             if task.status not in allowed_statuses:
                 raise ServiceException(
-                    message=f'当前任务状态({task.status})不允许合并，'
+                    message=f'当前任务状态({task.status})不允许入库，'
                             f'仅 FAILED / USER_DECISION / PAUSED / CONVERT_FAILED 状态允许此操作'
                 )
 
-            # 步骤2：查询成功的URL记录（消费者侧也会再查；此处先校验有可合内容）
             success_records = await WebCrawlerTaskUrlRecordDao.get_success_records_with_doc_key(task_id)
             if not success_records:
                 raise ServiceException(
-                    message='没有成功爬取的URL记录，无法合并文档'
+                    message='没有成功爬取的URL记录，无法入库文档'
                 )
 
             page_count = len(success_records)
             target_url = task.target_url
 
-            # 步骤3：标记 COMPLETED（消费者入口守卫要求）
             await cls.complete_task(task_id)
 
-        # 步骤4：锁外投递合并消息（由 crawl_document_consumer 异步落库）
         try:
             await MessageStreamService.produce(
                 topic=StreamTopicConfig.crawl_document_pending,
@@ -812,23 +808,25 @@ class WebCrawlerTaskService:
                 key=str(task_id),
             )
             logger.info(
-                '[MergeTask] 合并消息已投递: task_id={}, url_count={}',
+                '[PersistTask] 入库消息已投递: task_id={}, url_count={}',
                 task_id, page_count,
             )
             return (
-                f'合并已提交：{page_count} 个成功页面已进入文档合并队列，'
-                f'系统将异步合并落库。'
+                f'入库已提交：{page_count} 个成功页面已进入文档落库队列，'
+                f'系统将异步写入知识库文档。'
             )
         except Exception as e:
-            logger.error('[MergeTask] 投递合并消息失败: task_id={}, error={}', task_id, e, exc_info=True)
-            # 已 COMPLETED 但消息未发出：标 CONVERT_FAILED，由既有定时任务重投
+            logger.error('[PersistTask] 投递入库消息失败: task_id={}, error={}', task_id, e, exc_info=True)
             await cls.update_task_status(
                 task_id,
                 CrawlTaskStatus.CONVERT_FAILED.value,
                 error_code=CrawlTaskErrorCode.DOC_PERSIST_ERROR.value,
-                error_message=f'合并消息投递失败: {e}',
+                error_message=f'入库消息投递失败: {e}',
             )
-            raise ServiceException(message=f'合并消息投递失败: {e}')
+            raise ServiceException(message=f'入库消息投递失败: {e}')
+
+    # 旧名兼容
+    merge_crawl_results = persist_crawl_results
 
     @classmethod
     @transactional()
@@ -854,7 +852,7 @@ class WebCrawlerTaskService:
                 CrawlTaskStatus.CONVERTED.value,
             }
             if task.status in blocked:
-                raise ServiceException(message='该任务正在执行、合并中或已转换，不可删除')
+                raise ServiceException(message='该任务正在执行、落库中或已转换，不可删除')
             await WebCrawlerTaskDao.soft_delete(task_id, update_by)
             await WebCrawlerTaskUrlRecordDao.soft_delete_by_task_id(task_id, update_by)
             logger.info(f'[Task] 删除任务: task_id={task_id}')

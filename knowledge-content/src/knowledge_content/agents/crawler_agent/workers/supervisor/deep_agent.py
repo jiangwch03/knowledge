@@ -43,7 +43,7 @@ from knowledge_content.agents.middleware.crawler_state_sync_middleware import (
 from knowledge_content.agents.states.crawler_supervisor_state import SupervisorState
 from knowledge_content.agents.tools import CRAWL_AGENT_DEEP_SUPERVISOR_TOOLS
 from knowledge_content.agents.tools.apply_scope_change import apply_scope_change
-from knowledge_content.agents.tools.crawl_merge_results import merge_crawl_results
+from knowledge_content.agents.tools.crawl_merge_results import merge_crawl_results, persist_crawl_results
 from knowledge_content.agents.tools.crawl_execute import crawl_execute
 from knowledge_content.agents.tools.crawl_retry import crawl_retry
 from knowledge_content.agents.tools.crawl_task_delete import delete_crawl_task
@@ -104,12 +104,12 @@ def _tool_hitl_description(tool_call, _state, _runtime) -> str:
                 f"任务 ID: {args.get('task_id', '未知')}\n"
                 '删除后任务将不再展示。'
             )
-        case _ if name == merge_crawl_results.name: # 合并爬取结果
+        case _ if name in (persist_crawl_results.name, merge_crawl_results.name, 'merge_crawl_results'):
             return (
-                '确认提交合并已爬取结果？\n'
+                '确认提交入库已爬取结果？\n'
                 f"任务 ID: {args.get('task_id', '未知')}\n"
-                '将放弃失败 URL，并把已成功页面投入文档合并队列（异步落库，'
-                '提交成功不等于已合入知识库）。'
+                '将放弃失败 URL，并把已成功页面投入文档落库队列（异步落库，'
+                '提交成功不等于已写入知识库）。'
             )
         case _ if name == crawl_retry.name: # 重试爬取任务  
             retry_url = (args.get('target_url') or '').strip() or '（未传入，沿用任务原 URL）'
@@ -155,7 +155,7 @@ async def build_deep_supervisor_graph() -> CompiledStateGraph:
         pause_crawl_task.name: _hitl_config,
         resume_crawl_task.name: _hitl_config,
         delete_crawl_task.name: _hitl_config,
-        merge_crawl_results.name: _hitl_config,
+        persist_crawl_results.name: _hitl_config,
         crawl_retry.name: _hitl_config,
     }
 

@@ -170,8 +170,8 @@ async def resume_task(
 
 @crawl_task_controller.post(
     '/{task_id}/merge',
-    summary='合并已爬内容',
-    description='放弃失败的URL，将已成功爬取的页面提交到文档合并队列（异步落库）',
+    summary='入库已爬内容',
+    description='放弃失败的URL，将已成功爬取的页面提交到文档落库队列（异步落库）',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('rag:crawler:task:merge')],
 )
@@ -179,9 +179,9 @@ async def merge_task(
     request: Request,
     task_id: Annotated[int, Path(description='任务ID')],
 ) -> Response:
-    """合并已爬内容"""
+    """入库已爬内容（路径仍为 /merge，语义为入库）"""
     try:
-        result = await WebCrawlerTaskService.merge_crawl_results(task_id)
+        result = await WebCrawlerTaskService.persist_crawl_results(task_id)
         return ResponseUtil.success(msg=result)
     except ServiceException as e:
         return ResponseUtil.failure(msg=e.message)

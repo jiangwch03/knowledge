@@ -1,7 +1,7 @@
 """Agent 工具定义（薄适配层）"""
 from knowledge_content.agents.tools.apply_scope_change import apply_scope_change
 from knowledge_content.agents.tools.crawl_execute import crawl_execute
-from knowledge_content.agents.tools.crawl_merge_results import merge_crawl_results
+from knowledge_content.agents.tools.crawl_merge_results import merge_crawl_results, persist_crawl_results
 from knowledge_content.agents.tools.crawl_retry import crawl_retry
 from knowledge_content.agents.tools.crawl_task_list_actionable import list_actionable_crawl_tasks
 from knowledge_content.agents.tools.crawl_task_delete import delete_crawl_task
@@ -37,7 +37,8 @@ CRAWL_AGENT_DEEP_SUPERVISOR_TOOLS: list = [
     resume_crawl_task,     # 恢复 PAUSED 状态的任务（不修改 crawl_config）
     apply_scope_change,    # PAUSED 下调整爬取范围（更新 config、删越界 URL 后恢复）
     delete_crawl_task,     # 软删除指定任务
-    merge_crawl_results,   # 放弃失败 URL，将已成功页面投入文档合并队列
+    persist_crawl_results,  # 放弃失败 URL，将已成功页面投入文档落库队列
+    # merge_crawl_results 与 persist 为同一工具对象（旧名兼容，不重复注册）
     crawl_execute,         # 提交正式全站后台爬取任务（异步，返回 task_id）
     crawl_retry,           # 失败任务重试（复用 task_id，可更新 crawl_config / target_url） 
 ]

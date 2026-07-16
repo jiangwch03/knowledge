@@ -35,6 +35,7 @@ async def get_document_list(
         task_id=query.task_id,
         page_num=query.page_num,
         page_size=query.page_size,
+        doc_title=query.doc_title,
         status=query.status,
         create_by=query.create_by,
         del_flag=query.del_flag,

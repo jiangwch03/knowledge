@@ -1,8 +1,11 @@
 from sqlalchemy import select, update
 
 from knowledge_common.common.transactional import get_current_session
+from knowledge_common.common.vo import PageModel
 from knowledge_common.enums.boolean_char_flag_enum import BooleanCharFlag
 from knowledge_common.enums.del_flag_enum import DeleteFlag
+from knowledge_common.enums.document_source_type_enum import DocumentSourceType
+from knowledge_common.utils.page_util import PageUtil
 from knowledge_content.mapper.do.document_do import KnowledgeDocument
 
 
@@ -10,6 +13,37 @@ class KnowledgeDocumentDao:
     """
     文档主表数据库操作层
     """
+
+    @staticmethod
+    async def get_crawl_document_list(
+        task_id: int | None = None,
+        doc_title: str | None = None,
+        status: str | None = None,
+        create_by: str | None = None,
+        del_flag: str | None = None,
+        page_num: int = 1,
+        page_size: int = 20,
+    ) -> PageModel:
+        """
+        分页查询爬取来源文档主表列表
+        """
+        query = select(KnowledgeDocument).where(
+            KnowledgeDocument.source_type == DocumentSourceType.CRAWL.value,  # type: ignore
+        )
+        if del_flag is not None:
+            query = query.where(KnowledgeDocument.del_flag == del_flag)  # type: ignore
+        else:
+            query = query.where(KnowledgeDocument.del_flag == DeleteFlag.NORMAL.value)  # type: ignore
+        if task_id is not None:
+            query = query.where(KnowledgeDocument.task_id == task_id)  # type: ignore
+        if doc_title is not None:
+            query = query.where(KnowledgeDocument.doc_title.like(f'%{doc_title}%'))  # type: ignore
+        if status is not None:
+            query = query.where(KnowledgeDocument.status == status)  # type: ignore
+        if create_by is not None:
+            query = query.where(KnowledgeDocument.create_by.like(f'%{create_by}%'))  # type: ignore
+        query = query.order_by(KnowledgeDocument.doc_id.desc())  # type: ignore
+        return await PageUtil.paginate(query, page_num, page_size, is_page=True)
 
     @staticmethod
     async def get_document_by_id(doc_id: int) -> KnowledgeDocument | None:

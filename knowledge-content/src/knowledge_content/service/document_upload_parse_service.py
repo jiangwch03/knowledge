@@ -241,7 +241,10 @@ class DocumentUploadParseService:
             doc_key: str,
             user_name: str,
     ) -> KnowledgeDocument:
-        """创建 knowledge_document 并处理 is_latest"""
+        """创建 knowledge_document + 1 条 document_file，并处理 is_latest"""
+        from knowledge_content.mapper.dao.document_file_dao import KnowledgeDocumentFileDao
+        from knowledge_content.mapper.do.document_file_do import KnowledgeDocumentFile
+
         await KnowledgeDocumentDao.update_latest_by_title(record.doc_title)
         max_version = await KnowledgeDocumentDao.get_max_version_by_title(record.doc_title)
         is_latest = BooleanCharFlag.YES.value
@@ -253,10 +256,6 @@ class DocumentUploadParseService:
             source_type=DocumentSourceType.UPLOAD.value,
             doc_title=record.doc_title,
             doc_desc=record.doc_desc,
-            doc_name=record.doc_name,
-            doc_type=record.doc_type,
-            original_doc_key=record.original_doc_key,
-            doc_key=doc_key,
             doc_version=record.doc_version,
             is_latest=is_latest,
             version_remark=record.version_remark,
@@ -266,7 +265,21 @@ class DocumentUploadParseService:
             create_by=user_name,
             update_by=user_name,
         )
-        return await KnowledgeDocumentDao.add_document(document)
+        result = await KnowledgeDocumentDao.add_document(document)
+        await KnowledgeDocumentFileDao.add_file(
+            KnowledgeDocumentFile(
+                doc_id=result.doc_id,
+                task_id=record.task_id,
+                doc_name=record.doc_name,
+                doc_type=record.doc_type,
+                source_url=None,
+                original_doc_key=record.original_doc_key,
+                doc_key=doc_key,
+                create_by=user_name,
+                update_by=user_name,
+            )
+        )
+        return result
 
     @classmethod
     async def _publish_parse_pending(cls, parse_task_id: int) -> None:
@@ -724,12 +737,14 @@ class DocumentUploadParseService:
 
     @classmethod
     async def _save_final_markdown(cls, record: KnowledgeUploadDocumentParseTask, markdown: str) -> None:
-        """保存最终 Markdown 到 MinIO 并创建 knowledge_document"""
+        """保存最终 Markdown 到 MinIO，并创建/更新 knowledge_document + document_file"""
+        from knowledge_content.mapper.dao.document_file_dao import KnowledgeDocumentFileDao
+        from knowledge_content.mapper.do.document_file_do import KnowledgeDocumentFile
+
         object_name = f'{MinioConfig.minio_object_markdown_prefix}/{record.task_id}/{record.doc_title}.md'
         await KnowledgeMinioService.upload_stream(markdown.encode('utf-8'), object_name)
         doc_key = object_name
 
-        # 检查是否已存在相同标题+版本的文档，若存在则更新而非插入（防重复）
         existing = await KnowledgeDocumentDao.get_document_by_title_and_version(
             record.doc_title, record.doc_version
         )
@@ -738,21 +753,42 @@ class DocumentUploadParseService:
             existing.task_id = record.task_id
             existing.source_type = DocumentSourceType.UPLOAD.value
             existing.doc_desc = record.doc_desc
-            existing.doc_name = record.doc_name
-            existing.doc_type = record.doc_type
-            existing.original_doc_key = record.original_doc_key
-            existing.doc_key = doc_key
             existing.version_remark = record.version_remark
             existing.status = DocumentStatus.CONVERTED.value
             existing.update_by = record.update_by
             existing.update_time = datetime.now()
             await db.flush()
-            # 更新 is_latest：将同标题的其他文档置为非最新
             await KnowledgeDocumentDao.update_latest_by_title(
                 record.doc_title, exclude_doc_id=existing.doc_id
             )
             existing.is_latest = BooleanCharFlag.YES.value
             await db.flush()
+
+            files = await KnowledgeDocumentFileDao.list_by_doc_id(existing.doc_id)
+            if files:
+                file_row = files[0]
+                file_row.task_id = record.task_id
+                file_row.doc_name = record.doc_name
+                file_row.doc_type = record.doc_type
+                file_row.original_doc_key = record.original_doc_key
+                file_row.doc_key = doc_key
+                file_row.update_by = record.update_by or ''
+                file_row.update_time = datetime.now()
+                await db.flush()
+            else:
+                await KnowledgeDocumentFileDao.add_file(
+                    KnowledgeDocumentFile(
+                        doc_id=existing.doc_id,
+                        task_id=record.task_id,
+                        doc_name=record.doc_name,
+                        doc_type=record.doc_type,
+                        source_url=None,
+                        original_doc_key=record.original_doc_key,
+                        doc_key=doc_key,
+                        create_by=record.create_by or '',
+                        update_by=record.update_by or '',
+                    )
+                )
         else:
             await KnowledgeDocumentDao.update_latest_by_title(record.doc_title)
             max_version = await KnowledgeDocumentDao.get_max_version_by_title(record.doc_title)
@@ -765,10 +801,6 @@ class DocumentUploadParseService:
                 source_type=DocumentSourceType.UPLOAD.value,
                 doc_title=record.doc_title,
                 doc_desc=record.doc_desc,
-                doc_name=record.doc_name,
-                doc_type=record.doc_type,
-                original_doc_key=record.original_doc_key,
-                doc_key=doc_key,
                 doc_version=record.doc_version,
                 is_latest=is_latest,
                 version_remark=record.version_remark,
@@ -778,7 +810,20 @@ class DocumentUploadParseService:
                 create_by=record.create_by,
                 update_by=record.update_by,
             )
-            await KnowledgeDocumentDao.add_document(document)
+            result = await KnowledgeDocumentDao.add_document(document)
+            await KnowledgeDocumentFileDao.add_file(
+                KnowledgeDocumentFile(
+                    doc_id=result.doc_id,
+                    task_id=record.task_id,
+                    doc_name=record.doc_name,
+                    doc_type=record.doc_type,
+                    source_url=None,
+                    original_doc_key=record.original_doc_key,
+                    doc_key=doc_key,
+                    create_by=record.create_by or '',
+                    update_by=record.update_by or '',
+                )
+            )
 
         await KnowledgeUploadTaskDao.update_status(
             record.task_id, DocumentUploadStatus.CONVERTED.value, clear_errors=True

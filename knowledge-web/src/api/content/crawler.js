@@ -183,7 +183,7 @@ export function pauseCrawlTask(taskId) {
   });
 }
 
-// 合并已爬内容（放弃失败URL，将成功页面合入文档）
+// 入库已爬内容（放弃失败URL，将成功页面投入文档落库队列）
 export function mergeCrawlResults(taskId) {
   return request({
     url: "/crawler/task/" + taskId + "/merge",

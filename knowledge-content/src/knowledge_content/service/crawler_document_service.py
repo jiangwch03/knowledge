@@ -1,227 +1,232 @@
 import tempfile
+from collections import defaultdict
 from pathlib import Path
+from urllib.parse import urlparse
 
-from sqlalchemy import select
-
-from knowledge_common.common.transactional import async_session_scope
+from knowledge_common.common import get_current_session
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import PageModel
 from knowledge_common.config.env import UploadConfig
 from knowledge_common.enums.boolean_char_flag_enum import BooleanCharFlag
-from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.enums.document_source_type_enum import DocumentSourceType
 from knowledge_common.enums.document_status_enum import DocumentStatus
 from knowledge_common.enums.document_type_enum import DocumentType
 from knowledge_common.exceptions.exception import format_exception_message
 from knowledge_common.utils.log_util import logger
-from knowledge_common.utils.page_util import PageUtil
 from knowledge_content.enums.crawl_task_error_code_enum import CrawlTaskErrorCode
 from knowledge_content.enums.crawl_task_status_enum import CrawlTaskStatus
 from knowledge_content.mapper.dao.document_dao import KnowledgeDocumentDao
+from knowledge_content.mapper.dao.document_file_dao import KnowledgeDocumentFileDao
 from knowledge_content.mapper.dao.web_crawler_task_dao import WebCrawlerTaskDao
+from knowledge_content.mapper.dao.web_crawler_task_url_record_dao import WebCrawlerTaskUrlRecordDao
 from knowledge_content.mapper.do.document_do import KnowledgeDocument
+from knowledge_content.mapper.do.document_file_do import KnowledgeDocumentFile
+from knowledge_content.mapper.do.web_crawler_task_do import WebCrawlerTask
 from knowledge_content.mapper.vo.crawl_task_update_vo import CrawlTaskUpdateVo
 from knowledge_content.service.document_service import DocumentService
 from knowledge_content.service.minio_service import KnowledgeMinioService
 from knowledge_content.service.vo.crawl_processed_vo import CrawlProcessedVo
+from knowledge_content.service.web_crawler_task_service import WebCrawlerTaskService
 
 
 class CrawlerDocumentService:
     """
     爬取文档落库服务层
 
-    负责将爬取结果创建 knowledge_document 记录。
-    Markdown 文件已由 CrawlPostProcessorService 上传至 MinIO，本服务只创建文档元数据记录。
+    负责将爬取结果创建 knowledge_document + knowledge_document_file。
+    Markdown 已由 CrawlPostProcessorService 上传至 MinIO；本服务写主表元数据与子表文件行。
 
-    多页爬取时自动合并所有页面的 Markdown 为单个文档（使用 --- 分隔）。
-    单页爬取时保持原有行为，直接使用后处理阶段上传的 MinIO 文件。
+    默认路径：1 主表 + N 子表（不合并多页）。
+    合并实现保留在 _merge_* / _persist_merged_document，供日后迁回，默认不调用。
     """
 
     @classmethod
-    async def persist_documents(cls, task_id: int, target_url: str, results: list[CrawlProcessedVo]) -> None:
+    async def persist_documents(cls, task_id: int) -> None:
         """
-    从后处理结果中重建爬取结果并持久化文档
-
-    直接使用后处理阶段返回的成功结果列表，不再经过 URL 记录表。
-
-    :param task_id: 任务ID
-    :param target_url: 目标URL
-    :param results: 后处理成功的爬取结果列表
-    """
-        logger.info(f'[CrawlDocConsumer][persist_documents] 开始持久化爬取文档: task_id={task_id}')
-        from knowledge_content.service.web_crawler_task_service import WebCrawlerTaskService
-
-        try:
-            # 步骤1：查询任务状态，非转换失败/爬取完成/转换中的不处理
-            task = await WebCrawlerTaskDao.get_task_by_id(task_id)
-            if task and task.status not in (
-                CrawlTaskStatus.CONVERT_FAILED.value,
-                CrawlTaskStatus.COMPLETED.value,
-                CrawlTaskStatus.CONVERTING.value,
-            ):
-                logger.info(f'[CrawlDocConsumer][persist_documents] 任务状态不是CONVERT_FAILED/COMPLETED/CONVERTING，跳过: task_id={task_id}, status={task.status}')
-                return
-
-            # 步骤2：查询文档表，如果已存在文档数据则直接退出
-            exist_doc = await KnowledgeDocumentDao.get_document_by_task_id(task_id, DocumentSourceType.CRAWL.value)
-            if exist_doc:
-                logger.info(f'[CrawlDocConsumer][persist_documents] 文档记录已存在，跳过: task_id={task_id}, doc_id={exist_doc.doc_id}')
-                return
-
-            if not results:
-                logger.info(f'[CrawlDocConsumer][persist_documents] 无成功爬取结果，跳过: task_id={task_id}')
-                return
-
-            # CONVERTING 由消费者在开合并前已标记；此处直接落库
-            create_by = task.create_by if task else ''
-            doc_version = task.doc_version if task else None
-            await cls._persist_documents(task_id, target_url, results, create_by, doc_version=doc_version)
-        except Exception as e:
-            err = format_exception_message(e)
-            # 更新任务为 CONVERT_FAILED
-            async with async_session_scope() as session:
-                task = await WebCrawlerTaskDao.get_task_by_id(task_id)
-                update_vo = CrawlTaskUpdateVo(
-                    status=CrawlTaskStatus.CONVERT_FAILED.value,
-                    error_code=CrawlTaskErrorCode.DOC_PERSIST_ERROR.value,
-                    error_message=err,
-                    update_by=task.create_by if task else '',
-                )
-                await WebCrawlerTaskDao.update_task(task_id, update_vo)
-                await session.commit()
-            logger.exception(
-                '[CrawlDocConsumer][persist_documents] 文档持久化失败: task_id={}, error={}',
-                task_id, err,
-            )
-            return
-
-        logger.info(f'[CrawlDocConsumer][persist_documents] 爬取文档持久化完成: task_id={task_id}')
-    
-    @classmethod
-    @transactional(rollback_for=(Exception,))
-    async def _persist_documents(
-        cls, task_id: int, target_url: str, results: list[CrawlProcessedVo], create_by: str = '',
-        doc_version: str | None = None,
-    ) -> None:
-        """
-        将爬取结果持久化为文档记录
-
-        - 单页结果：直接使用后处理阶段已上传的 MinIO 文件创建文档记录
-        - 多页结果：下载各页 Markdown 并合并为一个文档后上传落库
+        从成功爬取结果持久化文档（主表 + 文件子表）
 
         :param task_id: 任务ID
         :param target_url: 目标URL
-        :param results: 成功的爬取结果列表
-        :param create_by: 创建者标识（取任务表的 create_by）
         """
-        from knowledge_content.service.web_crawler_task_service import WebCrawlerTaskService
+        logger.info(f'[CrawlDocConsumer][persist_documents] 开始持久化爬取文档: task_id={task_id}')
+        task = await WebCrawlerTaskDao.get_task_by_id(task_id)
+        if not task:
+            logger.warning(f'[CrawlDocConsumer] 任务不存在，跳过: task_id={task_id}')
+            return
 
-        if len(results) == 1:
-            # 单页：直接落库
-            await cls._persist_single_document(task_id, target_url, results[0], 0, create_by, doc_version=doc_version)
-        else:
-            # 多页：合并 Markdown 后落为单个文档
-            await cls._persist_merged_document(task_id, target_url, results, create_by, doc_version=doc_version)
+        if task.status not in (
+                CrawlTaskStatus.CONVERT_FAILED.value,
+                CrawlTaskStatus.COMPLETED.value
+        ):
+            logger.info(
+                f'[CrawlDocConsumer][persist_documents] 任务状态不是CONVERT_FAILED/COMPLETED，跳过: '
+                f'task_id={task_id}, status={task.status}'
+            )
+            return
+
+        exist_doc = await KnowledgeDocumentDao.get_document_by_task_id(task_id, DocumentSourceType.CRAWL.value)
+        if exist_doc:
+            logger.info(
+                f'[CrawlDocConsumer][persist_documents] 文档记录已存在，跳过: task_id={task_id}, doc_id={exist_doc.doc_id}'
+            )
+            return
+
+        try:
+            success_records = await WebCrawlerTaskUrlRecordDao.get_success_records_with_doc_key(task_id)
+            if not success_records or len(success_records) == 0:
+                logger.info(f'[CrawlDocConsumer][persist_documents] 无成功爬取结果，跳过: task_id={task_id}')
+                return
+
+            results = [
+                CrawlProcessedVo(
+                    success=True,
+                    url=record.url,
+                    title=record.title or '',
+                    object_name=record.doc_key,
+                )
+                for record in success_records
+            ]
+
+            await WebCrawlerTaskService.update_task_status(
+                task_id, CrawlTaskStatus.CONVERTING.value,
+            )
+            logger.info(f'[CrawlDocConsumer] 已标记落库中: task_id={task_id}')
+
+            await cls._persist_documents(task, results)
+            logger.info(f'[CrawlDocConsumer][persist_documents] 爬取文档持久化完成: task_id={task_id}')
+        except Exception as e:
+            err = format_exception_message(e)
+            session = get_current_session()
+            task = await WebCrawlerTaskDao.get_task_by_id(task_id)
+            update_vo = CrawlTaskUpdateVo(
+                status=CrawlTaskStatus.CONVERT_FAILED.value,
+                error_code=CrawlTaskErrorCode.DOC_PERSIST_ERROR.value,
+                error_message=err,
+                update_by=task.create_by if task else 'admin',
+            )
+            await WebCrawlerTaskDao.update_task(task_id, update_vo)
+            await session.commit()
+            logger.exception(
+                '[CrawlDocConsumer][persist_documents] 文档持久化失败: task_id={}, error={}',
+                task_id,
+                err,
+            )
+            return
+
+
+
+    @classmethod
+    @transactional(rollback_for=(Exception,))
+    async def _persist_documents(
+        cls,
+        task: WebCrawlerTask,
+        results: list[CrawlProcessedVo],
+    ) -> None:
+        """统一落库：1 条 knowledge_document + N 条 knowledge_document_file（不合并）"""
+        task_id = task.task_id
+        target_url = task.target_url
+        create_by = task.create_by if task else 'admin'
+        doc_title = target_url
+        version = await cls._resolve_doc_version(doc_title, task.doc_version)
+
+        document = KnowledgeDocument(
+            task_id=task_id,
+            source_type=DocumentSourceType.CRAWL.value,
+            doc_title=doc_title,
+            doc_desc=doc_title + "爬取",
+            doc_version=version,
+            is_latest=BooleanCharFlag.YES.value,
+            version_remark=version,
+            status=DocumentStatus.CONVERTED.value,
+            user_id=task.user_id,
+            dept_id=task.dept_id,
+            create_by=create_by,
+            update_by=create_by,
+        )
+        result_doc = await KnowledgeDocumentDao.add_document(document)
+        await KnowledgeDocumentDao.update_latest_by_title(doc_title, exclude_doc_id=result_doc.doc_id)
+
+        file_rows: list[KnowledgeDocumentFile] = []
+        for i, result in enumerate(results):
+            title = result.title or result.url or f'page_{i + 1}'
+            doc_name = cls._build_page_doc_name(title, result.url, task_id, i)
+            file_rows.append(
+                KnowledgeDocumentFile(
+                    doc_id=result_doc.doc_id,
+                    task_id=task_id,
+                    doc_name=doc_name,
+                    doc_type=DocumentType.MD.value,
+                    source_url=result.url,
+                    original_doc_key=result.object_name,
+                    doc_key=result.object_name,
+                    create_by=create_by,
+                    update_by=create_by,
+                )
+            )
+        await KnowledgeDocumentFileDao.add_files(file_rows)
 
         await WebCrawlerTaskService.update_task_status(task_id, CrawlTaskStatus.CONVERTED.value)
+        logger.info(
+            f'[Document] 爬取文档落库成功: doc_id={result_doc.doc_id}, title={doc_title}, '
+            f'version={version}, files={len(file_rows)}'
+        )
+
+    @classmethod
+    def _build_page_doc_name(cls, title: str, url: str | None, task_id: int, index: int) -> str:
+        name = (title or '').strip()
+        if name:
+            if not name.lower().endswith('.md'):
+                name = f'{name}.md'
+            return name
+        if url:
+            path = urlparse(url).path.rstrip('/')
+            base = path.split('/')[-1] if path else ''
+            if base:
+                return base if base.lower().endswith('.md') else f'{base}.md'
+        return f'crawl_result_{task_id}_{index}.md'
 
     @classmethod
     async def _resolve_doc_version(cls, title: str, doc_version: str | None) -> str:
-        """优先使用任务预分配版本号，否则按标题动态生成"""
         if doc_version:
             return doc_version
         return await DocumentService.get_next_version(title)
 
-    @classmethod
-    async def _persist_single_document(
-        cls, task_id: int, target_url: str, result: CrawlProcessedVo, index: int, create_by: str = '',
-        doc_version: str | None = None,
-    ) -> None:
-        """
-        持久化单个爬取结果
-
-        :param task_id: 任务ID
-        :param target_url: 目标URL
-        :param result: 爬取结果
-        :param index: 结果序号
-        :param create_by: 创建者标识（取任务表的 create_by）
-        """
-        title = result.title or result.url
-        url = result.url
-
-        # 步骤1：直接使用后处理阶段已上传的 MinIO 对象名（SUCCESS 记录必定有 doc_key）
-        doc_key = result.object_name
-
-        # 步骤2：获取版本号（优先任务预分配）
-        doc_version = await cls._resolve_doc_version(title, doc_version)
-
-        # 步骤3：创建文档记录
-        doc_name = f'{title}.md' if title else f'crawl_result_{task_id}_{index}.md'
-        document = KnowledgeDocument(
-            task_id=task_id,
-            source_type=DocumentSourceType.CRAWL.value,
-            doc_title=title,
-            doc_name=doc_name,
-            doc_type=DocumentType.MD.value,
-            source_url=url,
-            doc_key=doc_key,
-            doc_version=doc_version,
-            is_latest=BooleanCharFlag.YES.value,
-            status=DocumentStatus.CONVERTED.value,
-            user_id=1,  # 后台任务无用户上下文，默认使用 admin 用户
-            create_by=create_by,
-        )
-
-        result_doc = await KnowledgeDocumentDao.add_document(document)
-
-        # 步骤4：更新同标题旧版本的 is_latest
-        await KnowledgeDocumentDao.update_latest_by_title(title, exclude_doc_id=result_doc.doc_id)
-
-        logger.info(f'[Document] 文档落库成功: doc_id={result_doc.doc_id}, title={title}, version={doc_version}')
+    # ------------------------------------------------------------------
+    # 以下为「多页合并落库」实现，默认路径不调用；保留供日后迁回复用
+    # ------------------------------------------------------------------
 
     @classmethod
     async def _persist_merged_document(
-        cls, task_id: int, target_url: str, results: list[CrawlProcessedVo], create_by: str = '',
+        cls,
+        task_id: int,
+        target_url: str,
+        results: list[CrawlProcessedVo],
+        create_by: str = '',
         doc_version: str | None = None,
     ) -> None:
         """
-        将多页爬取结果的 Markdown 合并后落为单个文档
-
-        采用流式写入临时文件策略，避免将所有页面内容同时加载到内存：
-        1. 逐页从 MinIO 下载 Markdown → 追加写入临时文件
-        2. 从磁盘上传合并文件至 MinIO
-        3. 创建单条 knowledge_document 记录
-
-        :param task_id: 任务ID
-        :param target_url: 目标URL
-        :param results: 成功的爬取结果列表
-        :param create_by: 创建者标识（取任务表的 create_by）
+        【迁回用 / 默认不调用】将多页 Markdown 合并后落为单个文档+单文件行
         """
         doc_title = results[0].title or target_url
 
         with tempfile.TemporaryDirectory(dir=UploadConfig.UPLOAD_TEMP_PATH) as tmpdir:
             merge_path = Path(tmpdir) / 'merged_result.md'
-
-            # 1. 逐页下载并合并写入临时文件
             page_count = await cls._merge_pages_to_temp(results, merge_path)
-
-            # 2. 从磁盘上传合并文件到 MinIO
             merged_doc_key = await cls._upload_merged_to_minio(task_id, merge_path)
 
-        # 临时目录已自动清理，3. 创建文档记录
         await cls._create_merged_document(
-            task_id, target_url, doc_title, merged_doc_key, page_count, create_by, doc_version=doc_version,
+            task_id,
+            target_url,
+            doc_title,
+            merged_doc_key,
+            page_count,
+            create_by,
+            doc_version=doc_version,
         )
 
     @classmethod
     async def _merge_pages_to_temp(cls, results: list[CrawlProcessedVo], merge_path: Path) -> int:
-        """
-        逐页下载 Markdown 并合并写入临时文件
-
-        :param results: 爬取结果列表
-        :param merge_path: 合并文件路径
-        :return: 成功写入的页数
-        """
+        """【迁回用】逐页下载 Markdown 并合并写入临时文件"""
         page_count = 0
         for i, result in enumerate(results):
             md_content = await KnowledgeMinioService.download_content(result.object_name)
@@ -238,23 +243,23 @@ class CrawlerDocumentService:
 
     @classmethod
     async def _upload_merged_to_minio(cls, task_id: int, merge_path: Path) -> str:
-        """
-        上传合并后的临时文件到 MinIO
-
-        :param task_id: 任务ID
-        :param merge_path: 本地合并文件路径
-        :return: MinIO 对象键
-        """
+        """【迁回用】上传合并后的临时文件到 MinIO"""
         merged_object_name = f'crawler/{task_id}/merged/merged_result.md'
         await KnowledgeMinioService.upload_local_file(str(merge_path), merged_object_name)
         return merged_object_name
 
     @classmethod
     async def _create_merged_document(
-        cls, task_id: int, target_url: str, doc_title: str, merged_doc_key: str, page_count: int,
-        create_by: str = '', doc_version: str | None = None,
+        cls,
+        task_id: int,
+        target_url: str,
+        doc_title: str,
+        merged_doc_key: str,
+        page_count: int,
+        create_by: str = '',
+        doc_version: str | None = None,
     ) -> None:
-        """创建合并后的文档记录，版本号沿用任务表 doc_version"""
+        """【迁回用】创建合并后的文档主表 + 单文件子表行"""
         task = await WebCrawlerTaskDao.get_task_by_id(task_id)
         version = (task.doc_version if task else None) or doc_version
         if not version:
@@ -264,10 +269,6 @@ class CrawlerDocumentService:
             task_id=task_id,
             source_type=DocumentSourceType.CRAWL.value,
             doc_title=doc_title,
-            doc_name=f'{doc_title}.md',
-            doc_type=DocumentType.MD.value,
-            source_url=target_url,
-            doc_key=merged_doc_key,
             doc_version=version,
             is_latest=BooleanCharFlag.YES.value,
             status=DocumentStatus.CONVERTED.value,
@@ -276,9 +277,21 @@ class CrawlerDocumentService:
         )
         result_doc = await KnowledgeDocumentDao.add_document(document)
         await KnowledgeDocumentDao.update_latest_by_title(doc_title, exclude_doc_id=result_doc.doc_id)
+        await KnowledgeDocumentFileDao.add_file(
+            KnowledgeDocumentFile(
+                doc_id=result_doc.doc_id,
+                task_id=task_id,
+                doc_name=f'{doc_title}.md',
+                doc_type=DocumentType.MD.value,
+                source_url=target_url,
+                original_doc_key=None,
+                doc_key=merged_doc_key,
+                create_by=create_by,
+            )
+        )
 
         logger.info(
-            f'[Document] 多页合并文档落库成功: doc_id={result_doc.doc_id}, '
+            f'[Document] 多页合并文档落库成功(迁回路径): doc_id={result_doc.doc_id}, '
             f'title={doc_title}, version={version}, pages={page_count}',
         )
 
@@ -288,38 +301,33 @@ class CrawlerDocumentService:
         task_id: int | None = None,
         page_num: int = 1,
         page_size: int = 20,
+        doc_title: str | None = None,
         status: str | None = None,
         create_by: str | None = None,
         del_flag: str | None = None,
     ) -> PageModel:
-        """
-        获取任务关联的文档列表
-
-        :param task_id: 任务ID（为空时查询全部爬取文档）
-        :param page_num: 页码
-        :param page_size: 每页数量
-        :param status: 文档状态过滤
-        :param create_by: 操作用户模糊搜索
-        :param del_flag: 删除标识过滤
-        :return: 分页结果
-        """
-        query = (
-            select(KnowledgeDocument)
-            .where(
-                KnowledgeDocument.source_type == DocumentSourceType.CRAWL.value,
-            )
+        """获取任务关联的文档列表（主表分页 + 子表摘要）"""
+        page = await KnowledgeDocumentDao.get_crawl_document_list(
+            task_id=task_id,
+            doc_title=doc_title,
+            status=status,
+            create_by=create_by,
+            del_flag=del_flag,
+            page_num=page_num,
+            page_size=page_size,
         )
-        # 删除标识过滤：默认只查未删除，指定 del_flag 时按查询值过滤
-        if del_flag is not None:
-            query = query.where(KnowledgeDocument.del_flag == del_flag)  # type: ignore
-        else:
-            query = query.where(KnowledgeDocument.del_flag == DeleteFlag.NORMAL.value)  # type: ignore
-
-        if task_id is not None:
-            query = query.where(KnowledgeDocument.task_id == task_id)  # type: ignore
-        if status is not None:
-            query = query.where(KnowledgeDocument.status == status)  # type: ignore
-        if create_by is not None:
-            query = query.where(KnowledgeDocument.create_by.like(f'%{create_by}%'))  # type: ignore
-        query = query.order_by(KnowledgeDocument.doc_id.desc())  # type: ignore
-        return await PageUtil.paginate(query, page_num, page_size, is_page=True)
+        # PageUtil 经 CamelCaseUtil 后 rows 已是 camelCase dict；批量查子表装配摘要
+        rows = page.rows or []
+        doc_ids = [doc.get('docId') for doc in rows if doc.get('docId') is not None]
+        files = await KnowledgeDocumentFileDao.list_by_doc_ids(doc_ids)
+        files_by_doc: dict[int, list] = defaultdict(list)
+        for f in files:
+            files_by_doc[f.doc_id].append(f)
+        for doc in rows:
+            doc_files = files_by_doc.get(doc.get('docId'), [])
+            doc['fileCount'] = len(doc_files)
+            first = doc_files[0] if doc_files else None
+            doc['docName'] = first.doc_name if first else None
+            doc['docType'] = first.doc_type if first else None
+            doc['sourceUrl'] = first.source_url if first else None
+        return page

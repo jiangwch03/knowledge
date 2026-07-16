@@ -271,6 +271,27 @@ class WebCrawlerTaskDao:
         )
 
     @staticmethod
+    async def get_completed_tasks_before(time_before: datetime) -> list[WebCrawlerTask]:
+        """
+        查询 completed_time 早于截止点、仍处于 COMPLETED 的未删除任务（文档落库消息丢失兜底）
+
+        :param time_before: 完成时间截止点
+        :return: 任务列表
+        """
+        db = get_current_session()
+        return list(
+            (await db.execute(
+                select(WebCrawlerTask).where(
+                    WebCrawlerTask.status == CrawlTaskStatus.COMPLETED.value,  # type: ignore
+                    WebCrawlerTask.completed_time < time_before,  # type: ignore
+                    WebCrawlerTask.del_flag == DeleteFlag.NORMAL.value,  # type: ignore
+                )
+            ))
+            .scalars()
+            .all()
+        )
+
+    @staticmethod
     async def soft_delete(task_id: int, update_by: str = '') -> None:
         """
         软删除任务

@@ -44,7 +44,7 @@
         <el-button v-if="task.status === 'RUNNING'" type="warning" size="small" @click="$emit('pause-task', task.taskId)">暂停</el-button>
         <el-button v-if="task.status === 'PAUSED'" type="primary" size="small" @click="$emit('resume-task', task.taskId)">恢复</el-button>
         <el-button v-if="showActions" type="primary" size="small" @click="$emit('retry', task)">会话调参修复</el-button>
-        <el-button v-if="task.status === 'FAILED' || task.status === 'USER_DECISION' || task.status === 'PAUSED' || task.status === 'CONVERT_FAILED'" type="success" size="small" @click="$emit('merge', task.taskId)">合并已爬内容</el-button>
+        <el-button v-if="task.status === 'FAILED' || task.status === 'USER_DECISION' || task.status === 'PAUSED' || task.status === 'CONVERT_FAILED'" type="success" size="small" @click="$emit('merge', task.taskId)">入库已爬内容</el-button>
         <el-button v-if="canDelete" type="danger" size="small" plain @click="$emit('delete-task', task.taskId)">删除任务</el-button>
       </div>
     </div>

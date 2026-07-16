@@ -10,12 +10,12 @@ class CrawlTaskStatus(str, Enum):
     PAUSED = ('PAUSED', '已暂停')                        # 已暂停
 
     # 中间状态
-    COMPLETED = ('COMPLETED', '已完成')                  # 爬取完成（待MD合并）
-    CONVERTING = ('CONVERTING', '合并中')                # MD合并中
-    CONVERT_FAILED = ('CONVERT_FAILED', '转换失败')       # MD合并失败，等待重试
+    COMPLETED = ('COMPLETED', '已完成')                  # 爬取完成（待文档落库）
+    CONVERTING = ('CONVERTING', '落库中')                # 文档落库中（枚举值不变）
+    CONVERT_FAILED = ('CONVERT_FAILED', '转换失败')       # 文档落库失败，等待重试
 
     # 终态
-    CONVERTED = ('CONVERTED', '已转换')                  # 已合并为MD并落库知识库文档
+    CONVERTED = ('CONVERTED', '已转换')                  # 已写入知识库文档
     FAILED = ('FAILED', '执行失败')                      # 最终失败
     USER_DECISION = ('USER_DECISION', '待决策')           # 待用户决策
 

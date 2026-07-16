@@ -322,6 +322,14 @@
         <div class="document-page" v-loading="allDocLoading">
           <div class="doc-header">
             <el-space wrap>
+              <el-input
+                v-model="docFilterTitle"
+                placeholder="标题"
+                clearable
+                size="small"
+                style="width: 180px"
+                @keyup.enter="loadAllDocs"
+              />
               <el-select v-model="docFilterStatus" placeholder="文档状态" clearable size="small" style="width: 140px">
                 <el-option label="全部" value="" />
                 <el-option v-for="opt in docStatusOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
@@ -346,10 +354,9 @@
           <div class="document-list-area">
             <el-table :data="filteredAllDocs" stripe>
               <el-table-column prop="docTitle" label="标题" min-width="150" show-overflow-tooltip />
-              <el-table-column prop="docName" label="文档名称" min-width="150" show-overflow-tooltip />
-              <el-table-column prop="sessionTitle" label="会话" min-width="120" show-overflow-tooltip />
+              <el-table-column prop="docDesc" label="描述" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="fileCount" label="文件数" width="80" align="center" />
               <el-table-column prop="taskId" label="关联任务" width="100" align="center" />
-              <el-table-column prop="sourceUrl" label="来源URL" min-width="180" show-overflow-tooltip />
               <el-table-column prop="docType" label="类型" width="70" />
               <el-table-column prop="docVersion" label="版本" width="70" />
               <el-table-column prop="status" label="文档状态" width="120" align="center">
@@ -397,6 +404,31 @@
     <!-- 文档预览对话框 -->
     <el-dialog v-model="previewVisible" title="文档预览" width="70%" top="5vh">
       <div class="doc-preview" v-html="previewContent"></div>
+    </el-dialog>
+
+    <!-- 爬取文档选页（预览/下载） -->
+    <el-dialog v-model="filePickVisible" :title="filePickMode === 'preview' ? '选择预览页面' : '选择下载页面'" width="640px">
+      <el-table
+        ref="filePickTableRef"
+        :data="filePickList"
+        @selection-change="onFilePickSelection"
+        max-height="360"
+      >
+        <el-table-column v-if="filePickMode === 'download'" type="selection" width="48" />
+        <el-table-column v-else width="48">
+          <template #default="{ row }">
+            <el-radio v-model="filePickSingleId" :label="row.id">&nbsp;</el-radio>
+          </template>
+        </el-table-column>
+        <el-table-column prop="docName" label="文件名" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="sourceUrl" label="来源URL" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="docType" label="类型" width="70" />
+      </el-table>
+      <template #footer>
+        <el-button v-if="filePickMode === 'download'" @click="confirmFilePickDownload(true)">全量下载 ZIP</el-button>
+        <el-button @click="filePickVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmFilePick">确定</el-button>
+      </template>
     </el-dialog>
 
     <!-- 任务详情对话框 -->
@@ -496,7 +528,7 @@ import {
   listCrawlUrlRecords, listCrawlerModels,
   getTaskStatusOptions, getTaskErrorCodeOptions,
 } from '@/api/content/crawler';
-import { previewDocument, downloadDocument } from '@/api/content/document';
+import { previewDocument, downloadDocument, listDocumentFiles } from '@/api/content/document';
 import { MarkdownRender } from 'markstream-vue';
 import 'markstream-vue/index.css';
 import StrategyConfirmCard from './components/StrategyConfirmCard.vue';
@@ -1429,12 +1461,12 @@ async function handleTaskResume(taskId) {
 async function handleTaskMerge(taskId) {
   try {
     await ElMessageBox.confirm(
-      '确定要放弃失败的URL，将已成功爬取的页面合并为知识库文档？',
-      '确认合并',
-      { type: 'warning', confirmButtonText: '确定合并', cancelButtonText: '取消' },
+      '确定要放弃失败的URL，将已成功爬取的页面写入知识库文档？',
+      '确认入库',
+      { type: 'warning', confirmButtonText: '确定入库', cancelButtonText: '取消' },
     );
     const res = await mergeCrawlResults(taskId);
-    ElMessage.success(res.msg || '合并成功');
+    ElMessage.success(res.msg || '入库已提交');
     if (currentSessionId.value) {
       await loadTasks(currentSessionId.value);
     }
@@ -1443,7 +1475,7 @@ async function handleTaskMerge(taskId) {
     }
   } catch (e) {
     if (e === 'cancel') return;
-    const errMsg = e?.msg || e?.message || '合并失败';
+    const errMsg = e?.msg || e?.message || '入库失败';
     ElMessage.error(errMsg);
   }
 }
@@ -1505,29 +1537,105 @@ async function loadUrlRecords() {
 // ==================== 文档预览/下载 ====================
 const previewVisible = ref(false);
 const previewContent = ref('');
+const filePickVisible = ref(false);
+const filePickMode = ref('preview'); // preview | download
+const filePickDocId = ref(null);
+const filePickList = ref([]);
+const filePickSingleId = ref(null);
+const filePickSelected = ref([]);
+
+async function openFilePick(docId, mode) {
+  filePickDocId.value = docId;
+  filePickMode.value = mode;
+  filePickSingleId.value = null;
+  filePickSelected.value = [];
+  const res = await listDocumentFiles(docId);
+  const files = res.data || res || [];
+  filePickList.value = files;
+  if (!files.length) {
+    ElMessage.warning('该文档下没有文件');
+    return;
+  }
+  if (files.length === 1) {
+    if (mode === 'preview') {
+      await doPreviewDoc(docId, files[0].id);
+    } else {
+      await doDownloadDoc(docId, { fileId: files[0].id });
+    }
+    return;
+  }
+  filePickVisible.value = true;
+}
+
+function onFilePickSelection(rows) {
+  filePickSelected.value = rows || [];
+}
+
+async function confirmFilePick() {
+  const docId = filePickDocId.value;
+  if (filePickMode.value === 'preview') {
+    if (!filePickSingleId.value) {
+      ElMessage.warning('请选择一页预览');
+      return;
+    }
+    filePickVisible.value = false;
+    await doPreviewDoc(docId, filePickSingleId.value);
+    return;
+  }
+  const ids = filePickSelected.value.map((r) => r.id);
+  if (!ids.length) {
+    ElMessage.warning('请至少选择一个文件，或使用全量下载');
+    return;
+  }
+  filePickVisible.value = false;
+  await doDownloadDoc(docId, { fileIds: ids.join(',') });
+}
+
+async function confirmFilePickDownload(all) {
+  const docId = filePickDocId.value;
+  filePickVisible.value = false;
+  await doDownloadDoc(docId, { all: true });
+}
 
 async function handlePreviewDoc(docId) {
   try {
-    const res = await previewDocument(docId);
-    previewContent.value = renderMarkdown(res.data || res);
-    previewVisible.value = true;
+    await openFilePick(docId, 'preview');
   } catch (e) {
-    ElMessage.error('预览失败');
+    ElMessage.error(e?.msg || e?.message || '预览失败');
   }
 }
 
 async function handleDownloadDoc(docId) {
   try {
-    const res = await downloadDocument(docId);
+    await openFilePick(docId, 'download');
+  } catch (e) {
+    ElMessage.error(e?.msg || e?.message || '下载失败');
+  }
+}
+
+async function doPreviewDoc(docId, fileId) {
+  try {
+    const res = await previewDocument(docId, { fileId });
+    previewContent.value = renderMarkdown(res.data || res);
+    previewVisible.value = true;
+  } catch (e) {
+    ElMessage.error(e?.msg || e?.message || '预览失败');
+  }
+}
+
+async function doDownloadDoc(docId, params) {
+  try {
+    const res = await downloadDocument(docId, params);
     const blob = new Blob([res.data || res]);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `document_${docId}.md`;
+    const multi = params?.all || (params?.fileIds && String(params.fileIds).includes(','));
+    a.download = multi ? `document_${docId}.zip` : `document_${docId}.md`;
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
-    ElMessage.error('下载失败');
+    ElMessage.error(e?.msg || e?.message || '下载失败');
   }
 }
 
@@ -1634,6 +1742,7 @@ function resetTaskFilters() {
 // --- 全部文档 ---
 const allDocLoading = ref(false);
 const allDocList = ref([]);
+const docFilterTitle = ref('');
 const docFilterStatus = ref('');
 const docFilterCreateBy = ref('');
 const docFilterDelFlag = ref('');
@@ -1663,6 +1772,7 @@ async function loadAllDocs() {
   allDocLoading.value = true;
   try {
     const params = { pageNum: 1, pageSize: 200 };
+    if (docFilterTitle.value) params.docTitle = docFilterTitle.value;
     if (docFilterStatus.value) params.status = docFilterStatus.value;
     if (docFilterCreateBy.value) params.createBy = docFilterCreateBy.value;
     if (docFilterDelFlag.value) params.delFlag = docFilterDelFlag.value;
@@ -1676,6 +1786,7 @@ async function loadAllDocs() {
 }
 
 function resetDocFilters() {
+  docFilterTitle.value = '';
   docFilterStatus.value = '';
   docFilterCreateBy.value = '';
   docFilterDelFlag.value = '';
