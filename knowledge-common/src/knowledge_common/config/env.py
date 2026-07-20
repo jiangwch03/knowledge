@@ -205,6 +205,8 @@ class StreamTopicSettings(BaseSettings):
     crawl_task_pending: str = 'crawl.task.pending'
     # 爬取文档持久化（合并 Markdown 并落库）
     crawl_document_pending: str = 'crawl.document.pending'
+    # 文档 Embedding 待处理队列
+    embedding_pending: str = 'embedding.pending'
 
 class UploadSettings(BaseSettings):
     """
@@ -373,6 +375,8 @@ class AiModelFunctionAdapterSettings(BaseSettings):
     md_image_description_param_id: str = 'md_image_description'
     # TXT转Markdown功能适配参数ID
     txt_to_markdown_param_id: str = 'txt_to_markdown'
+    # 文档向量化功能适配参数ID
+    document_embedding_param_id: str = 'document_embedding'
 
 
 class SemaphoreSettings(BaseSettings):
@@ -407,6 +411,29 @@ class CrawlerAgentSettings(BaseSettings):
     # 策略确认节点：用户确认/修改爬取策略配置
     interrupt_strategy_confirmation: str = 'strategy_confirmation'
     interrupt_rescope_confirmation: str = 'rescope_confirmation'
+
+
+class EmbeddingSettings(BaseSettings):
+    """
+    文档切分与向量化配置
+    """
+
+    embedding_preview_max_chars: int = 8192
+    embedding_embed_batch_size: int = 100
+    embedding_task_timeout_minutes: int = 60
+    embedding_pending_repost_minutes: int = 2
+
+
+class MilvusSettings(BaseSettings):
+    """
+    Milvus 向量库配置
+    """
+
+    milvus_uri: str = 'http://localhost:19530'
+    milvus_token: str = 'jiangwch:jiangwch'
+    milvus_db: str = 'knowledge_rag'
+    # 文档向量 collection（DDL：sql/milvus/manage_document_vector.py）
+    document_vector_collection: str = 'knowledge_document_vector'
 
 
 class MinioSettings(BaseSettings):
@@ -574,6 +601,18 @@ class GetConfig:
         # 实例化MinIO配置模型
         return MinioSettings()
 
+    def get_embedding_config(self) -> EmbeddingSettings:
+        """
+        获取文档切分与向量化配置
+        """
+        return EmbeddingSettings()
+
+    def get_milvus_config(self) -> MilvusSettings:
+        """
+        获取 Milvus 配置
+        """
+        return MilvusSettings()
+
     def get_message_stream_config(self) -> MessageStreamSettings:
         """
         获取消息流后端配置
@@ -652,6 +691,10 @@ SemaphoreConfig = get_config.get_semaphore_config()
 CrawlerAgentConfig = get_config.get_crawler_agent_config()
 # MinIO配置
 MinioConfig = get_config.get_minio_config()
+# 文档切分与向量化配置
+EmbeddingConfig = get_config.get_embedding_config()
+# Milvus配置
+MilvusConfig = get_config.get_milvus_config()
 # 消息流后端配置
 MessageStreamConfig = get_config.get_message_stream_config()
 # Stream topic 配置
