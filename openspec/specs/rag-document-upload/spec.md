@@ -104,18 +104,18 @@
 - **THEN** 系统校验未生成 `knowledge_document` 后，软删除上传记录、解析任务与分段任务
 
 ### Requirement: 文档预览（参考需求文档 §5.7）
-系统 SHALL 提供 `GET /api/rag/document/{doc_id}/preview` 接口，从 MinIO 读取 Markdown 内容并返回。
+系统 SHALL 提供文档预览接口：从来源为手动上传的 `knowledge_document` 关联的 `knowledge_document_file` 读取最终 Markdown 的 MinIO 对象并返回预览。上传场景可省略文件行 ID（取该文档下唯一未删除文件行）。
 
 #### Scenario: 预览已转换文档
-- **WHEN** 用户点击已 `CONVERTED` 文档的预览按钮
-- **THEN** 系统从 MinIO 读取最终 Markdown 内容并返回文本
+- **WHEN** 用户点击已 `CONVERTED` 的上传文档预览按钮
+- **THEN** 系统从该文档唯一文件行的 `doc_key` 对应 MinIO 对象读取 Markdown 并返回预览
 
 ### Requirement: 文档下载（参考需求文档 §5.8）
-系统 SHALL 提供 `GET /api/rag/document/{doc_id}/download` 接口，以流形式下载 Markdown 文件。
+系统 SHALL 提供文档下载接口，以流形式下载 Markdown 文件；文件内容与下载文件名取自 `knowledge_document_file` 的 `doc_key` 与 `doc_name`。
 
 #### Scenario: 下载已转换文档
-- **WHEN** 用户点击已 `CONVERTED` 文档的下载按钮
-- **THEN** 系统从 MinIO 下载 Markdown 文件并以 `application/octet-stream` 返回
+- **WHEN** 用户点击已 `CONVERTED` 的上传文档下载按钮
+- **THEN** 系统从该文档唯一文件行下载 Markdown，并以 `application/octet-stream` 返回，文件名使用子表 `doc_name`
 
 ### Requirement: Stage2 消费者申请链接并上传文件（参考需求文档 §6.2）
 系统 SHALL 消费 `document.parse.pending` 消息，向 MinerU 申请批量上传链接并上传各分段文件。
@@ -155,15 +155,22 @@
 - **THEN** 系统将失败分段状态更新为 `PARSE_FAILED`，解析任务状态更新为 `FAILED`，上传记录状态更新为 `USER_DECISION`
 
 ### Requirement: Stage4 消费者合并 Markdown 并入库（参考需求文档 §6.5；图片模型由你明确要求为 qwen3-vl-plus）
-系统 SHALL 消费 `document.md.pending` 消息，下载 ZIP、合并 Markdown、使用 `qwen3-vl-plus` 模型生成图片描述并替换 Markdown 图片引用、上传最终 Markdown 至 MinIO 并创建 `knowledge_document`。
+系统 SHALL 消费 `document.md.pending` 消息，下载 ZIP、合并 Markdown、使用 `qwen3-vl-plus` 模型生成图片描述并替换 Markdown 图片引用、上传最终 Markdown 至 MinIO，创建或更新 `knowledge_document`，并写入/更新对应的 1 条 `knowledge_document_file`（`doc_key` 为最终 Markdown，`original_doc_key` 来自上传任务，`doc_name`/`doc_type` 来自上传任务）。Stage1～3 与 MinerU 解析逻辑不变。
 
 #### Scenario: md 合并与入库成功
-- **WHEN** 消费者获取 `record_id` 且该记录下无进行中的解析任务
-- **THEN** 系统下载所有 `PARSED` 分段 ZIP，合并 Markdown，对 ZIP 中提取的图片使用 `qwen3-vl-plus` 模型生成图片描述并替换 Markdown 图片引用，上传最终 Markdown 至 MinIO，创建 `knowledge_document`，上传记录状态更新为 `CONVERTED`
+- **WHEN** Stage4 消费者成功处理 `document.md.pending`
+- **THEN** 系统完成 ZIP 合并与图片描述替换，上传最终 Markdown 至 MinIO，创建或更新 `knowledge_document`（主表不含文件 Key 字段），写入或更新 1 条 `knowledge_document_file`，上传记录状态更新为 `CONVERTED`
 
 #### Scenario: md 合并异常进入 Stage4 兜底
 - **WHEN** md 合并或入库过程出现异常
-- **THEN** 系统将上传记录状态更新为 `CONVERT_FAILED`，等待 Stage4 定时任务兜底重试
+- **THEN** 上传记录进入可被 Stage4 定时任务兜底重试的失败状态
+
+### Requirement: MD 直传落库写入文件子表
+系统 SHALL 在无需 MinerU 解析的 MD 直传场景创建 `knowledge_document` 时，同时写入 1 条 `knowledge_document_file`，将最终 Markdown 对象键与原始文件键（若与最终相同或来自任务）保存在子表，而非主表。
+
+#### Scenario: MD 直传生成文档与文件行
+- **WHEN** 用户上传 MD 且系统直接落库
+- **THEN** 系统创建 `knowledge_document` 与 1 条 `knowledge_document_file`，上传记录状态为 `CONVERTED`
 
 ### Requirement: Stage4 定时任务兜底 md 合并失败（参考需求文档 §6.6）
 系统 SHALL 每 5 分钟扫描 `CONVERT_FAILED` 的上传记录，重新发布 `document.md.pending`。
