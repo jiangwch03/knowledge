@@ -111,6 +111,7 @@ class AiModelFunctionAdapterDao:
                 adapter_id=adapter.adapter_id,
                 function_point=adapter.function_point,
                 param_id=adapter.param_id,
+                dimensions=adapter.dimensions,
                 **row,
             )
             for row in rows
@@ -145,10 +146,11 @@ class AiModelFunctionAdapterDao:
         result = await PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         # 两步查询：批量收集首个有效 model_id，查询对应模型信息
+        # PageUtil.paginate 已将行转为小驼峰 dict（modelId），需兼容 ORM / snake / camel
         adapters: list = result.rows if isinstance(result, PageModel) else result
         primary_model_ids: list[int] = []
         for adapter in adapters:
-            raw = adapter.model_id if hasattr(adapter, 'model_id') else adapter.get('model_id', '')
+            raw = cls._extract_model_id_raw(adapter)
             first_id = str(raw).split('|')[0].strip() if raw else ''
             if first_id.isdigit() and int(first_id) not in primary_model_ids:
                 primary_model_ids.append(int(first_id))
@@ -161,6 +163,7 @@ class AiModelFunctionAdapterDao:
                         AiModels.model_id,
                         AiModels.model_code,
                         AiModels.model_name,
+                        AiModels.model_type,
                     ).where(AiModels.model_id.in_(primary_model_ids))
                 ))
                 .mappings()
@@ -168,18 +171,28 @@ class AiModelFunctionAdapterDao:
             )
             model_map = {r['model_id']: dict(r) for r in rows}
 
-        # 拼装结果：adapter + model_code/model_name
+        # 拼装结果：adapter + modelCode/modelName/modelType（与 PageUtil 驼峰输出一致）
         enriched: list[dict] = []
         for adapter in adapters:
-            if hasattr(adapter, '__dict__'):
+            if isinstance(adapter, dict):
+                row = dict(adapter)
+            elif hasattr(adapter, '__table__'):
                 row = {c.name: getattr(adapter, c.name) for c in adapter.__table__.columns}
             else:
                 row = dict(adapter)
-            raw = row.get('model_id', '')
-            first_id = int(str(raw).split('|')[0].strip()) if str(raw).split('|')[0].strip().isdigit() else None
+            raw = cls._extract_model_id_raw(row)
+            first_token = str(raw).split('|')[0].strip() if raw else ''
+            first_id = int(first_token) if first_token.isdigit() else None
             m = model_map.get(first_id) if first_id else None
-            row['model_code'] = m['model_code'] if m else None
-            row['model_name'] = m['model_name'] if m else None
+            model_code = m['model_code'] if m else None
+            model_name = m['model_name'] if m else None
+            model_type = m['model_type'] if m else None
+            row['modelCode'] = model_code
+            row['modelName'] = model_name
+            row['modelType'] = model_type
+            row['model_code'] = model_code
+            row['model_name'] = model_name
+            row['model_type'] = model_type
             enriched.append(row)
 
         if isinstance(result, PageModel):
@@ -187,6 +200,15 @@ class AiModelFunctionAdapterDao:
         else:
             result = enriched
         return result
+
+    @staticmethod
+    def _extract_model_id_raw(adapter: object) -> str:
+        """从 ORM / dict（snake 或 camel）取出 model_id 原始字符串。"""
+        if isinstance(adapter, dict):
+            raw = adapter.get('model_id', adapter.get('modelId', ''))
+            return '' if raw is None else str(raw)
+        raw = getattr(adapter, 'model_id', None)
+        return '' if raw is None else str(raw)
 
     @classmethod
     async def add_adapter_dao(cls, adapter: AiModelFunctionAdapterModel) -> AiModelFunctionAdapter:
@@ -197,7 +219,12 @@ class AiModelFunctionAdapterDao:
         :return: 适配记录对象
         """
         db = get_current_session()
-        db_model = AiModelFunctionAdapter(**adapter.model_dump(exclude_unset=True, exclude={'model_code', 'model_name'}))
+        db_model = AiModelFunctionAdapter(
+            **adapter.model_dump(
+                exclude_unset=True,
+                exclude={'model_code', 'model_name', 'model_type'},
+            )
+        )
         db.add(db_model)
         await db.flush()
         return db_model

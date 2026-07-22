@@ -38,12 +38,13 @@ schema = client.create_schema(
     enable_dynamic_field=False,
     description='知识库文档向量（一期单一维度，与 document_embedding 适配 dimensions 一致）',
 )
+# 主键 id = MySQL knowledge_document_segment.embedding_id；chunk_id 为业务关联字段
 schema.add_field(
     field_name='id',
     datatype=DataType.VARCHAR,
     is_primary=True,
     max_length=64,
-    description='embedding_id，向量主键',
+    description='Milvus 主键（= knowledge_document_segment.embedding_id）',
 )
 schema.add_field(
     field_name='vector',
@@ -76,7 +77,7 @@ schema.add_field(
     field_name='chunk_id',
     datatype=DataType.VARCHAR,
     max_length=64,
-    description='分片 ID',
+    description='业务分片 ID（对齐 knowledge_document_segment.chunk_id）',
 )
 schema.add_field(
     field_name='text',

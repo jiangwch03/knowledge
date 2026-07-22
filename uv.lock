@@ -1804,6 +1804,7 @@ source = { editable = "knowledge-content" }
 dependencies = [
     { name = "crawl4ai" },
     { name = "knowledge-common" },
+    { name = "langchain-text-splitters" },
     { name = "llama-index" },
     { name = "llama-index-embeddings-langchain" },
     { name = "llama-index-llms-langchain" },
@@ -1820,6 +1821,7 @@ dev = [
 requires-dist = [
     { name = "crawl4ai", specifier = "==0.9.0" },
     { name = "knowledge-common", editable = "knowledge-common" },
+    { name = "langchain-text-splitters", specifier = ">=1.1.1,<2.0.0" },
     { name = "llama-index", specifier = "==0.14.22" },
     { name = "llama-index-embeddings-langchain", specifier = "==0.5.0" },
     { name = "llama-index-llms-langchain", specifier = "==0.8.0" },

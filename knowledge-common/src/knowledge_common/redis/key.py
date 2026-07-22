@@ -154,6 +154,7 @@ class LockKey:
     UPLOAD_TASK = 'upload:task'
     CRAWL_TASK = 'crawl:task'
     CRAWL_TASK_RETRY_JOB = 'crawl:task:retry:job'
+    EMBEDDING_TASK = 'embedding:task'
 
     # ==================== Key 生成方法 ====================
 
@@ -213,6 +214,16 @@ class LockKey:
         return f'{LockKey.PREFIX}:{LockKey.CRAWL_TASK_RETRY_JOB}'
 
     @staticmethod
+    def embedding_task_key(task_id: int) -> str:
+        """
+        Embedding 任务统一锁
+
+        覆盖消费执行、删除、重试、发布（canary→prod）等同一任务上的互斥操作。
+        同 doc 最多一套 canary，发布按 task_id 加锁即可与删除互斥。
+        """
+        return f'{LockKey.PREFIX}:{LockKey.EMBEDDING_TASK}:{task_id}'
+
+    @staticmethod
     def custom_key(name: str) -> str:
         """
         自定义锁 key（通用场景）
@@ -241,3 +252,12 @@ class SemaphoreKey:
         限制多 worker 下同时执行的爬取任务数。
         """
         return f'{SemaphoreKey.PREFIX}:crawl_pipeline:global'
+
+    @staticmethod
+    def embedding_pipeline_key() -> str:
+        """
+        Embedding 流水线全局并发信号量 key
+
+        限制多 worker 下同时执行的文档切分+向量化任务数。
+        """
+        return f'{SemaphoreKey.PREFIX}:embedding_pipeline:global'

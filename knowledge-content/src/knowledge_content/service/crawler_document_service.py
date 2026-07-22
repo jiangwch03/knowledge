@@ -9,7 +9,6 @@ from knowledge_common.common.vo import PageModel
 from knowledge_common.config.env import UploadConfig
 from knowledge_common.enums.boolean_char_flag_enum import BooleanCharFlag
 from knowledge_common.enums.document_source_type_enum import DocumentSourceType
-from knowledge_common.enums.document_status_enum import DocumentStatus
 from knowledge_common.enums.document_type_enum import DocumentType
 from knowledge_common.exceptions.exception import format_exception_message
 from knowledge_common.utils.log_util import logger
@@ -137,7 +136,6 @@ class CrawlerDocumentService:
             doc_version=version,
             is_latest=BooleanCharFlag.YES.value,
             version_remark=version,
-            status=DocumentStatus.CONVERTED.value,
             user_id=task.user_id,
             dept_id=task.dept_id,
             create_by=create_by,
@@ -271,7 +269,6 @@ class CrawlerDocumentService:
             doc_title=doc_title,
             doc_version=version,
             is_latest=BooleanCharFlag.YES.value,
-            status=DocumentStatus.CONVERTED.value,
             user_id=1,
             create_by=create_by,
         )
@@ -302,7 +299,6 @@ class CrawlerDocumentService:
         page_num: int = 1,
         page_size: int = 20,
         doc_title: str | None = None,
-        status: str | None = None,
         create_by: str | None = None,
         del_flag: str | None = None,
     ) -> PageModel:
@@ -310,7 +306,6 @@ class CrawlerDocumentService:
         page = await KnowledgeDocumentDao.get_crawl_document_list(
             task_id=task_id,
             doc_title=doc_title,
-            status=status,
             create_by=create_by,
             del_flag=del_flag,
             page_num=page_num,

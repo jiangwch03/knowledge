@@ -94,7 +94,7 @@
         </template>
       </el-table-column>
       <el-table-column label="错误信息" prop="errorMessage" :show-overflow-tooltip="true" min-width="160" />
-      <el-table-column label="操作" align="center" width="320" class-name="small-padding fixed-width">
+      <el-table-column label="操作" align="center" width="380" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button
             v-if="scope.row.parseTaskId"
@@ -103,6 +103,14 @@
             icon="InfoFilled"
             @click="openTaskDetail(scope.row)"
           >详情</el-button>
+          <el-button
+            v-if="canEmbedding(scope.row)"
+            link
+            type="success"
+            icon="Connection"
+            @click="handleEmbedding(scope.row)"
+            v-hasPermi="['rag:embedding:create']"
+          >Embedding</el-button>
           <el-button
             link
             type="primary"
@@ -339,10 +347,12 @@ import {
   getNextVersion,
 } from "@/api/content/document";
 import { getToken } from "@/utils/auth";
+import { useRouter } from "vue-router";
 
+const router = useRouter();
 const { proxy } = getCurrentInstance();
 
-// 文档状态选项（从后端接口获取，替代字典）
+// 文档状态选项（上传记录状态，从后端接口获取）
 const document_status = ref([]);
 
 // 加载状态选项
@@ -431,6 +441,17 @@ function resetQuery() {
 
 function canDelete(row) {
   return row.status !== "CONVERTED" && row.status !== "USER_DECISION";
+}
+
+function canEmbedding(row) {
+  return !!row.docId;
+}
+
+function handleEmbedding(row) {
+  router.push({
+    path: "/knowledge/embedding-config",
+    query: { docId: String(row.docId), sourceType: "0" },
+  });
 }
 
 function handleUpload() {

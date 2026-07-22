@@ -25,7 +25,6 @@ CREATE TABLE IF NOT EXISTS `knowledge_document` (
     `doc_version` varchar(20) DEFAULT '1.0' COMMENT '文档版本',
     `is_latest` char(1) DEFAULT '1' COMMENT '是否最新版本（0-否 1-是）',
     `version_remark` varchar(255) DEFAULT NULL COMMENT '版本说明',
-    `status` varchar(20) DEFAULT 'CONVERTED' COMMENT '文档状态 CONVERTED/CHUNKED/VECTOR_STORED',
     `user_id` bigint NOT NULL COMMENT '上传用户ID',
     `dept_id` bigint DEFAULT NULL COMMENT '部门ID',
     `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
@@ -149,6 +148,7 @@ CREATE TABLE IF NOT EXISTS `knowledge_ai_model_function_adapter` (
     `function_point` varchar(100) NOT NULL COMMENT '业务功能点',
     `param_id` varchar(64) NOT NULL COMMENT '参数ID，唯一标识业务功能',
     `model_id` varchar(500) NOT NULL COMMENT '关联模型ID，多个用|分隔',
+    `dimensions` int DEFAULT NULL COMMENT '向量维度（Embedding 业务适配必填，如 document_embedding）',
     `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
     `create_time` datetime DEFAULT NULL COMMENT '创建时间',
     `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
@@ -157,6 +157,93 @@ CREATE TABLE IF NOT EXISTS `knowledge_ai_model_function_adapter` (
     PRIMARY KEY (`adapter_id`),
     UNIQUE KEY `uk_param_id` (`param_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型功能适配表';
+
+-- A.7 Embedding 任务表（不含 release_tag；权威在 segment ↔ Milvus）
+CREATE TABLE IF NOT EXISTS `knowledge_document_embedding_task` (
+    `task_id` bigint NOT NULL AUTO_INCREMENT COMMENT '任务主键',
+    `doc_id` bigint NOT NULL COMMENT '关联文档',
+    `source_type` char(1) DEFAULT '0' COMMENT '来源类型（0-手动上传 1-网页爬取）',
+    `split_type` varchar(32) NOT NULL COMMENT '切分策略 TITLE/LENGTH/SEPARATOR/REGEX/SMART',
+    `split_params` text COMMENT '切分参数 JSON 快照',
+    `status` varchar(32) DEFAULT 'PENDING' COMMENT 'PENDING/CHUNKING/EMBEDDING/COMPLETED/CHUNK_FAILED/EMBED_FAILED',
+    `error_message` varchar(2000) DEFAULT NULL COMMENT '失败原因',
+    `chunk_count` int DEFAULT '0' COMMENT '需入向量库的 segment 数（不含 skip_embedding 父片）',
+    `embedded_count` int DEFAULT '0' COMMENT '成功写入 Milvus 的条数',
+    `embedding_model_code` varchar(128) DEFAULT NULL COMMENT 'Embedding 模型编码快照',
+    `dimensions` int DEFAULT NULL COMMENT '向量维度快照',
+    `user_id` bigint NOT NULL COMMENT '提交用户ID',
+    `dept_id` bigint DEFAULT NULL COMMENT '部门ID',
+    `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+    `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
+    `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`task_id`),
+    KEY `idx_doc_id` (`doc_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_create_time` (`create_time`),
+    KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档 Embedding 任务表';
+
+-- A.8 文档分段表（release_tag 与 Milvus 对齐）
+CREATE TABLE IF NOT EXISTS `knowledge_document_segment` (
+    `id` bigint NOT NULL AUTO_INCREMENT COMMENT '行主键',
+    `task_id` bigint NOT NULL COMMENT '所属 embedding 任务',
+    `doc_id` bigint NOT NULL COMMENT '所属文档',
+    `file_id` bigint NOT NULL COMMENT '所属 knowledge_document_file.id',
+    `chunk_id` varchar(64) NOT NULL COMMENT '业务分片 ID',
+    `chunk_order` int NOT NULL COMMENT '任务内全局递增序号，从 0 起',
+    `text` longtext COMMENT '分段正文',
+    `metadata` text COMMENT '元数据 JSON',
+    `parent_chunk_id` varchar(64) DEFAULT NULL COMMENT '子片指向父；无则空',
+    `skip_embedding` tinyint DEFAULT '0' COMMENT '1=父片不进向量库；0=需要',
+    `embedding_id` varchar(64) DEFAULT NULL COMMENT 'Milvus 主键；未写入为空',
+    `embedding_vector` mediumblob DEFAULT NULL COMMENT 'Embedding 向量 float32 打包；刷入 Milvus 后可保留',
+    `status` varchar(32) DEFAULT 'STORED' COMMENT 'STORED/EMBEDDED/VECTOR_STORED',
+    `release_tag` varchar(32) NOT NULL DEFAULT 'canary' COMMENT 'canary/prod/pending_delete，与 Milvus 对齐',
+    `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+    `del_flag` char(1) DEFAULT '0' COMMENT '删除标志（0-未删除 2-已删除）',
+    PRIMARY KEY (`id`),
+    KEY `idx_task_id` (`task_id`),
+    KEY `idx_doc_id` (`doc_id`),
+    KEY `idx_doc_release` (`doc_id`, `release_tag`),
+    KEY `idx_chunk_id` (`chunk_id`),
+    KEY `idx_embedding_id` (`embedding_id`),
+    KEY `idx_task_embed_queue` (`task_id`, `skip_embedding`, `status`, `del_flag`, `file_id`, `chunk_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档分段表';
+
+CREATE TABLE IF NOT EXISTS `knowledge_document_segment_archive` (
+    `id` bigint NOT NULL COMMENT '原 knowledge_document_segment.id',
+    `task_id` bigint NOT NULL COMMENT '所属 embedding 任务',
+    `doc_id` bigint NOT NULL COMMENT '所属文档',
+    `file_id` bigint NOT NULL COMMENT '所属 knowledge_document_file.id',
+    `chunk_id` varchar(64) NOT NULL COMMENT '业务分片 ID',
+    `chunk_order` int NOT NULL COMMENT '文件内递增序号，从 0 起',
+    `text` longtext COMMENT '分段正文',
+    `metadata` text COMMENT '元数据 JSON',
+    `parent_chunk_id` varchar(64) DEFAULT NULL COMMENT '子片指向父；无则空',
+    `skip_embedding` tinyint DEFAULT '0' COMMENT '1=父片不进向量库；0=需要',
+    `embedding_id` varchar(64) DEFAULT NULL COMMENT 'Milvus 主键；未写入为空',
+    `embedding_vector` mediumblob DEFAULT NULL COMMENT 'Embedding 向量 float32 打包',
+    `status` varchar(32) DEFAULT 'STORED' COMMENT 'STORED/EMBEDDED/VECTOR_STORED',
+    `release_tag` varchar(32) NOT NULL DEFAULT 'canary' COMMENT '归档时标签',
+    `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+    `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+    `del_flag` char(1) DEFAULT '0' COMMENT '归档时删除标志快照',
+    `archive_time` datetime NOT NULL COMMENT '归档时间',
+    `archive_by` varchar(64) DEFAULT '' COMMENT '归档操作者',
+    `archive_reason` varchar(64) DEFAULT '' COMMENT '归档原因：pending_delete_cleanup / task_residue',
+    PRIMARY KEY (`id`),
+    KEY `idx_archive_task_id` (`task_id`),
+    KEY `idx_archive_doc_id` (`doc_id`),
+    KEY `idx_archive_time` (`archive_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档分段归档表';
 
 -- ============================================================================
 -- B. 网页爬取 Agent：会话 / 任务 / URL 记录
@@ -446,6 +533,56 @@ INSERT INTO `sys_job` (
     'admin', NOW(), 'admin', NOW(), '每3分钟扫描失败任务并尝试自动修复重试'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_job` WHERE `invoke_target` = 'knowledge_content.tasks.web_crawler_task_scheduler.crawl_task_retry_job');
 
+DELETE FROM `sys_job`
+WHERE `invoke_target` IN (
+    'knowledge_content.tasks.embedding_task_scheduler.embedding_pending_repost_job',
+    'knowledge_content.tasks.embedding_task_scheduler.embedding_stuck_timeout_job'
+);
+
+INSERT INTO `sys_job` (
+    `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
+    `cron_expression`, `misfire_policy`, `concurrent`, `status`, `app_scope`,
+    `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+) SELECT
+    'Embedding 任务兜底', 'default', 'default',
+    'knowledge_content.tasks.embedding_task_scheduler.embedding_task_fallback_job',
+    '', '', '0 */2 * * * ?', '3', '1', '0', 'knowledge-content',
+    'admin', NOW(), 'admin', NOW(), '每2分钟：PENDING 重投；僵尸 CHUNKING/EMBEDDING 续跑；FAILED 自动重试'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_job`
+    WHERE `invoke_target` = 'knowledge_content.tasks.embedding_task_scheduler.embedding_task_fallback_job'
+);
+
+INSERT INTO `sys_job` (
+    `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
+    `cron_expression`, `misfire_policy`, `concurrent`, `status`, `app_scope`,
+    `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+) SELECT
+    'Embedding 临时自动发布', 'default', 'default',
+    'knowledge_content.tasks.embedding_task_scheduler.embedding_auto_publish_job',
+    '', '', '0 */5 * * * ?', '3', '1', '0', 'knowledge-content',
+    'admin', NOW(), 'admin', NOW(),
+    '临时：每5分钟将 COMPLETED+canary 发布为 prod，同 doc 旧 prod → pending_delete'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_job`
+    WHERE `invoke_target` = 'knowledge_content.tasks.embedding_task_scheduler.embedding_auto_publish_job'
+);
+
+INSERT INTO `sys_job` (
+    `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
+    `cron_expression`, `misfire_policy`, `concurrent`, `status`, `app_scope`,
+    `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+) SELECT
+    'Embedding pending_delete 清理', 'default', 'default',
+    'knowledge_content.tasks.embedding_task_scheduler.embedding_pending_delete_cleanup_job',
+    '', '', '0 */3 * * * ?', '3', '1', '0', 'knowledge-content',
+    'admin', NOW(), 'admin', NOW(),
+    '临时：每3分钟按批清理 pending_delete（删 Milvus + segment 归档并物理删除），默认每批 200'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_job`
+    WHERE `invoke_target` = 'knowledge_content.tasks.embedding_task_scheduler.embedding_pending_delete_cleanup_job'
+);
+
 -- ============================================================================
 -- F. 菜单与权限
 -- ============================================================================
@@ -505,3 +642,36 @@ WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'ai:model:function-ad
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT '适配删除', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'model-adapter'), '3', '', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:function-adapter:remove', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'ai:model:function-adapter:remove');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT 'Embedding 任务', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'knowledge' AND `parent_id` = '0'), '3', 'embedding', 'knowledge/embedding/task/index', '', '', 1, 0, 'C', '0', '0', 'rag:embedding:list', 'chart', 'admin', NOW(), 'admin', NOW(), 'Embedding 任务菜单'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = 'embedding' AND `component` = 'knowledge/embedding/task/index');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT 'Embedding配置', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'knowledge' AND `parent_id` = '0'), '4', 'embedding-config', 'knowledge/embedding/config', '', '', 1, 0, 'C', '1', '0', 'rag:embedding:create', 'edit', 'admin', NOW(), 'admin', NOW(), 'Embedding 配置页（隐藏路由）'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `path` = 'embedding-config' AND `component` = 'knowledge/embedding/config');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT '任务查询', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'embedding' AND `component` = 'knowledge/embedding/task/index'), '1', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:embedding:query', '#', 'admin', NOW(), 'admin', NOW(), ''
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:embedding:query');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT '任务创建', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'embedding' AND `component` = 'knowledge/embedding/task/index'), '2', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:embedding:create', '#', 'admin', NOW(), 'admin', NOW(), ''
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:embedding:create' AND `menu_type` = 'F');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT '任务重试', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'embedding' AND `component` = 'knowledge/embedding/task/index'), '3', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:embedding:retry', '#', 'admin', NOW(), 'admin', NOW(), ''
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:embedding:retry');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT '任务删除', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'embedding' AND `component` = 'knowledge/embedding/task/index'), '4', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:embedding:remove', '#', 'admin', NOW(), 'admin', NOW(), ''
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:embedding:remove');
+
+INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
+SELECT '任务发布', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'embedding' AND `component` = 'knowledge/embedding/task/index'), '5', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:embedding:publish', '#', 'admin', NOW(), 'admin', NOW(), '预留：发布切换'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:embedding:publish');
+
+-- 文档向量化适配（dimensions / text-embedding-v4 / document_embedding）见：
+--   sql/upgrade_document_embedding_adapter.sql
+-- Embedding 字典（分隔符/正则模板）若未随本脚本完整写入，可补跑：
+--   sql/upgrade_document_embedding.sql

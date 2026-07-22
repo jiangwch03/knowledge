@@ -277,12 +277,19 @@ class DictDataService:
         :param dict_type: 字典类型
         :return: 字典数据列表信息对象
         """
-        result = []
         dict_data_list_result = await redis.get(f'{RedisKey.SYS_DICT}:{dict_type}')
         if dict_data_list_result:
-            result = json.loads(dict_data_list_result)
+            return CamelCaseUtil.transform_result(json.loads(dict_data_list_result))
 
-        return CamelCaseUtil.transform_result(result)
+        # 缓存未命中时回源 DB 并回填，避免 SQL 初始化字典后未重启服务导致前端无数据
+        async with async_session_scope():
+            dict_data_list = await DictDataDao.query_dict_data_list(dict_type)
+        result = [CamelCaseUtil.transform_result(row) for row in dict_data_list if row]
+        await redis.set(
+            f'{RedisKey.SYS_DICT}:{dict_type}',
+            json.dumps(result, ensure_ascii=False, default=str),
+        )
+        return result
 
     @classmethod
     async def check_dict_data_unique_services(cls, page_object: DictDataModel) -> bool:

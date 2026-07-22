@@ -83,6 +83,29 @@ class MinioService:
         return data.decode('utf-8')
 
     @classmethod
+    async def download_content_prefix(cls, object_name: str, max_chars: int) -> tuple[str, bool]:
+        """按 Range 仅拉取对象前缀，避免大文件整对象进内存。
+
+        UTF-8 最坏 4 字节/字符，按 max_chars * 4 拉取；末尾不完整码点丢弃后
+        再按字符截断。返回 (样本文本, 是否截断)。
+
+        :param object_name: 桶内对象路径
+        :param max_chars: 需要的最大字符数
+        :return: (样本文本, 是否因上限截断)
+        """
+        if max_chars <= 0:
+            return '', True
+        # UTF-8 单字符最多 4 字节
+        max_bytes: int = max_chars * 4
+        data: bytes = await cls._client.get_object(
+            object_name, cls._bucket, length=max_bytes
+        )
+        # Range 可能截在多字节字符中间，忽略尾部不完整码点
+        text: str = data.decode('utf-8', errors='ignore')
+        truncated: bool = len(data) >= max_bytes or len(text) > max_chars
+        return text[:max_chars], truncated
+
+    @classmethod
     async def download_file(cls, object_name: str) -> MinioDownloadRespVo:
         """根据桶内对象名从 MinIO 下载文件到本地
 

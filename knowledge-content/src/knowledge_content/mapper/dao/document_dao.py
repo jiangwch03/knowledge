@@ -18,7 +18,6 @@ class KnowledgeDocumentDao:
     async def get_crawl_document_list(
         task_id: int | None = None,
         doc_title: str | None = None,
-        status: str | None = None,
         create_by: str | None = None,
         del_flag: str | None = None,
         page_num: int = 1,
@@ -38,8 +37,6 @@ class KnowledgeDocumentDao:
             query = query.where(KnowledgeDocument.task_id == task_id)  # type: ignore
         if doc_title is not None:
             query = query.where(KnowledgeDocument.doc_title.like(f'%{doc_title}%'))  # type: ignore
-        if status is not None:
-            query = query.where(KnowledgeDocument.status == status)  # type: ignore
         if create_by is not None:
             query = query.where(KnowledgeDocument.create_by.like(f'%{create_by}%'))  # type: ignore
         query = query.order_by(KnowledgeDocument.doc_id.desc())  # type: ignore

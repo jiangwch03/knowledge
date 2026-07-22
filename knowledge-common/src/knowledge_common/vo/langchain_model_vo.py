@@ -47,3 +47,10 @@ class EmbeddingModelConfigModel(BaseModel):
     api_key: str = Field(description='API Key')
     base_url: str = Field(description='Base URL')
     dimensions: int = Field(description='向量维度')
+    # 单次 Embedding API 请求条数；按模型上限配置（如通义 v4=10，OpenAI 可更大）
+    chunk_size: int | None = Field(default=None, description='单次 API 请求文本条数')
+    # OpenAI 兼容网关通常不接受 token id 数组，应关闭；官方 OpenAI 可开可关
+    check_embedding_ctx_length: bool | None = Field(
+        default=None,
+        description='是否先做 ctx length token 预处理',
+    )

@@ -10,6 +10,7 @@ dependencies = [
     "llama-index==0.14.22",
     "llama-index-embeddings-langchain==0.5.0",
     "llama-index-llms-langchain==0.8.0",
+    "langchain-text-splitters>=1.1.1,<2.0.0",
     # 爬虫 Agent 专属
     "crawl4ai==0.9.0",
     # 对象存储

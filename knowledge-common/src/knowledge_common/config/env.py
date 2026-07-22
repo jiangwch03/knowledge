@@ -390,6 +390,10 @@ class SemaphoreSettings(BaseSettings):
     # 对应 SemaphoreKey.crawl_pipeline_key()
     semaphore_crawl_pipeline_size: int = 10
 
+    # Embedding 切分+向量化流水线令牌池大小（DistributedSemaphore.create_pool size）
+    # 对应 SemaphoreKey.embedding_pipeline_key()
+    semaphore_embedding_pipeline_size: int = 20
+
 
 class CrawlerAgentSettings(BaseSettings):
     """
@@ -418,10 +422,25 @@ class EmbeddingSettings(BaseSettings):
     文档切分与向量化配置
     """
 
+    # 切分预览采样上限（字符数）；MinIO Range 仅拉前缀，超出截断，仅影响预览不落库
     embedding_preview_max_chars: int = 8192
+    # DB 侧每次拉取待向量化分片的批量大小（再由 API chunk_size 拆成多次请求）
     embedding_embed_batch_size: int = 100
-    embedding_task_timeout_minutes: int = 60
+    # 单任务内 Embedding / 刷 Milvus 批并发度（asyncio.Semaphore）；过大易触发模型限流
+    embedding_embed_concurrency: int = 4
+    # Embedding API 单次请求文本条数；按当前 document_embedding 模型上限配置
+    # 通义 text-embedding-v4=10；官方 OpenAI text-embedding-3 可调大（如 100）
+    embedding_api_chunk_size: int = 10
+    # openai provider 是否做 tiktoken ctx 预处理；兼容网关须 False（会传 token id）
+    embedding_check_ctx_length: bool = False
+    # CHUNKING/EMBEDDING 停更阈值（分钟）：抢到执行锁则视为进程已死并重投续跑
+    embedding_task_timeout_minutes: int = 30
+    # PENDING 长时间未消费的重投递阈值（分钟）
     embedding_pending_repost_minutes: int = 2
+    # 临时：自动发布每轮处理的 COMPLETED+canary 文档数
+    embedding_publish_promote_batch_size: int = 20
+    # 临时：pending_delete 清理每轮软删条数
+    embedding_publish_cleanup_batch_size: int = 200
 
 
 class MilvusSettings(BaseSettings):

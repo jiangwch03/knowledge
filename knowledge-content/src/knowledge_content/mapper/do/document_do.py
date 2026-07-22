@@ -38,12 +38,6 @@ class KnowledgeDocument(Base):
         server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
         comment='版本说明',
     )
-    status = Column(
-        String(20),
-        nullable=True,
-        server_default='CONVERTED',
-        comment='文档状态 CONVERTED/CHUNKED/VECTOR_STORED',
-    )
     user_id = Column(BigInteger, nullable=False, comment='上传用户ID')
     dept_id = Column(
         BigInteger,

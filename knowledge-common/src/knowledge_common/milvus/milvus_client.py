@@ -122,6 +122,22 @@ class KnowledgeMilvusClient:
 
         await asyncio.to_thread(_run)
 
+    async def partial_update_batch(self, collection: str, rows: list[BaseMilvusVo]) -> None:
+        """按主键部分更新（Milvus ``partial_update=True``）。
+
+        对每个 VO 调用 ``to_partial_row()``：只提交显式赋值且非 None 的字段，无需重传向量。
+        """
+        name = self._collection(collection)
+        payload = [row.to_partial_row() for row in rows]
+        if not payload:
+            return
+
+        def _run() -> None:
+            self._assert_exists(name)
+            self._client().upsert(collection_name=name, data=payload, partial_update=True)
+
+        await asyncio.to_thread(_run)
+
     # ── 删 ───────────────────────────────────────────────
 
     async def delete_by_id(self, collection: str, entity_id: str | int) -> None:

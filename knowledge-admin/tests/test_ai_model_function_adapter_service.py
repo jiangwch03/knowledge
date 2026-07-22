@@ -169,6 +169,61 @@ class TestAddAdapter:
             assert '重复定义' in exc.value.message
 
 
+    @pytest.mark.asyncio
+    async def test_add_document_embedding_requires_dimensions(self):
+        """document_embedding 未配维度时应拒绝"""
+        with (
+            patch(
+                'knowledge_admin.service.ai_model_function_adapter_service.AiModelFunctionAdapterDao.check_param_id_exists',
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch(
+                'knowledge_admin.service.ai_model_function_adapter_service.AiModelDao.get_ai_model_detail_by_id',
+                new_callable=AsyncMock,
+                return_value=MagicMock(status='0', model_type='embedding', model_code='text-embedding-v4'),
+            ),
+        ):
+            model = AiModelFunctionAdapterModel(
+                function_point='文档向量化',
+                param_id='document_embedding',
+                model_id='1',
+                dimensions=None,
+            )
+            with pytest.raises(ServiceException) as exc:
+                await AiModelFunctionAdapterService.add_adapter_services(model, 'admin')
+            assert '向量维度' in exc.value.message
+
+    @pytest.mark.asyncio
+    async def test_add_document_embedding_success(self):
+        """document_embedding 绑定 embedding 模型并配置维度"""
+        with (
+            patch(
+                'knowledge_admin.service.ai_model_function_adapter_service.AiModelFunctionAdapterDao.check_param_id_exists',
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch(
+                'knowledge_admin.service.ai_model_function_adapter_service.AiModelDao.get_ai_model_detail_by_id',
+                new_callable=AsyncMock,
+                return_value=MagicMock(status='0', model_type='embedding', model_code='text-embedding-v4'),
+            ),
+            patch(
+                'knowledge_admin.service.ai_model_function_adapter_service.AiModelFunctionAdapterDao.add_adapter_dao',
+                new_callable=AsyncMock,
+            ) as mock_add,
+        ):
+            model = AiModelFunctionAdapterModel(
+                function_point='文档向量化',
+                param_id='document_embedding',
+                model_id='1',
+                dimensions=1024,
+            )
+            result = await AiModelFunctionAdapterService.add_adapter_services(model, 'admin')
+            assert result.is_success
+            mock_add.assert_awaited_once()
+
+
 class TestEditAdapter:
     """修改模型功能适配测试"""
 

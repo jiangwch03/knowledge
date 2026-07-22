@@ -122,7 +122,7 @@ class LangChainModelFactory:
         根据模型配置创建 LangChain Embeddings 实例
 
         使用 `init_embeddings` 统一初始化，仅传递非空参数，避免将 None 透传给底层
-        integration 包导致意外行为。
+        integration 包导致意外行为。模型差异（chunk_size / ctx 预处理）由调用方写入 VO。
 
         :param model_config: Embedding 模型配置，必须包含 model_code
         :return: Embeddings 实例
@@ -138,6 +138,10 @@ class LangChainModelFactory:
             params['base_url'] = model_config.base_url
         if model_config.dimensions:
             params['dimensions'] = model_config.dimensions
+        if model_config.chunk_size is not None:
+            params['chunk_size'] = model_config.chunk_size
+        if model_config.check_embedding_ctx_length is not None:
+            params['check_embedding_ctx_length'] = model_config.check_embedding_ctx_length
 
         try:
             return init_embeddings(**params)

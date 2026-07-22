@@ -96,7 +96,6 @@ class WebCrawlerTaskScheduler:
                     LockKey.crawl_task_key(task_id),
                     expire=30,
                     timeout=0,
-                    renew=False,
                 ) as acquired:
                     if not acquired:
                         logger.debug(

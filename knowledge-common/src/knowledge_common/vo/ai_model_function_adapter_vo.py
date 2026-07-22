@@ -12,14 +12,16 @@ class AiModelFunctionAdapterModel(BaseModel):
     模型功能适配表对应pydantic模型
     """
 
-    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True, populate_by_name=True)
 
     adapter_id: int | None = Field(default=None, description='适配ID')
     function_point: str | None = Field(default=None, description='业务功能点')
     param_id: str | None = Field(default=None, description='参数ID，唯一标识业务功能')
     model_id: str | None = Field(default=None, description='关联模型ID，多个用|分隔')
+    dimensions: int | None = Field(default=None, description='向量维度（Embedding 业务适配必填）')
     model_code: str | None = Field(default=None, description='模型编码')
     model_name: str | None = Field(default=None, description='模型名称')
+    model_type: str | None = Field(default=None, description='模型类型')
     create_by: str | None = Field(default=None, description='创建者')
     create_time: datetime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
@@ -74,6 +76,6 @@ class AiModelConfigModel(BaseModel):
     model_type: str | None = Field(default=None, description='模型类型')
     max_tokens: int | None = Field(default=None, description='最大输出token')
     temperature: float | None = Field(default=0.7, description='默认温度')
-    dimensions: int | None = Field(default=None, description='向量维度')
+    dimensions: int | None = Field(default=None, description='向量维度（来自业务适配）')
     support_reasoning: str | None = Field(default=None, description='是否支持推理')
     support_images: str | None = Field(default=None, description='是否支持图片')

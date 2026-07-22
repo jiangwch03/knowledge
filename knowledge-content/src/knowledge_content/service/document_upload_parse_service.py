@@ -8,7 +8,6 @@ from knowledge_common.common.context import RequestContext
 from knowledge_common.common.transactional import get_current_session, transactional
 from knowledge_common.common.vo import PageModel
 from knowledge_common.enums.boolean_char_flag_enum import BooleanCharFlag
-from knowledge_common.enums.document_status_enum import DocumentStatus
 from knowledge_common.enums.document_source_type_enum import DocumentSourceType
 from knowledge_common.exceptions.exception import ServiceException, format_exception_message
 from knowledge_common.utils.common_util import CamelCaseUtil
@@ -259,7 +258,6 @@ class DocumentUploadParseService:
             doc_version=record.doc_version,
             is_latest=is_latest,
             version_remark=record.version_remark,
-            status=DocumentStatus.CONVERTED.value,
             user_id=record.user_id,
             dept_id=record.dept_id,
             create_by=user_name,
@@ -754,7 +752,6 @@ class DocumentUploadParseService:
             existing.source_type = DocumentSourceType.UPLOAD.value
             existing.doc_desc = record.doc_desc
             existing.version_remark = record.version_remark
-            existing.status = DocumentStatus.CONVERTED.value
             existing.update_by = record.update_by
             existing.update_time = datetime.now()
             await db.flush()
@@ -804,7 +801,6 @@ class DocumentUploadParseService:
                 doc_version=record.doc_version,
                 is_latest=is_latest,
                 version_remark=record.version_remark,
-                status=DocumentStatus.CONVERTED.value,
                 user_id=record.user_id,
                 dept_id=record.dept_id,
                 create_by=record.create_by,

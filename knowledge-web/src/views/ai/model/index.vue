@@ -101,6 +101,11 @@
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="模型ID" align="center" prop="modelId" />
       <el-table-column label="模型编码" align="center" prop="modelCode" />
+      <el-table-column label="模型类型" align="center" prop="modelType" width="130">
+        <template #default="scope">
+          <span>{{ formatModelType(scope.row.modelType) }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="提供商" align="center" prop="provider">
         <template #default="scope">
           <dict-tag :options="ai_provider_type" :value="scope.row.provider" />
@@ -270,10 +275,16 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="模型类型" prop="modelType">
-              <el-input
+              <el-select
                 v-model="form.modelType"
-                placeholder="请输入模型类型 (可选)"
-              />
+                placeholder="请选择模型类型"
+                clearable
+                style="width: 100%"
+              >
+                <el-option label="大语言模型" value="llm" />
+                <el-option label="视觉语言模型" value="vlm" />
+                <el-option label="向量模型" value="embedding" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -358,6 +369,20 @@ const data = reactive({
 });
 
 const { queryParams, form, rules } = toRefs(data);
+
+const MODEL_TYPE_LABELS = {
+  llm: "大语言模型",
+  vlm: "视觉语言模型",
+  embedding: "向量模型",
+  chat: "大语言模型",
+  LLM: "大语言模型",
+  VLM: "视觉语言模型",
+};
+
+function formatModelType(type) {
+  if (!type) return "-";
+  return MODEL_TYPE_LABELS[type] || MODEL_TYPE_LABELS[String(type).toLowerCase()] || type;
+}
 
 /** 查询列表 */
 function getList() {

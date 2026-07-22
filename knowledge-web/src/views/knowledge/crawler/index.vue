@@ -330,10 +330,6 @@
                 style="width: 180px"
                 @keyup.enter="loadAllDocs"
               />
-              <el-select v-model="docFilterStatus" placeholder="文档状态" clearable size="small" style="width: 140px">
-                <el-option label="全部" value="" />
-                <el-option v-for="opt in docStatusOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-              </el-select>
               <el-input
                 v-model="docFilterCreateBy"
                 placeholder="操作用户"
@@ -359,11 +355,6 @@
               <el-table-column prop="taskId" label="关联任务" width="100" align="center" />
               <el-table-column prop="docType" label="类型" width="70" />
               <el-table-column prop="docVersion" label="版本" width="70" />
-              <el-table-column prop="status" label="文档状态" width="120" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="docStatusType(row.status)" size="small">{{ docStatusLabel(row.status) }}</el-tag>
-                </template>
-              </el-table-column>
               <el-table-column prop="createBy" label="操作用户" width="120" />
               <el-table-column prop="delFlag" label="删除标识" width="100" align="center">
                 <template #default="{ row }">
@@ -374,8 +365,15 @@
               <el-table-column prop="createTime" label="创建时间" width="170">
                 <template #default="{ row }">{{ parseTime(row.createTime) }}</template>
               </el-table-column>
-              <el-table-column label="操作" width="140" fixed="right">
+              <el-table-column label="操作" width="220" fixed="right">
                 <template #default="{ row }">
+                  <el-button
+                    v-if="canEmbeddingDoc(row)"
+                    link
+                    type="success"
+                    @click="handleEmbeddingDoc(row)"
+                    v-hasPermi="['rag:embedding:create']"
+                  >Embedding</el-button>
                   <el-button link type="primary" @click="handlePreviewDoc(row.docId)">预览</el-button>
                   <el-button link type="primary" @click="handleDownloadDoc(row.docId)">下载</el-button>
                 </template>
@@ -514,6 +512,7 @@
 
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
 import { useEventListener } from '@vueuse/core';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Link, Promotion, Loading } from '@element-plus/icons-vue';
@@ -535,6 +534,7 @@ import StrategyConfirmCard from './components/StrategyConfirmCard.vue';
 import TaskProgressCard from './components/TaskProgressCard.vue';
 
 const contentBase = import.meta.env.VITE_APP_CONTENT_API || '/dev-content-api';
+const router = useRouter();
 
 // ==================== 会话管理 ====================
 const sessionList = ref([]);
@@ -1597,6 +1597,17 @@ async function confirmFilePickDownload(all) {
   await doDownloadDoc(docId, { all: true });
 }
 
+function canEmbeddingDoc(row) {
+  return !!row.docId;
+}
+
+function handleEmbeddingDoc(row) {
+  router.push({
+    path: '/knowledge/embedding-config',
+    query: { docId: String(row.docId), sourceType: '1' },
+  });
+}
+
 async function handlePreviewDoc(docId) {
   try {
     await openFilePick(docId, 'preview');
@@ -1743,26 +1754,8 @@ function resetTaskFilters() {
 const allDocLoading = ref(false);
 const allDocList = ref([]);
 const docFilterTitle = ref('');
-const docFilterStatus = ref('');
 const docFilterCreateBy = ref('');
 const docFilterDelFlag = ref('');
-
-// 文档状态选项
-const docStatusOptions = [
-  { value: 'CONVERTED', label: '已转换' },
-  { value: 'CHUNKED', label: '已分块' },
-  { value: 'VECTOR_STORED', label: '已入库' },
-];
-
-const docStatusLabel = (status) => {
-  const opt = docStatusOptions.find(o => o.value === status);
-  return opt ? opt.label : status;
-};
-
-const docStatusType = (status) => {
-  const map = { CONVERTED: 'success', CHUNKED: 'warning', VECTOR_STORED: 'primary' };
-  return map[status] || 'info';
-};
 
 const filteredAllDocs = computed(() => {
   return allDocList.value;
@@ -1773,7 +1766,6 @@ async function loadAllDocs() {
   try {
     const params = { pageNum: 1, pageSize: 200 };
     if (docFilterTitle.value) params.docTitle = docFilterTitle.value;
-    if (docFilterStatus.value) params.status = docFilterStatus.value;
     if (docFilterCreateBy.value) params.createBy = docFilterCreateBy.value;
     if (docFilterDelFlag.value) params.delFlag = docFilterDelFlag.value;
     const res = await listCrawlerDocument(params);
@@ -1787,7 +1779,6 @@ async function loadAllDocs() {
 
 function resetDocFilters() {
   docFilterTitle.value = '';
-  docFilterStatus.value = '';
   docFilterCreateBy.value = '';
   docFilterDelFlag.value = '';
   loadAllDocs();

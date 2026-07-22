@@ -219,7 +219,6 @@ class CrawlerDocumentRespVo(BaseModel):
     doc_version: str | None = Field(default=None, description='文档版本')
     source_url: str | None = Field(default=None, description='来源URL（首条文件摘要）')
     file_count: int | None = Field(default=None, description='文件子表行数')
-    status: str = Field(..., description='文档状态')
     is_latest: str | None = Field(default=None, description='是否最新版本')
     create_by: str | None = Field(default=None, description='操作用户')
     del_flag: str | None = Field(default=None, description='删除标识')
@@ -235,7 +234,6 @@ class CrawlerDocumentListQueryVo(BaseVo, BasePageQueryModel):
 
     task_id: int | None = Field(default=None, description='任务ID（为空时查询全部文档）')
     doc_title: str | None = Field(default=None, description='文档标题模糊搜索')
-    status: str | None = Field(default=None, description='文档状态过滤')
     create_by: str | None = Field(default=None, description='操作用户模糊搜索')
     del_flag: str | None = Field(default=None, description='删除标识过滤')
     page_num: int = Field(default=1, ge=1, description='当前页码')

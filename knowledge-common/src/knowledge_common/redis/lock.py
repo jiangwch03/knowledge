@@ -11,7 +11,7 @@
 典型用法：
     from knowledge_common.redis import DistributedLock, LockKey
 
-    # ---- 基础用法（非阻塞，拿不到就跳过） ----
+    # ---- 基础用法（非阻塞，拿不到就跳过；默认自动续期） ----
     async with DistributedLock(LockKey.app_startup_key(), expire=60) as acquired:
         if not acquired:
             return  # 未抢到锁，跳过
@@ -23,8 +23,8 @@
             raise RuntimeError('获取锁超时')
         do_something()
 
-    # ---- 自动续期（长任务） ----
-    async with DistributedLock(LockKey.custom_key('long-task'), expire=30, renew=True) as acquired:
+    # ---- 长任务：默认 renew=True，持锁期间自动续期 ----
+    async with DistributedLock(LockKey.custom_key('long-task'), expire=30) as acquired:
         if not acquired:
             return
         await very_long_running_task()  # 锁会自动续期，不会过期
@@ -52,7 +52,7 @@ class DistributedLock:
     :param expire: 锁过期时间（秒），默认 30
     :param timeout: 阻塞等待超时（秒），0 = 非阻塞立即返回，默认 0
     :param retry_interval: 阻塞等待轮询间隔（秒），默认 0.5
-    :param renew: 是否启用自动续期，默认 False
+    :param renew: 是否启用自动续期，默认 True（持锁期间应续期，避免临界过期）
     :param renew_interval: 续期间隔（秒），默认为 expire 的 1/3
     :param on_lock_lost: 失去锁时的回调函数（可选）
     """
@@ -64,7 +64,7 @@ class DistributedLock:
         expire: int = 30,
         timeout: float = 0,
         retry_interval: float = 0.5,
-        renew: bool = False,
+        renew: bool = True,
         renew_interval: int | None = None,
         on_lock_lost: Callable[[], None] | None = None,
     ) -> None:

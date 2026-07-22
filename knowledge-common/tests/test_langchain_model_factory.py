@@ -67,16 +67,20 @@ class TestLangChainModelFactory:
         assert '创建 ChatModel 失败' in exc.value.message
 
     def test_create_embedding_model(self):
-        """测试创建 Embedding 模型"""
+        """测试创建 Embedding 模型：工厂透传 VO 中的调用参数"""
         model_config = EmbeddingModelConfigModel(
             provider='openai',
             model_code='text-embedding-3-small',
             api_key='test-api-key',
             base_url='https://test.example.com/v1',
             dimensions=1536,
+            chunk_size=10,
+            check_embedding_ctx_length=False,
         )
         model = LangChainModelFactory.create_embedding_model(model_config)
         assert isinstance(model, OpenAIEmbeddings)
+        assert model.check_embedding_ctx_length is False
+        assert model.chunk_size == 10
 
     def test_bind_tools(self):
         """测试动态绑定工具"""

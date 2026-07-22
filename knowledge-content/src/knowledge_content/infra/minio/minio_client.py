@@ -165,31 +165,40 @@ class MinioClient:
         self,
         object_name: str,
         bucket_name: str | None = None,
+        *,
+        offset: int = 0,
+        length: int = 0,
     ) -> bytes:
         """从 MinIO 读取对象内容为字节（内存中读取，不落盘）
 
         :param object_name: 桶内对象路径（对象名）
         :param bucket_name: 目标存储桶名称，为 None 时使用配置中的默认桶
+        :param offset: 起始字节偏移（Range 读取）
+        :param length: 读取字节数；0 表示读到对象末尾
         :return: 对象内容的原始字节数据
         :raises ServiceException: MinIO 读取失败或超时时抛出
         """
         bucket = bucket_name or self._config.minio_bucket_name
         object_name = self._strip_bucket_prefix(object_name, bucket)
+        response = None
         try:
             response = await asyncio.wait_for(
-                asyncio.to_thread(lambda: self._client.get_object(bucket, object_name)),
+                asyncio.to_thread(
+                    lambda: self._client.get_object(bucket, object_name, offset=offset, length=length)
+                ),
                 timeout=180,
             )
-            data = response.read()
-            response.close()
-            response.release_conn()
-            return data
+            return response.read()
         except asyncio.TimeoutError:
             logger.error(f'从 MinIO 读取对象超时(3分钟): object_name={object_name}, bucket={bucket}')
             raise ServiceException(f'从 MinIO 读取对象超时(3分钟): {object_name}') from None
         except Exception as e:
             logger.exception('从 MinIO 读取对象失败: object_name={}, error={}', object_name, e)
             raise ServiceException(f'从 MinIO 读取对象失败: {e}') from e
+        finally:
+            if response is not None:
+                response.close()
+                response.release_conn()
 
     async def download_file(
         self,
