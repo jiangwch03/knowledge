@@ -703,6 +703,7 @@ insert into sys_config values(8, '用户管理-账号密码更新周期',     's
 insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'knowledge_admin.tasks.scheduler_test.job', NULL,   NULL, '0/10 * * * * ?', '3', '1', '1', 'knowledge-admin', 'admin', sysdate(), '', null, '');
 insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'knowledge_admin.tasks.scheduler_test.job', 'test', NULL, '0/15 * * * * ?', '3', '1', '1', 'knowledge-admin', 'admin', sysdate(), '', null, '');
 insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'knowledge_admin.tasks.scheduler_test.job', 'new',  '{"test": 111}', '0/20 * * * * ?', '3', '1', '1', 'knowledge-admin', 'admin', sysdate(), '', null, '');
+insert into sys_job values(4, 'models.dev Profile 每日同步', 'default', 'default', 'knowledge_admin.tasks.models_dev_profile_sync.sync_models_dev_profiles', NULL, NULL, '0 0 3 * * ?', '3', '1', '0', 'knowledge-admin', 'admin', sysdate(), '', null, '每天 03:00 拉取 models.dev/api.json，刷新本地 Profile 索引');
 
 -- ----------------------------
 -- 通知公告表数据
