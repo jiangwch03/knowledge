@@ -49,11 +49,15 @@
 - **THEN** 系统将对应记录 `del_flag` 更新为 `'2'`，并更新 `update_by`/`update_time`
 
 ### Requirement: 根据参数 ID 获取模型配置（参考需求文档 §10.3.5 / §10.4）
-系统 SHALL 提供 `GET /api/admin/ai-model/function-adapter/{param_id}/model` 接口，返回参数 ID 绑定的完整模型配置。
+系统 SHALL 提供 `GET /api/admin/ai-model/function-adapter/{param_id}/model` 及按 `param_id` 联表查询完整配置的接口，返回参数 ID 绑定的完整模型配置，包括 Profile 字段（`support_tool_call`、`support_structured_output`、`max_input_tokens`、`input_modalities`、`output_modalities`）。
 
 #### Scenario: 正常获取模型配置
 - **WHEN** 业务模块传入已配置的 `param_id`
 - **THEN** 系统联表返回 `knowledge_ai_models` 的 `model_code`、`provider`、`api_key`、`base_url` 等配置
+
+#### Scenario: 查询适配配置含 Profile 字段
+- **WHEN** 业务模块按 `param_id` 查询模型适配配置
+- **THEN** 返回的 `AiModelConfigModel` SHALL 包含 `support_tool_call`、`support_structured_output`、`max_input_tokens`、`input_modalities`、`output_modalities` 字段
 
 #### Scenario: 参数 ID 未配置
 - **WHEN** 业务模块传入未配置的 `param_id`
