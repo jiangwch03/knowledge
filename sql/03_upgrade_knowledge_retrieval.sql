@@ -1,6 +1,8 @@
--- knowledge-retrieval 种子：字典主题 / Tavily 占位参数 / 菜单权限 / 模型适配点
--- 可重复执行（WHERE NOT EXISTS）
--- 禁止写入真实 Tavily Key
+-- =============================================================================
+-- 03_upgrade_knowledge_retrieval.sql
+-- knowledge-retrieval 种子：主题字典 / Tavily 占位参数 / 菜单权限 / 模型适配
+-- 可重复执行（WHERE NOT EXISTS）；禁止写入真实 Tavily Key
+-- =============================================================================
 
 -- ========== 主题字典 ==========
 INSERT INTO `sys_dict_type` (

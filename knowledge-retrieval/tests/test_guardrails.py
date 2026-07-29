@@ -1,16 +1,6 @@
-"""守卫：admin AiChat 无检索编排；retrieval lifespan 无 embedding 消费者。"""
+"""守卫：retrieval lifespan 无 embedding 消费者。"""
 
 from pathlib import Path
-
-
-def test_admin_ai_chat_has_no_retrieve_orchestration():
-    admin_root = Path(__file__).resolve().parents[2] / 'knowledge-admin' / 'src'
-    offenders = []
-    for path in admin_root.rglob('*.py'):
-        text = path.read_text(encoding='utf-8')
-        if 'DocumentVectorRetrieveService' in text or 'hybrid_retrieve' in text or '/retrieval/search' in text:
-            offenders.append(str(path))
-    assert offenders == []
 
 
 def test_retrieval_server_has_no_embedding_consumers():

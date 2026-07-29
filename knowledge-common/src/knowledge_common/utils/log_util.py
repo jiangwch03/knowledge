@@ -608,8 +608,6 @@ class LoggerInitializer:
         for logger_name in ('uvicorn', 'uvicorn.error', 'uvicorn.access', 'fastapi'):
             logging.getLogger(logger_name).handlers = [InterceptHandler()]
             logging.getLogger(logger_name).propagate = False
-        for logger_name in ('LiteLLM', 'litellm'):
-            logging.getLogger(logger_name).setLevel(logging.WARNING)
 
     def init_log(self) -> Logger:
         """

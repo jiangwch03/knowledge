@@ -1,14 +1,9 @@
 -- ----------------------------------------------------------------------------
--- knowledge-content 全量升级脚本（合并版）
+-- 02_upgrade_knowledge_content.sql
+-- knowledge-content 全量初始化（先建表、后种子数据；可重复执行）
 --
--- 合并自：
---   upgrade_rag_document_upload.sql
---   upgrade_web_crawler_agent.sql
---   （及其历史拆分脚本：agent_chat / crawl_proxy_pool / task_version 等）
---
--- 覆盖：资料上传 + MinerU 解析、文档主表/文件子表、网页爬取 Agent
--- 适用：新环境全量初始化（最终表结构直接写在 CREATE 中；可重复执行）
--- 创建时间: 2026-07-16
+-- 覆盖：资料上传 + MinerU 解析、文档主表/文件子表、Embedding 任务/分段、
+--       网页爬取 Agent、模型适配、切分字典、菜单与定时任务
 -- ----------------------------------------------------------------------------
 
 -- ============================================================================
@@ -36,6 +31,7 @@ CREATE TABLE IF NOT EXISTS `knowledge_document` (
     PRIMARY KEY (`doc_id`),
     UNIQUE KEY `uk_doc_title_version` (`doc_title`, `doc_version`),
     KEY `idx_doc_title` (`doc_title`),
+    KEY `idx_task_id` (`task_id`),
     KEY `idx_source_type` (`source_type`),
     KEY `idx_is_latest` (`is_latest`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档主表（文件级字段见 knowledge_document_file）';
@@ -387,6 +383,282 @@ WHERE NOT EXISTS (
     SELECT 1 FROM `sys_dict_type` WHERE `dict_type` = 'crawl_proxy_pool'
 );
 
+-- C.2 分隔符切分字典（dict_value 存可见转义串，切分时再解码）
+INSERT INTO `sys_dict_type` (
+    `dict_name`, `dict_type`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT
+    '文档切分分隔符',
+    'document_split_separator',
+    '0',
+    'admin',
+    NOW(),
+    'admin',
+    NOW(),
+    'SEPARATOR 策略可选字面量分隔符；dict_value 为可见转义串（如 \\n\\n），切分前解码'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_type` WHERE `dict_type` = 'document_split_separator'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 1, '空行（\\n\\n）', '\\n\\n', 'document_split_separator',
+       NULL, 'default', 'Y', '0', 'admin', NOW(), 'admin', NOW(), '两个换行'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '\\n\\n'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 2, '换行（\\n）', '\\n', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '单个换行'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '\\n'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 3, '制表符（\\t）', '\\t', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), 'Tab'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '\\t'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 4, '空格', '\\u0020', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '单个空格'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '\\u0020'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 5, '中文句号（。）', '。', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '。'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 6, '中文感叹号（！）', '！', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '！'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 7, '中文问号（？）', '？', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '？'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 8, '中文分号（；）', '；', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '；'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 9, '中文逗号（，）', '，', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '，'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 10, '英文句号（.）', '.', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '.'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 11, '竖线（|）', '|', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '|'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 12, '分隔线（---）', '---', 'document_split_separator',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), 'Markdown 分隔线'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_separator' AND `dict_value` = '---'
+);
+
+-- C.3 正则切分常用模板字典
+INSERT INTO `sys_dict_type` (
+    `dict_name`, `dict_type`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT
+    '文档切分正则模板',
+    'document_split_regex_template',
+    '0',
+    'admin',
+    NOW(),
+    'admin',
+    NOW(),
+    'REGEX 策略常用模板；dict_value 为正则表达式，可选后仍可手改'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_type` WHERE `dict_type` = 'document_split_regex_template'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 1, '中文句末标点', '[。！？]', 'document_split_regex_template',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '中文段落/口语稿'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '[。！？]'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 2, '中文分句（含分号）', '[。！？；]', 'document_split_regex_template',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '切点更密，靠块大小合并'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '[。！？；]'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 3, '英文句末', '[.!?]+', 'document_split_regex_template',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '英文纯文本'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '[.!?]+'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 4, '空行（可变）', '\\n\\s*\\n+', 'document_split_regex_template',
+       NULL, 'default', 'Y', '0', 'admin', NOW(), 'admin', NOW(), '比恰好两个换行更稳'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '\\n\\s*\\n+'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 5, '空行或分隔线', '\\n\\s*\\n+|---+', 'document_split_regex_template',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '空行或 --- 均切开'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '\\n\\s*\\n+|---+'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 6, '题号（数字）', '(?=\\n\\d+[\\.、]\\s)', 'document_split_regex_template',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '前瞻保留 1. / 1、'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '(?=\\n\\d+[\\.、]\\s)'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 7, '题号（中文序号）', '(?=\\n[一二三四五六七八九十百]+、\\s*)', 'document_split_regex_template',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '前瞻保留一、二、'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '(?=\\n[一二三四五六七八九十百]+、\\s*)'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 8, 'FAQ 问句标记', '(?=\\n(?:Q[:：]|问[：:]\\s*))', 'document_split_regex_template',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '在 Q: / 问： 前切开'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '(?=\\n(?:Q[:：]|问[：:]\\s*))'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 9, '日志时间戳行', '(?=\\n\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2})', 'document_split_regex_template',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '每条日志一块起点'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '(?=\\n\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2})'
+);
+
+INSERT INTO `sys_dict_data` (
+    `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`,
+    `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+)
+SELECT 10, '章节（第N章）', '(?=\\n第[一二三四五六七八九十百零〇\\d]+章)', 'document_split_regex_template',
+       NULL, 'default', 'N', '0', 'admin', NOW(), 'admin', NOW(), '非 Markdown 书籍体'
+WHERE NOT EXISTS (
+    SELECT 1 FROM `sys_dict_data`
+    WHERE `dict_type` = 'document_split_regex_template' AND `dict_value` = '(?=\\n第[一二三四五六七八九十百零〇\\d]+章)'
+);
+
 -- ============================================================================
 -- D. 模型与功能适配初始化
 -- ============================================================================
@@ -427,6 +699,19 @@ INSERT INTO `ai_models` (
     '0', 1, 1, 'admin', NOW(), 'admin', NOW(), 'Qwen-Plus 网页爬取Agent模型'
 WHERE NOT EXISTS (SELECT 1 FROM `ai_models` WHERE `model_code` = 'qwen-plus');
 
+INSERT INTO `ai_models` (
+    `model_code`, `model_name`, `provider`, `model_sort`, `api_key`, `base_url`,
+    `model_type`, `max_tokens`, `temperature`, `support_reasoning`, `support_images`,
+    `status`, `user_id`, `dept_id`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
+) SELECT
+    'text-embedding-v4', '通义千问 Embedding V4', 'openai', 4,
+    'sk-你自己的key',
+    'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    'embedding', NULL, NULL, 'N', 'N',
+    '0', 1, 1, 'admin', NOW(), 'admin', NOW(),
+    '通义千问 text-embedding-v4，维度在业务适配 document_embedding 配置'
+WHERE NOT EXISTS (SELECT 1 FROM `ai_models` WHERE `model_code` = 'text-embedding-v4');
+
 INSERT INTO `knowledge_ai_model_function_adapter` (
     `function_point`, `param_id`, `model_id`, `create_by`, `create_time`, `update_by`, `update_time`
 ) SELECT
@@ -461,6 +746,20 @@ INSERT INTO `knowledge_ai_model_function_adapter` (
 WHERE NOT EXISTS (
     SELECT 1 FROM `knowledge_ai_model_function_adapter`
     WHERE `param_id` = 'web_crawler_agent' AND `del_flag` = '0'
+);
+
+INSERT INTO `knowledge_ai_model_function_adapter` (
+    `function_point`, `param_id`, `model_id`, `dimensions`,
+    `create_by`, `create_time`, `update_by`, `update_time`
+) SELECT
+    '文档向量化',
+    'document_embedding',
+    CAST((SELECT `model_id` FROM `ai_models` WHERE `model_code` = 'text-embedding-v4') AS CHAR),
+    1024,
+    'admin', NOW(), 'admin', NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM `knowledge_ai_model_function_adapter`
+    WHERE `param_id` = 'document_embedding' AND `del_flag` = '0'
 );
 
 -- ============================================================================
@@ -670,8 +969,3 @@ WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:embedding:remove
 INSERT INTO `sys_menu` (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT '任务发布', (SELECT `menu_id` FROM `sys_menu` WHERE `path` = 'embedding' AND `component` = 'knowledge/embedding/task/index'), '5', '', '', '', '', 1, 0, 'F', '0', '0', 'rag:embedding:publish', '#', 'admin', NOW(), 'admin', NOW(), '预留：发布切换'
 WHERE NOT EXISTS (SELECT 1 FROM `sys_menu` WHERE `perms` = 'rag:embedding:publish');
-
--- 文档向量化适配（dimensions / text-embedding-v4 / document_embedding）见：
---   sql/upgrade_document_embedding_adapter.sql
--- Embedding 字典（分隔符/正则模板）若未随本脚本完整写入，可补跑：
---   sql/upgrade_document_embedding.sql

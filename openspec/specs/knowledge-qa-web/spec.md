@@ -12,7 +12,7 @@ The system SHALL add a knowledge-web menu and chat page for knowledge QA, modele
 - **THEN** they can create/select a session and send messages that stream Agent responses
 
 ### Requirement: Frontend calls retrieval service APIs
-The page SHALL call `knowledge-retrieval` session/chat APIs (not `knowledge-admin` AiChatService for this feature).
+The page SHALL call `knowledge-retrieval` session/chat APIs (not admin general chat for this feature).
 
 #### Scenario: History reload
 - **WHEN** the user reopens a session

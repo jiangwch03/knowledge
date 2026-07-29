@@ -34,7 +34,6 @@ class DemoModeMiddleware(BaseHTTPMiddleware):
             'monitor/jobLog',
             'monitor/cache',
             'ai/model',
-            'ai/chat',
         ]
 
         for item in intercept_url_list:
@@ -42,7 +41,6 @@ class DemoModeMiddleware(BaseHTTPMiddleware):
                 (
                     f'{request.base_url!s}common',
                     f'{request.base_url!s}register',
-                    f'{request.base_url!s}tool/gen/createTable',
                 )
             ):
                 operate_ip = ClientIPUtil.get_client_ip(request)

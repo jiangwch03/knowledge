@@ -30,19 +30,8 @@ dependencies = [
     "deepagents==0.4.12",
     "langgraph==1.2.4",
     "langgraph-checkpoint-redis==0.5.0",
-    # Agno + 多模型 Provider SDK（AiUtil 动态加载）
-    "agno==2.6.11",
-    "anthropic==0.78.0",
-    "cerebras-cloud-sdk==1.67.0",
-    "cohere==5.20.4",
-    "google-genai==1.62.0",
-    "groq==1.0.0",
-    "litellm==1.81.8",
-    "llama-api-client==0.6.0",
-    "mistralai==1.12.0",
-    "ollama==0.6.1",
+    # LLM Provider SDK（LangChain 模型工厂）
     "openai==2.17.0",
-    "portkey-ai==2.1.0",
     # 工具库
     "aiofiles==25.1.0",
     "apscheduler==3.11.2",
