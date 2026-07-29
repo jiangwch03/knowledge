@@ -43,6 +43,15 @@ export function updateModel(data) {
   });
 }
 
+// 获取模型Profile
+export function getModelProfile(modelCode, provider, modelType) {
+  return request({
+    url: "/ai/model/profile",
+    method: "get",
+    params: { modelCode, provider, modelType },
+  });
+}
+
 // 删除AI模型
 export function delModel(modelId) {
   return request({

@@ -69,9 +69,9 @@
         min-width="130"
         :show-overflow-tooltip="true"
       />
-      <el-table-column label="模型类型" prop="modelType" min-width="110" align="center">
+      <el-table-column label="模型类型" prop="modelType" min-width="140" align="center">
         <template #default="scope">
-          <span>{{ formatModelType(scope.row.modelType) }}</span>
+          <dict-tag :options="ai_model_type" :value="normalizeModelType(scope.row.modelType)" />
         </template>
       </el-table-column>
       <el-table-column label="向量维度" prop="dimensions" width="90" align="center" />
@@ -130,10 +130,10 @@
             @change="handleModelTypeChange"
           >
             <el-option
-              v-for="item in modelTypeOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
+              v-for="dict in ai_model_type"
+              :key="dict.value"
+              :label="dict.label"
+              :value="dict.value"
             />
           </el-select>
         </el-form-item>
@@ -191,6 +191,7 @@ import {
 import { listModelAll } from "@/api/ai/model";
 
 const { proxy } = getCurrentInstance();
+const { ai_model_type } = proxy.useDict("ai_model_type");
 
 const adapterList = ref([]);
 const loading = ref(false);
@@ -199,13 +200,6 @@ const total = ref(0);
 const open = ref(false);
 const title = ref("");
 const allModelOptions = ref([]);
-
-/** 表单可选模型类型（与模型管理一致） */
-const modelTypeOptions = [
-  { label: "大语言模型", value: "llm" },
-  { label: "视觉语言模型", value: "vlm" },
-  { label: "向量模型", value: "embedding" },
-];
 
 const data = reactive({
   form: {},
@@ -268,18 +262,6 @@ function normalizeModelType(type) {
     return "llm";
   }
   return normalized;
-}
-
-const MODEL_TYPE_LABELS = {
-  llm: "大语言模型",
-  vlm: "视觉语言模型",
-  embedding: "向量模型",
-};
-
-function formatModelType(type) {
-  if (!type) return "-";
-  const key = normalizeModelType(type);
-  return MODEL_TYPE_LABELS[key] || type;
 }
 
 function getList() {

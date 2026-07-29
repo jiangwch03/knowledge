@@ -356,7 +356,22 @@ create table ai_models (
   max_tokens        int(11)         default null               comment '最大输出token',
   temperature       float           default null               comment '默认温度',
   support_reasoning char(1)         default 'N'                comment '是否支持推理',
-  support_images    char(1)         default 'N'                comment '是否支持图片',
+  support_images    char(1)         default 'N'                comment '是否支持图片/图像输入',
+  support_text_inputs char(1)       default 'N'                comment '是否支持文本输入',
+  support_audio_inputs char(1)      default 'N'                comment '是否支持音频输入',
+  support_video_inputs char(1)      default 'N'                comment '是否支持视频输入',
+  support_text_outputs char(1)      default 'N'                comment '是否支持文本输出',
+  support_image_outputs char(1)     default 'N'                comment '是否支持图像输出',
+  support_audio_outputs char(1)     default 'N'                comment '是否支持音频输出',
+  support_video_outputs char(1)     default 'N'                comment '是否支持视频输出',
+  support_tool_call char(1)         default 'N'                comment '是否支持工具调用',
+  support_tool_choice char(1)       default 'N'                comment '是否支持工具选择',
+  support_structured_output char(1) default 'N'                comment '是否支持结构化输出',
+  support_image_url_inputs char(1)  default 'N'                comment '是否支持图像URL输入',
+  support_pdf_inputs char(1)        default 'N'                comment '是否支持PDF输入',
+  support_pdf_tool_message char(1)  default 'N'                comment '是否支持PDF工具消息',
+  support_image_tool_message char(1) default 'N'               comment '是否支持图像工具消息',
+  max_input_tokens  int(11)         default null               comment '最大输入token数（上下文窗口）',
   status            char(1)         default '0'                comment '模型状态',
   user_id           bigint(20)                                 comment '用户ID',
   dept_id           bigint(20)                                 comment '部门ID',
@@ -623,6 +638,7 @@ insert into sys_dict_type values(10, '操作类型', 	   'sys_oper_type',       
 insert into sys_dict_type values(11, '系统状态',     'sys_common_status',   '0', 'admin', sysdate(), '', null, '登录状态列表');
 insert into sys_dict_type values(12, 'AI模型提供商', 'ai_provider_type',    '0', 'admin', sysdate(), '', null, 'AI模型提供商列表');
 insert into sys_dict_type values(13, '任务所属应用', 'sys_job_app_scope',   '0', 'admin', sysdate(), '', null, '定时任务所属应用列表');
+insert into sys_dict_type values(14, 'AI模型类型',   'ai_model_type',       '0', 'admin', sysdate(), '', null, 'AI模型类型列表');
 
 -- ----------------------------
 -- 字典数据表数据
@@ -664,6 +680,10 @@ insert into sys_dict_data values(34, 2,  'DashScope',       'DashScope',        
 insert into sys_dict_data values(35, 1,  'knowledge-admin',  'knowledge-admin',  'sys_job_app_scope',   '',   'primary', 'Y', '0', 'admin', sysdate(), '', null, '知识管理后台');
 insert into sys_dict_data values(36, 2,  'knowledge-content',    'knowledge-content',    'sys_job_app_scope',   '',   'info',    'N', '0', 'admin', sysdate(), '', null, '知识RAG服务');
 insert into sys_dict_data values(37, 3,  'knowledge-agent',  'knowledge-agent',  'sys_job_app_scope',   '',   'info',    'N', '0', 'admin', sysdate(), '', null, '知识Agent服务');
+insert into sys_dict_data values(38, 1,  'LLM 大语言模型',   'llm',              'ai_model_type',      '',   'primary', 'Y', '0', 'admin', sysdate(), '', null, '纯文本对话/推理，不支持图像输入');
+insert into sys_dict_data values(39, 2,  'VLM 视觉语言模型', 'vlm',              'ai_model_type',      '',   'success', 'N', '0', 'admin', sysdate(), '', null, '多模态，支持图像+文本输入（看图理解）');
+insert into sys_dict_data values(40, 3,  'Embedding 向量模型', 'embedding',      'ai_model_type',      '',   'info',    'N', '0', 'admin', sysdate(), '', null, '文本向量化，用于检索 Embedding');
+insert into sys_dict_data values(41, 4,  'Rerank 精排模型',  'rerank',           'ai_model_type',      '',   'warning', 'N', '0', 'admin', sysdate(), '', null, '检索结果精排打分');
 
 -- ----------------------------
 -- 参数配置表数据

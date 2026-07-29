@@ -238,3 +238,5 @@ __marimo__/
 scripts/
 # Proxy scripts
 git-push-with-proxy.sh
+# Runtime upload / local caches (models.dev profile index, etc.)
+vf_admin/

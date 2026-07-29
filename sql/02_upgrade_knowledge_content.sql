@@ -663,39 +663,76 @@ WHERE NOT EXISTS (
 -- D. 模型与功能适配初始化
 -- ============================================================================
 
+-- Profile 能力字段对齐 models.dev（api_key 仅为占位，禁止写入真实 Key）
 INSERT INTO `ai_models` (
     `model_code`, `model_name`, `provider`, `model_sort`, `api_key`, `base_url`,
-    `model_type`, `max_tokens`, `temperature`, `support_reasoning`, `support_images`,
+    `model_type`, `max_tokens`, `temperature`,
+    `support_reasoning`, `support_images`,
+    `support_text_inputs`, `support_audio_inputs`, `support_video_inputs`,
+    `support_text_outputs`, `support_image_outputs`, `support_audio_outputs`, `support_video_outputs`,
+    `support_tool_call`, `support_tool_choice`, `support_structured_output`,
+    `support_image_url_inputs`, `support_pdf_inputs`, `support_pdf_tool_message`, `support_image_tool_message`,
+    `max_input_tokens`,
     `status`, `user_id`, `dept_id`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
 ) SELECT
     'deepseek-chat', 'DeepSeek Chat', 'openai', 1,
     'sk-你自己的key',
     'https://api.zetatechs.com/v1',
-    'LLM', 4096, 0.7, 'N', 'N',
+    'llm', 384000, 0.7,
+    'N', 'N',
+    'Y', 'N', 'N',
+    'Y', 'N', 'N', 'N',
+    'Y', 'Y', 'N',
+    'N', 'N', 'N', 'N',
+    1000000,
     '0', 1, 1, 'admin', NOW(), 'admin', NOW(), 'DeepSeek Chat模型'
 WHERE NOT EXISTS (SELECT 1 FROM `ai_models` WHERE `model_code` = 'deepseek-chat');
 
 INSERT INTO `ai_models` (
     `model_code`, `model_name`, `provider`, `model_sort`, `api_key`, `base_url`,
-    `model_type`, `max_tokens`, `temperature`, `support_reasoning`, `support_images`,
+    `model_type`, `max_tokens`, `temperature`,
+    `support_reasoning`, `support_images`,
+    `support_text_inputs`, `support_audio_inputs`, `support_video_inputs`,
+    `support_text_outputs`, `support_image_outputs`, `support_audio_outputs`, `support_video_outputs`,
+    `support_tool_call`, `support_tool_choice`, `support_structured_output`,
+    `support_image_url_inputs`, `support_pdf_inputs`, `support_pdf_tool_message`, `support_image_tool_message`,
+    `max_input_tokens`,
     `status`, `user_id`, `dept_id`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
 ) SELECT
     'qwen3-vl-plus', 'Qwen3 VL Plus', 'openai', 2,
     'sk-你自己的key',
     'https://api.zetatechs.com/v1',
-    'VLM', 4096, 0.7, 'N', 'Y',
+    'vlm', 32768, 0.7,
+    'Y', 'Y',
+    'Y', 'N', 'N',
+    'Y', 'N', 'N', 'N',
+    'Y', 'Y', 'N',
+    'Y', 'N', 'N', 'N',
+    262144,
     '0', 1, 1, 'admin', NOW(), 'admin', NOW(), 'Qwen3 VL Plus 图片描述模型'
 WHERE NOT EXISTS (SELECT 1 FROM `ai_models` WHERE `model_code` = 'qwen3-vl-plus');
 
 INSERT INTO `ai_models` (
     `model_code`, `model_name`, `provider`, `model_sort`, `api_key`, `base_url`,
-    `model_type`, `max_tokens`, `temperature`, `support_reasoning`, `support_images`,
+    `model_type`, `max_tokens`, `temperature`,
+    `support_reasoning`, `support_images`,
+    `support_text_inputs`, `support_audio_inputs`, `support_video_inputs`,
+    `support_text_outputs`, `support_image_outputs`, `support_audio_outputs`, `support_video_outputs`,
+    `support_tool_call`, `support_tool_choice`, `support_structured_output`,
+    `support_image_url_inputs`, `support_pdf_inputs`, `support_pdf_tool_message`, `support_image_tool_message`,
+    `max_input_tokens`,
     `status`, `user_id`, `dept_id`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`
 ) SELECT
     'qwen-plus', 'Qwen-Plus', 'openai', 3,
     'sk-你自己的key',
-    'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    'LLM', 8192, 0.7, 'N', 'N',
+    'https://api.zetatechs.com/v1',
+    'llm', 32768, 0.7,
+    'Y', 'N',
+    'Y', 'N', 'N',
+    'Y', 'N', 'N', 'N',
+    'Y', 'Y', 'N',
+    'N', 'N', 'N', 'N',
+    1000000,
     '0', 1, 1, 'admin', NOW(), 'admin', NOW(), 'Qwen-Plus 网页爬取Agent模型'
 WHERE NOT EXISTS (SELECT 1 FROM `ai_models` WHERE `model_code` = 'qwen-plus');
 

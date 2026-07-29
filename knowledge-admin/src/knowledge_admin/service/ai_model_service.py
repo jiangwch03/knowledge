@@ -1,12 +1,15 @@
 from typing import Any
 
+from knowledge_admin.service.models_dev_profile_service import ModelsDevProfileService
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.mapper.dao.ai_models_dao import AiModelDao
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.crypto_util import CryptoUtil
+from knowledge_common.utils.log_util import logger
 from knowledge_common.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel, DeleteAiModelModel
+from knowledge_common.vo.model_profile_vo import ModelProfileVo
 from sqlalchemy import ColumnElement
 
 
@@ -130,3 +133,27 @@ class AiModelService:
             result.api_key = '********' * 3
 
         return result
+
+    @classmethod
+    async def get_model_profile(
+        cls,
+        model_code: str,
+        provider: str,
+        model_type: str | None = None,
+    ) -> ModelProfileVo:
+        """
+        从本地 models.dev 索引获取模型 Profile（按 model_code，不依赖厂商 SDK）
+
+        :param model_code: 模型编码
+        :param provider: 提供商（兼容字段；索引按官方源优选，不强制匹配）
+        :param model_type: 模型类型，rerank/embedding 直接返回空
+        :return: Profile VO
+        """
+        if model_type in ('rerank', 'embedding'):
+            return ModelProfileVo()
+
+        try:
+            return await ModelsDevProfileService.get_model_profile(model_code, provider)
+        except Exception as e:
+            logger.warning(f'获取模型 Profile 失败: {model_code}/{provider} - {e}')
+            raise ServiceException(message=f'获取 Profile 失败: {e}')

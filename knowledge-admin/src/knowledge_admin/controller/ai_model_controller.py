@@ -27,6 +27,22 @@ ai_model_controller = APIRouterPro(
 
 
 @ai_model_controller.get(
+    '/profile',
+    summary='获取模型Profile接口',
+    description='从本地 models.dev 索引按 modelCode 获取模型能力 Profile',
+    dependencies=[UserInterfaceAuthDependency('ai:model:query')],
+)
+async def get_model_profile(
+    request: Request,
+    model_code: Annotated[str, Query(alias='modelCode', description='模型编码')],
+    provider: Annotated[str, Query(description='提供商')],
+    model_type: Annotated[str | None, Query(alias='modelType', description='模型类型')] = None,
+) -> Response:
+    profile = await AiModelService.get_model_profile(model_code, provider, model_type)
+    return ResponseUtil.success(data=profile)
+
+
+@ai_model_controller.get(
     '/list',
     summary='获取AI模型分页列表接口',
     description='用于获取AI模型分页列表',
