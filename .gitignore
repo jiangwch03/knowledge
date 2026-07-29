@@ -226,13 +226,15 @@ __marimo__/
 .codebuddy/
 .codex/
 .cursor/
+.cursorignore
 .kimi/
 .opencode/
 .qwen/
 .trae/
 
-.qoder/repowiki/
+.qoder/
 .idea/
 .vscode/
+scripts/
 # Proxy scripts
 git-push-with-proxy.sh
