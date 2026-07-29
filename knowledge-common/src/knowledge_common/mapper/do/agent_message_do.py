@@ -15,7 +15,7 @@ class AgentMessage(Base):
 
     message_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='消息ID')
     session_id = Column(BigInteger, nullable=False, comment='关联会话ID')
-    role = Column(String(20), nullable=False, comment='消息角色 human/ai/system/tool（与LangChain对齐）')
+    role = Column(String(20), nullable=False, comment='消息角色 human/ai/system/tool/business')
     content = Column(Text, nullable=True, comment='消息内容')
     tool_call_id = Column(
         String(100),

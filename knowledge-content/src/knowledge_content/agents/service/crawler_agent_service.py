@@ -12,10 +12,8 @@ from langgraph.graph.state import CompiledStateGraph
 from knowledge_common.agent.enums.agent_type_enum import AgentType
 from knowledge_common.agent.runtime.chat_service import AgentChatService
 from knowledge_common.agent.runtime.sse import format_sse
-from knowledge_common.agent.service.agent_message_service import AgentMessageService
-from knowledge_common.config.env import AiModelFunctionAdapterConfig, CrawlerAgentConfig
-from knowledge_common.mapper.dao.ai_model_function_adapter_dao import AiModelFunctionAdapterDao
-from knowledge_common.vo.ai_model_function_adapter_vo import AiModelConfigModel
+from knowledge_common.agent.schema.chat_vo import AgentChatStreamVo, AgentResumeStreamVo
+from knowledge_common.config.env import CrawlerAgentConfig
 from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_content.agents.crawler_agent.graph import get_root_graph
 from knowledge_content.vo.crawler_vo import ChatMessageVo, ResumeVo
@@ -65,13 +63,7 @@ class _CrawlerAgentService(AgentChatService):
 
 
 class CrawlerAgentService:
-    """爬虫 Agent 对外服务入口（Controller 调用）。"""
-
-    @classmethod
-    async def get_crawler_models(cls) -> list[AiModelConfigModel]:
-        return await AiModelFunctionAdapterDao.get_adapters_by_param_id(
-            AiModelFunctionAdapterConfig.crawler_agent_param_id
-        )
+    """爬虫 Agent 对外服务入口（Controller 调用）：聊天与审批。"""
 
     @classmethod
     async def stream_chat(
@@ -80,14 +72,13 @@ class CrawlerAgentService:
         vo: ChatMessageVo,
         current_user: CurrentUserModel,
     ) -> AsyncIterator[str]:
-        user = current_user.user
         async for event in _CrawlerAgentService.chat_stream(
-            session_id=session_id,
-            content=vo.content,
-            user_id=user.user_id,
-            dept_id=user.dept_id,
-            create_by=user.user_name,
-            model_id=vo.model_id,
+            AgentChatStreamVo(
+                session_id=session_id,
+                content=vo.content,
+                current_user=current_user,
+                model_id=vo.model_id,
+            )
         ):
             yield event
 
@@ -98,25 +89,11 @@ class CrawlerAgentService:
         vo: ResumeVo,
         current_user: CurrentUserModel,
     ) -> AsyncIterator[str]:
-        user = current_user.user
         async for event in _CrawlerAgentService.resume_stream(
-            session_id=session_id,
-            resume_value=vo.resume_value,
-            user_id=user.user_id,
-            dept_id=user.dept_id,
-            create_by=user.user_name,
+            AgentResumeStreamVo(
+                session_id=session_id,
+                resume_value=vo.resume_value,
+                current_user=current_user,
+            )
         ):
             yield event
-
-    @classmethod
-    async def get_messages(
-        cls,
-        session_id: int,
-        page_num: int = 1,
-        page_size: int = 50,
-    ):
-        return await AgentMessageService.get_messages(
-            session_id=session_id,
-            page_num=page_num,
-            page_size=page_size,
-        )

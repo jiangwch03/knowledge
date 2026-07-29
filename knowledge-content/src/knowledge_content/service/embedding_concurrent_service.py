@@ -7,14 +7,13 @@ from __future__ import annotations
 
 import asyncio
 import math
-from collections.abc import Awaitable, Callable
-
-from langchain_core.embeddings import Embeddings
 
 from knowledge_common.common.transactional import PropagationBehavior, transactional
 from knowledge_common.config.env import EmbeddingConfig, MilvusConfig
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.milvus import DocumentVectorVo, KnowledgeMilvusClient
+from knowledge_common.service.document_embedding_service import DocumentEmbeddingService
+from knowledge_common.utils.async_queue_util import run_queue_workers
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.snowflake_util import SnowflakeUtil
 from knowledge_content.enums.segment_status_enum import ReleaseTag, SegmentStatus
@@ -48,45 +47,20 @@ class EmbeddingConcurrentService:
 
     @classmethod
     def _chunk_ids(cls, ids: list[int], page_size: int) -> list[list[int]]:
-        return [ids[i : i + page_size] for i in range(0, len(ids), page_size)]
+        """把一长串 id 按 page_size 切成多批。
 
-    @classmethod
-    async def _run_queue_workers(
-        cls,
-        *,
-        batch_ids: list[list[int]],
-        concurrency: int,
-        worker_fn: Callable[[list[int], int], Awaitable[None]],
-    ) -> None:
-        """固定 concurrency 个工人；谁空闲谁立刻从队列领下一批。"""
-        if not batch_ids:
-            return
-        queue: asyncio.Queue[list[int] | None] = asyncio.Queue()
-        for chunk in batch_ids:
-            queue.put_nowait(chunk)
-        for _ in range(concurrency):
-            queue.put_nowait(None)
-
-        page_counter = 0
-        page_counter_lock = asyncio.Lock()
-
-        async def worker() -> None:
-            nonlocal page_counter
-            while True:
-                ids = await queue.get()
-                if ids is None:
-                    return
-                async with page_counter_lock:
-                    page_counter += 1
-                    page_num = page_counter
-                await worker_fn(ids, page_num)
-
-        await asyncio.gather(*(worker() for _ in range(concurrency)))
+        例：ids=[1..250], page_size=100 → [[1..100], [101..200], [201..250]]
+        """
+        chunks: list[list[int]] = []
+        for start in range(0, len(ids), page_size):
+            end = start + page_size
+            chunks.append(ids[start:end])
+        return chunks
 
     # ── 阶段一：STORED → EMBEDDED ─────────────────────────────────
 
     @classmethod
-    async def embed_pending_segments(cls, task_id: int, embeddings: Embeddings) -> None:
+    async def embed_pending_segments(cls, task_id: int) -> None:
         """待处理 id 入队，工人池持续 Embedding 并落库为 EMBEDDED。"""
         page_size: int = cls._page_size()
         concurrency: int = cls._concurrency()
@@ -111,36 +85,40 @@ class EmbeddingConcurrentService:
 
         progress_lock = asyncio.Lock()
 
-        async def run_batch(ids: list[int], page_num: int) -> None:
+        async def run_batch(ids: list[int]) -> None:
+            """工人回调：按批 id 加载 STORED 分段 → embedding → 落库 EMBEDDED → 累加进度。"""
             nonlocal processed
+            # 按本批 id 拉分段
             batch: list[KnowledgeDocumentSegment] = await cls._load_segments_by_ids(ids)
+            # 只处理仍是 STORED 的（幂等：已 EMBEDDED 的跳过）
             batch = [s for s in batch if s.status == SegmentStatus.STORED.value]
             if not batch:
                 return
             logger.info(
-                '[Embedding] 向量化落库页: task_id={}, page={}/{}, size={}',
+                '[Embedding] 向量化落库批: task_id={}, size={}',
                 task_id,
-                page_num,
-                total_pages,
                 len(batch),
             )
+            # 调 embedding API：文本 → 向量
             texts: list[str] = [s.text or '' for s in batch]
-            vectors: list[list[float]] = await asyncio.to_thread(embeddings.embed_documents, texts)
+            vectors: list[list[float]] = await DocumentEmbeddingService.embed_documents(texts)
             if len(vectors) != len(batch):
                 raise ServiceException('Embedding 返回向量数量与输入不一致')
+            # 向量打包成 bytes，与 segment id 成对落库
             packed: list[tuple[int, bytes]] = [
                 (seg.id, pack_embedding_vector(vector))
                 for seg, vector in zip(batch, vectors, strict=True)
             ]
             await cls._persist_batch_embedded(packed)
+            # 多工人并发改 processed / 写进度，需加锁
             async with progress_lock:
                 processed += len(batch)
                 await cls._bump_progress(task_id, processed)
 
-        await cls._run_queue_workers(
-            batch_ids=cls._chunk_ids(pending_ids, page_size),
-            concurrency=concurrency,
-            worker_fn=run_batch,
+        await run_queue_workers(
+            cls._chunk_ids(pending_ids, page_size),
+            concurrency,
+            run_batch,
         )
         logger.info('[Embedding] 向量化落库结束: task_id={}, processed={}', task_id, processed)
 
@@ -177,31 +155,34 @@ class EmbeddingConcurrentService:
 
         progress_lock = asyncio.Lock()
 
-        async def run_batch(ids: list[int], page_num: int) -> None:
+        async def run_batch(ids: list[int]) -> None:
+            """工人回调：按批 id 加载 EMBEDDED 分段 → 写 DB + upsert Milvus → 累加进度。"""
             nonlocal done_count
+            # 按本批 id 拉分段（含 embedding_vector）
             batch: list[KnowledgeDocumentSegment] = await cls._load_segments_by_ids(
                 ids, with_embedding_vector=True
             )
+            # 只刷仍是 EMBEDDED 的（幂等：已 VECTOR_STORED 的跳过）
             batch = [s for s in batch if s.status == SegmentStatus.EMBEDDED.value]
             if not batch:
                 return
             logger.info(
-                '[Embedding] 刷入 Milvus 页: task_id={}, page={}/{}, already={}, size={}',
+                '[Embedding] 刷入 Milvus 批: task_id={}, already={}, size={}',
                 task.task_id,
-                page_num,
-                total_pages,
                 done_count,
                 len(batch),
             )
+            # 短事务：先更新 DB 状态，再 upsert Milvus（失败则回滚 DB）
             await cls._persist_and_upsert_batch(batch, document)
+            # 多工人并发改 done_count / 写进度，需加锁
             async with progress_lock:
                 done_count += len(batch)
                 await cls._bump_progress(task.task_id, max(progress_floor, done_count))
 
-        await cls._run_queue_workers(
-            batch_ids=cls._chunk_ids(pending_ids, page_size),
-            concurrency=concurrency,
-            worker_fn=run_batch,
+        await run_queue_workers(
+            cls._chunk_ids(pending_ids, page_size),
+            concurrency,
+            run_batch,
         )
         logger.info('[Embedding] 刷入 Milvus 结束: task_id={}, done={}', task.task_id, done_count)
         return done_count
@@ -281,7 +262,10 @@ class EmbeddingConcurrentService:
                     doc_title=document.doc_title or '',
                     doc_version=document.doc_version or '',
                     chunk_id=seg.chunk_id,
+                    parent_chunk_id=seg.parent_chunk_id or '',
                     text=(seg.text or '')[:65535],
+                    dept_id=document.dept_id,
+                    user_id=document.user_id,
                 )
             )
         await KnowledgeDocumentSegmentDao.batch_update_vector_stored(db_items)

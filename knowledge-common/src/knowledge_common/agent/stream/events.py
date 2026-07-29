@@ -87,3 +87,17 @@ class PlainMessageEvent(NormalizedEvent):
     """兜底事件：上述未覆盖的其它消息类型，保留原始 message 交业务自行处理。"""
 
     message: BaseMessage
+
+
+@dataclass
+class BusinessSseEvent(NormalizedEvent):
+    """
+    业务旁路事件（LangGraph stream_mode=custom ← get_stream_writer）。
+
+    由图内 BusinessStreamMessageVo 经 normalizer 校验后拆出；
+    与 Token/ToolCall 等并列区分类型；是否推 SSE / 落库只看 persist、push_sse。
+    """
+
+    persist: bool  # 是否落库（role=business，content=data JSON）
+    push_sse: bool  # 是否推前端（统一 event: business）
+    data: Any  # 业务载荷；展示含义由前端按结构自行识别

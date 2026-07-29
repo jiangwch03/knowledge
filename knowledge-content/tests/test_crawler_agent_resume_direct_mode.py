@@ -8,7 +8,26 @@ from unittest.mock import AsyncMock
 import pytest
 from langgraph.types import Command
 
+from knowledge_common.agent.schema.chat_vo import AgentResumeStreamVo
+from knowledge_common.vo.user_vo import CurrentUserModel, UserInfoModel
 from knowledge_content.agents.service.crawler_agent_service import _CrawlerAgentService
+
+
+def _test_user(
+    user_id: int = 1001,
+    dept_id: int = 2001,
+    user_name: str = 'tester',
+) -> CurrentUserModel:
+    return CurrentUserModel(
+        permissions=[],
+        roles=[],
+        user=UserInfoModel.model_validate({
+            'userId': user_id,
+            'deptId': dept_id,
+            'userName': user_name,
+            'nickName': user_name,
+        }),
+    )
 
 
 class _FakeCompiled:
@@ -57,11 +76,11 @@ async def test_resume_stream_hitl_approve_maps_to_approve(monkeypatch):
 
     events = []
     async for event in _CrawlerAgentService.resume_stream(
-        session_id=77,
-        resume_value='approve',
-        user_id=1001,
-        dept_id=2001,
-        create_by='tester',
+        AgentResumeStreamVo(
+            session_id=77,
+            resume_value='approve',
+            current_user=_test_user(),
+        )
     ):
         events.append(event)
 
@@ -86,11 +105,11 @@ async def test_resume_stream_without_pending_interrupt_returns_error(monkeypatch
 
     events = []
     async for event in _CrawlerAgentService.resume_stream(
-        session_id=88,
-        resume_value='yes',
-        user_id=1001,
-        dept_id=2001,
-        create_by='tester',
+        AgentResumeStreamVo(
+            session_id=88,
+            resume_value='yes',
+            current_user=_test_user(),
+        )
     ):
         events.append(event)
 

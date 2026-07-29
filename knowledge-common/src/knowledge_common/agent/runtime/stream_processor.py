@@ -9,6 +9,7 @@ from typing import Any
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
+from knowledge_common.agent.enums.message_role_enum import MessageRoleLangchain
 from knowledge_common.agent.enums.sse_event_enum import AgentSseEvent, AgentToolCallPhase
 from knowledge_common.agent.runtime.sse import format_sse
 from knowledge_common.agent.schema.context import AgentIdentityContextVo
@@ -18,15 +19,13 @@ from knowledge_common.agent.stream import (
     SOURCE_SUBAGENT,
     SOURCE_SUPERVISOR,
     AITextEvent,
-    HumanMessageEvent,
+    BusinessSseEvent,
     NormalizedEvent,
-    SystemMessageEvent,
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
     normalize_astream,
 )
-from knowledge_common.agent.utils.sensitive_mask_util import mask_sensitive_text
 from knowledge_common.utils.log_util import logger
 
 
@@ -34,21 +33,48 @@ class AgentStreamProcessor:
     """
     消费 common 归一化事件流，翻译成 SSE 并完成消息落库。
 
-    TokenEvent 只推前端打字机，不落库；其它 updates 事件落库 / 推工具卡片。
     父图逐条落库；子图只缓冲 updates，收敛时按序落库。
+
+    SSE 与落库必须对齐（同一类事件要么进入聊天历史的两边约定一致，
+    要么两边都不进），否则直播与重开会话内容不一致：
+
+    - TokenEvent：只 SSE（打字机），不落库
+    - AITextEvent：只落库（完整句），不 SSE（避免与 token 重复推文本）
+    - ToolCall / ToolResult：SSE + 落库
+    - BusinessSseEvent：按事件自身的 persist / push_sse 决定落库与推 SSE（信封见 BusinessStreamMessageVo）
+    - Human / System updates：两边都不处理。用户消息由 chat_stream 在跑图前
+      显式入库 + SSE；图内对 messages 的改写/修补只服务 checkpointer。
     """
 
-    _SKIP_UPDATE_NODES = frozenset({'PatchToolCallsMiddleware.before_agent'})
-    _HIDDEN_SUPERVISOR_TOOLS = frozenset({'task'})
+    # 构造参数为 None 时的框架默认（与 AgentChatService ClassVar 对齐）。
+    # PatchToolCalls：before_agent 补假 ToolMessage 并用 Overwrite 重放历史，
+    # 非本轮新消息；跳过只影响事件产出，图 state 仍修补。业务中间件勿写入默认集。
+    _DEFAULT_SKIP_UPDATE_NODES = frozenset({'PatchToolCallsMiddleware.before_agent'})
+    # deepagents 父图委派子图的调度工具；子图已有独立展示，父图侧不暴露
+    _DEFAULT_HIDDEN_SUPERVISOR_TOOLS = frozenset({'task'})
+    _DEFAULT_SKIP_TOKEN_NODES: frozenset[str] = frozenset()
 
     def __init__(
         self,
         context: AgentIdentityContextVo,
         *,
         hidden_supervisor_tools: frozenset[str] | None = None,
+        skip_update_nodes: frozenset[str] | None = None,
+        skip_token_nodes: frozenset[str] | None = None,
     ):
         self._ctx = context
-        self._hidden_supervisor_tools = hidden_supervisor_tools or self._HIDDEN_SUPERVISOR_TOOLS
+        # None 回退默认；空 frozenset 表示业务显式清空
+        self._hidden_supervisor_tools = (
+            self._DEFAULT_HIDDEN_SUPERVISOR_TOOLS
+            if hidden_supervisor_tools is None
+            else hidden_supervisor_tools
+        )
+        self._skip_update_nodes = (
+            self._DEFAULT_SKIP_UPDATE_NODES if skip_update_nodes is None else skip_update_nodes
+        )
+        self._skip_token_nodes = (
+            self._DEFAULT_SKIP_TOKEN_NODES if skip_token_nodes is None else skip_token_nodes
+        )
         self._subgraph_messages: dict[str, list[dict[str, Any]]] = {}
 
     async def run(self, compiled: CompiledStateGraph, config: dict, input_or_resume: Command | dict):
@@ -59,7 +85,8 @@ class AgentStreamProcessor:
                 config=config,
                 context=self._ctx.model_dump(),
                 input_or_resume=input_or_resume,
-                skip_update_nodes=self._SKIP_UPDATE_NODES,
+                skip_update_nodes=self._skip_update_nodes,
+                skip_token_nodes=self._skip_token_nodes,
             ):
                 await self._flush_subgraph_on_ns_change(event)
                 for sse in await self._handle_event(event):
@@ -160,14 +187,27 @@ class AgentStreamProcessor:
             )
             return
 
-        if isinstance(event, SystemMessageEvent) and event.content:
-            await AgentMessageService.add_system_message(self._message_vo(event.content))
+        if isinstance(event, BusinessSseEvent):
+            await self._persist_business_sse(event)
             return
 
-        if isinstance(event, HumanMessageEvent) and event.content:
-            await AgentMessageService.add_user_message(
-                self._message_vo(mask_sensitive_text(event.content))
-            )
+        # HumanMessageEvent / SystemMessageEvent：与 _sse 对齐，不落库。
+        # 用户消息由 chat_stream 显式入库+SSE；图内 messages 变更只服务 Agent state。
+
+    async def _persist_business_sse(self, event: BusinessSseEvent) -> None:
+        """业务旁路落库：由 persist 决定；统一 role=business。"""
+        if not event.persist:
+            return
+        if isinstance(event.data, str):
+            content = event.data
+        else:
+            content = json.dumps(event.data, ensure_ascii=False)
+        if not content:
+            content = '{}'
+        await AgentMessageService.add_business_stream_message(
+            self._message_vo(content),
+            role=MessageRoleLangchain.BUSINESS.value,
+        )
 
     def _sse(self, event: NormalizedEvent) -> list[str]:
         if event.source == SOURCE_SUBAGENT:
@@ -197,6 +237,9 @@ class AgentStreamProcessor:
                 'content': self._parse_tool_result(event.content),
             }, event.source, event.agent_ns))]
 
+        if isinstance(event, BusinessSseEvent):
+            return self._sse_business(event)
+
         return []
 
     def _sse_supervisor(self, event: NormalizedEvent) -> list[str]:
@@ -223,7 +266,17 @@ class AgentStreamProcessor:
                 'content': self._parse_tool_result(event.content),
             }, event.source, event.agent_ns))]
 
+        if isinstance(event, BusinessSseEvent):
+            return self._sse_business(event)
+
         return []
+
+    def _sse_business(self, event: BusinessSseEvent) -> list[str]:
+        """业务旁路推 SSE：由 push_sse 决定；统一事件名 business，载荷为 data。"""
+        if not event.push_sse:
+            return []
+        body = event.data if isinstance(event.data, dict) else {'data': event.data}
+        return [format_sse(AgentSseEvent.BUSINESS.value, self._tag(body, event.source, event.agent_ns))]
 
     def _parse_tool_result(self, content: str | None) -> Any:
         content = content or ''

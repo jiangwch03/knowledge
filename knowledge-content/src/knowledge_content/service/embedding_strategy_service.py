@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+from knowledge_common.service.rag_config_service import RagConfigService
 from knowledge_content.enums.document_split_regex_template_dict_enum import DocumentSplitRegexTemplateDict
 from knowledge_content.enums.document_split_separator_dict_enum import DocumentSplitSeparatorDict
 from knowledge_content.enums.split_type_enum import SplitType
@@ -26,7 +29,7 @@ class EmbeddingStrategyService:
             ],
             param_notes=[
                 '标题层级：参与切分的最大 Markdown 标题级别（1–6，对应 # ~ ######）',
-                '块大小：单段超过该长度才做父子二次切分；子块最长不超过该值',
+                '块大小：单段超过该长度才做父子二次切分；子块最长不超过该值；上限对齐精排单文档字符上限',
                 '重叠长度：仅在超长段切出的子块之间生效',
             ],
             param_schema={
@@ -53,7 +56,7 @@ class EmbeddingStrategyService:
             applicable_scenes=['纯文本', '结构弱的长文档'],
             notes=['无标题元数据；适合结构弱、没有可靠标题边界的文档'],
             param_notes=[
-                '块大小：目标分块最大字符数',
+                '块大小：目标分块最大字符数；上限对齐精排单文档字符上限',
                 '重叠长度：相邻分块之间的重叠字符数（须小于块大小）',
             ],
             param_schema={
@@ -82,7 +85,7 @@ class EmbeddingStrategyService:
             ],
             param_notes=[
                 '分隔符：从下拉选一个字面量（如空行 \\n\\n）',
-                '块大小：合并目标；只有单块仍超长时才硬切',
+                '块大小：合并目标；只有单块仍超长时才硬切；上限对齐精排单文档字符上限',
                 '重叠长度：只在硬切时生效',
             ],
             param_schema={
@@ -117,7 +120,7 @@ class EmbeddingStrategyService:
             ],
             param_notes=[
                 '正则表达式：可从常用模板下拉选择，或直接输入/修改',
-                '块大小：合并目标；只有单块仍超长时才硬切',
+                '块大小：合并目标；只有单块仍超长时才硬切；上限对齐精排单文档字符上限',
                 '重叠长度：只在硬切时生效',
             ],
             param_schema={
@@ -154,7 +157,7 @@ class EmbeddingStrategyService:
                 '重叠长度由服务端强制为块大小的 10%，页面不可配置',
             ],
             param_notes=[
-                '块大小：单行超过该长度才做父子二次切分；子块最长不超过该值',
+                '块大小：单行超过该长度才做父子二次切分；子块最长不超过该值；上限对齐精排单文档字符上限',
                 '重叠长度：服务端强制为块大小 × 10%，仅在超长行硬切出的子块之间生效',
             ],
             param_schema={
@@ -169,5 +172,15 @@ class EmbeddingStrategyService:
     ]
 
     @classmethod
-    def list_strategies(cls) -> list[EmbeddingStrategyVo]:
-        return list(cls._STRATEGIES)
+    async def list_strategies(cls) -> list[EmbeddingStrategyVo]:
+        """返回策略元数据，并把 chunkSize.maximum 写成当前精排单文档字符上限。"""
+        max_chars = await RagConfigService.get_rerank_max_doc_chars()
+        out: list[EmbeddingStrategyVo] = []
+        for item in cls._STRATEGIES:
+            schema = deepcopy(item.param_schema)
+            props = schema.get('properties') or {}
+            chunk = props.get('chunkSize')
+            if isinstance(chunk, dict):
+                chunk['maximum'] = max_chars
+            out.append(item.model_copy(update={'param_schema': schema}))
+        return out

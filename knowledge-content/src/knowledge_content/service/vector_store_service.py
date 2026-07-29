@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from langchain_core.embeddings import Embeddings
-
 from knowledge_common.common.transactional import PropagationBehavior, transactional
 from knowledge_common.config.env import MilvusConfig
 from knowledge_common.exceptions.exception import ServiceException
@@ -48,10 +46,9 @@ class VectorStoreService:
         # 校验 Milvus collection 维度与任务快照一致
         dimensions: int = task.dimensions or await EmbeddingModelService.get_dimensions()
         await cls._milvus.validate_collection(cls._collection, dimensions)
-        embeddings: Embeddings = await EmbeddingModelService.create_embeddings()
 
         # 阶段一：STORED → EMBEDDED（队列工人池并发调 Embedding + 写 MySQL）
-        await EmbeddingConcurrentService.embed_pending_segments(task.task_id, embeddings)
+        await EmbeddingConcurrentService.embed_pending_segments(task.task_id)
         # 阶段二：EMBEDDED → VECTOR_STORED（队列工人池并发：批内先更新 DB 再 upsert Milvus）
         embedded_count: int = await EmbeddingConcurrentService.flush_pending_to_milvus(
             task=task,

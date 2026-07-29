@@ -9,6 +9,7 @@ from knowledge_common.agent.stream.events import (
     SOURCE_SUBAGENT,
     SOURCE_SUPERVISOR,
     AITextEvent,
+    BusinessSseEvent,
     HumanMessageEvent,
     NormalizedEvent,
     PlainMessageEvent,
@@ -18,6 +19,7 @@ from knowledge_common.agent.stream.events import (
     ToolResultEvent,
 )
 from knowledge_common.agent.stream.normalizer import (
+    STREAM_MODE_CUSTOM,
     STREAM_MODE_MESSAGES,
     STREAM_MODE_UPDATES,
     normalize_astream,
@@ -34,7 +36,9 @@ __all__ = [
     'SystemMessageEvent',
     'HumanMessageEvent',
     'PlainMessageEvent',
+    'BusinessSseEvent',
     'STREAM_MODE_MESSAGES',
     'STREAM_MODE_UPDATES',
+    'STREAM_MODE_CUSTOM',
     'normalize_astream',
 ]

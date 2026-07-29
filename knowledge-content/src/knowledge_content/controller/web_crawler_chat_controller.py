@@ -6,6 +6,9 @@ from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDepen
 from knowledge_common.common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, PageResponseModel
+from knowledge_common.agent.service.agent_message_service import AgentMessageService
+from knowledge_common.config.env import AiModelFunctionAdapterConfig
+from knowledge_common.mapper.dao.ai_model_function_adapter_dao import AiModelFunctionAdapterDao
 from knowledge_common.utils.response_util import ResponseUtil
 from knowledge_common.vo.ai_model_function_adapter_vo import AiModelConfigModel
 from knowledge_common.vo.user_vo import CurrentUserModel
@@ -28,7 +31,9 @@ async def get_crawler_models(
     request: Request,
 ) -> Response:
     """查询网页爬取Agent可用的模型列表"""
-    result = await CrawlerAgentService.get_crawler_models()
+    result = await AiModelFunctionAdapterDao.get_adapters_by_param_id(
+        AiModelFunctionAdapterConfig.crawler_agent_param_id
+    )
     return ResponseUtil.success(data=result)
 
 
@@ -111,7 +116,7 @@ async def get_message_list(
     query: Annotated[MessageListQueryVo, Query()],
 ) -> Response:
     """查询会话历史消息"""
-    result = await CrawlerAgentService.get_messages(
+    result = await AgentMessageService.get_messages(
         session_id=session_id,
         page_num=query.page_num,
         page_size=query.page_size,

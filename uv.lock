@@ -12,6 +12,7 @@ members = [
     "knowledge-admin",
     "knowledge-common",
     "knowledge-content",
+    "knowledge-retrieval",
 ]
 
 [[package]]
@@ -819,6 +820,25 @@ source = { registry = "https://pypi.org/simple/" }
 sdist = { url = "https://files.pythonhosted.org/packages/ec/2e/cdfd8b01c37cbf4f9482eefd455853a3cf9c995029a46acd31dfaa9c1dd6/cssselect-1.4.0.tar.gz", hash = "sha256:fdaf0a1425e17dfe8c5cf66191d211b357cf7872ae8afc4c6762ddd8ac47fc92", size = 40589, upload-time = "2026-01-29T07:00:26.701Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/20/0c/7bb51e3acfafd16c48875bf3db03607674df16f5b6ef8d056586af7e2b8b/cssselect-1.4.0-py3-none-any.whl", hash = "sha256:c0ec5c0191c8ee39fcc8afc1540331d8b55b0183478c50e9c8a79d44dbceb1d8", size = 18540, upload-time = "2026-01-29T07:00:24.994Z" },
+]
+
+[[package]]
+name = "dashscope"
+version = "1.26.4"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "certifi" },
+    { name = "cryptography" },
+    { name = "httpx" },
+    { name = "httpx-sse" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "typer" },
+    { name = "websocket-client" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/20/4dd714b5d015f3f18bce69916d3ed3b6b0af5952664733f2c9c5ce57efbf/dashscope-1.26.4-py3-none-any.whl", hash = "sha256:d56db91aecd4d981f2fdbdf526a2646a508c2f2b45347ed451cff6166ac17e3d", size = 1526000, upload-time = "2026-07-17T08:51:55.928Z" },
 ]
 
 [[package]]
@@ -1699,6 +1719,7 @@ dependencies = [
     { name = "cohere" },
     { name = "confluent-kafka" },
     { name = "cryptography" },
+    { name = "dashscope" },
     { name = "deepagents" },
     { name = "dotenv" },
     { name = "fastapi" },
@@ -1755,6 +1776,7 @@ requires-dist = [
     { name = "cohere", specifier = "==5.20.4" },
     { name = "confluent-kafka", specifier = "==2.14.2" },
     { name = "cryptography", specifier = "==48.0.0" },
+    { name = "dashscope", specifier = ">=1.20.0" },
     { name = "deepagents", specifier = "==0.4.12" },
     { name = "dotenv", specifier = "==0.9.9" },
     { name = "fastapi", specifier = "==0.136.3" },
@@ -1826,6 +1848,28 @@ requires-dist = [
     { name = "llama-index-embeddings-langchain", specifier = "==0.5.0" },
     { name = "llama-index-llms-langchain", specifier = "==0.8.0" },
     { name = "minio", specifier = "==7.2.20" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.3" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.4.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "knowledge-retrieval"
+version = "0.0.1"
+source = { editable = "knowledge-retrieval" }
+dependencies = [
+    { name = "knowledge-common" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "knowledge-common", editable = "knowledge-common" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.3" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.4.0" },
 ]
@@ -4443,6 +4487,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/11/15/dc61746d8c0852f6d711ad09c774b63cf7c8211aa49e30871ac3d342b7e2/wcmatch-10.2.1.tar.gz", hash = "sha256:ecac70a5c70e62ba854b78318d3a1408e8651f8f1c96e5837743b71aa6a4fb92", size = 132497, upload-time = "2026-07-02T17:21:48.484Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/82/ba/20b48eedeab5316bf9a502bb9eb7e3b1588bd61d0f565822fefa8f06e10b/wcmatch-10.2.1-py3-none-any.whl", hash = "sha256:2d775395b93f233af66690f62cb9d52b084ec159a31cc4084f4069d72f437acd", size = 39763, upload-time = "2026-07-02T17:21:47.134Z" },
+]
+
+[[package]]
+name = "websocket-client"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/41/aa4bf9664e4cda14c3b39865b12251e8e7d239f4cd0e3cc1b6c2ccde25c1/websocket_client-1.9.0.tar.gz", hash = "sha256:9e813624b6eb619999a97dc7958469217c3176312b3a16a4bd1bc7e08a46ec98", size = 70576, upload-time = "2025-10-07T21:16:36.495Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/db/b10e48aa8fff7407e67470363eac595018441cf32d5e1001567a7aeba5d2/websocket_client-1.9.0-py3-none-any.whl", hash = "sha256:af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef", size = 82616, upload-time = "2025-10-07T21:16:34.951Z" },
 ]
 
 [[package]]

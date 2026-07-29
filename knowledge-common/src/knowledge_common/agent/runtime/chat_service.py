@@ -14,6 +14,7 @@ from langgraph.types import Command
 
 from knowledge_common.agent.runtime.sse import format_sse
 from knowledge_common.agent.runtime.stream_processor import AgentStreamProcessor
+from knowledge_common.agent.schema.chat_vo import AgentChatStreamVo, AgentResumeStreamVo
 from knowledge_common.agent.schema.context import AgentIdentityContextVo
 from knowledge_common.agent.schema.message_vo import AgentMessageVo
 from knowledge_common.agent.service.agent_message_service import AgentMessageService
@@ -25,7 +26,14 @@ class AgentChatService(ABC):
     """Agent 对话编排基类：存消息 → 跑图 → 查中断。"""
 
     agent_type: ClassVar[str]
+    # 下列三项均为「增量声明」：子类在自身 __dict__ 里再写一份 frozenset，
+    # _merged_frozenset 按 MRO 并集，不会盖掉父类默认。
+    # 父图调度工具不展示（deepagents 的 task 由子图独立呈现）
     hidden_supervisor_tools: ClassVar[frozenset[str]] = frozenset({'task'})
+    # updates：跳过仅修补历史、不应落库/推卡片的节点；默认仅框架 deepagents 中间件
+    skip_update_nodes: ClassVar[frozenset[str]] = frozenset({'PatchToolCallsMiddleware.before_agent'})
+    # messages：按 metadata.langgraph_node 丢弃内部 LLM token；默认空，业务自增
+    skip_token_nodes: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
     @abstractmethod
@@ -33,55 +41,63 @@ class AgentChatService(ABC):
         """返回当前 Agent 的编译图。"""
 
     @classmethod
-    def build_chat_input(cls, content: str) -> dict[str, Any]:
-        """构建 chat_stream 本轮图输入。"""
-        return {'messages': [HumanMessage(content=content)]}
-
-    @classmethod
     @abstractmethod
     def format_hitl_user_choice_event(cls, hitl_request: dict) -> str | None:
         """将 deepagents HITL interrupt 映射为 user_choice SSE。"""
 
     @classmethod
-    async def chat_stream(
-        cls,
-        session_id: int,
-        content: str,
-        user_id: int,
-        dept_id: int | None,
-        create_by: str,
-        model_id: int | None = None,
-    ) -> AsyncIterator[str]:
-        logger.info(f'[Agent] 步骤1: 存储用户消息, session_id={session_id}')
+    def build_chat_input(cls, content: str) -> dict[str, Any]:
+        """构建 chat_stream 本轮图输入。"""
+        return {'messages': [HumanMessage(content=content)]}
+
+    @classmethod
+    def _merged_frozenset(cls, attr: str) -> frozenset[str]:
+        """按 MRO 合并各层在 __dict__ 中显式声明的 frozenset（子类增量 ∪ 父类默认）。"""
+        merged: set[str] = set()
+        for base in reversed(cls.__mro__):
+            raw = base.__dict__.get(attr)
+            if isinstance(raw, frozenset):
+                merged |= raw
+        return frozenset(merged)
+
+    @classmethod
+    def _stream_processor(cls, context: AgentIdentityContextVo) -> AgentStreamProcessor:
+        return AgentStreamProcessor(
+            context,
+            hidden_supervisor_tools=cls._merged_frozenset('hidden_supervisor_tools'),
+            skip_update_nodes=cls._merged_frozenset('skip_update_nodes'),
+            skip_token_nodes=cls._merged_frozenset('skip_token_nodes'),
+        )
+
+    @classmethod
+    async def chat_stream(cls, vo: AgentChatStreamVo) -> AsyncIterator[str]:
+        logger.info(f'[Agent] 步骤1: 存储用户消息, session_id={vo.session_id}')
         user_msg = await AgentMessageService.add_user_message(
             AgentMessageVo(
-                session_id=session_id,
-                content=content,
-                user_id=user_id,
-                dept_id=dept_id,
-                create_by=create_by,
+                session_id=vo.session_id,
+                content=vo.content,
+                user_id=vo.user_id,
+                dept_id=vo.dept_id,
+                create_by=vo.create_by,
             )
         )
 
         logger.info('[Agent] 步骤2: 推送用户消息确认事件')
-        yield format_sse('message', {'message_id': user_msg, 'role': 'user', 'content': content})
+        yield format_sse('message', {'message_id': user_msg, 'role': 'user', 'content': vo.content})
 
         try:
             compiled = await cls.get_graph()
-            config = {'configurable': {'thread_id': str(session_id)}}
-            input_or_resume = cls.build_chat_input(content)
+            config = {'configurable': {'thread_id': str(vo.session_id)}}
+            input_or_resume = cls.build_chat_input(vo.content)
             context = AgentIdentityContextVo(
-                session_id=session_id,
-                user_id=user_id,
-                dept_id=dept_id,
-                user_name=create_by,
-                model_id=model_id,
+                session_id=vo.session_id,
+                user_id=vo.user_id,
+                dept_id=vo.dept_id,
+                user_name=vo.create_by,
+                model_id=vo.model_id,
             )
 
-            async for event in AgentStreamProcessor(
-                context,
-                hidden_supervisor_tools=cls.hidden_supervisor_tools,
-            ).run(compiled, config, input_or_resume):
+            async for event in cls._stream_processor(context).run(compiled, config, input_or_resume):
                 yield event
 
             async for event in cls._check_post_interrupt(compiled, config):
@@ -91,19 +107,14 @@ class AgentChatService(ABC):
             yield format_sse('error', {'message': '[Agent] 对话执行异常,服务器异常,请联系运维处理'})
 
     @classmethod
-    async def resume_stream(
-        cls,
-        session_id: int,
-        resume_value: str,
-        user_id: int,
-        dept_id: int | None,
-        create_by: str,
-    ) -> AsyncIterator[str]:
-        logger.info(f'[AgentResume] 开始处理中断恢复, session_id={session_id}, resume_value={resume_value}')
+    async def resume_stream(cls, vo: AgentResumeStreamVo) -> AsyncIterator[str]:
+        logger.info(
+            f'[AgentResume] 开始处理中断恢复, session_id={vo.session_id}, resume_value={vo.resume_value}'
+        )
 
         try:
             compiled = await cls.get_graph()
-            config = {'configurable': {'thread_id': str(session_id)}}
+            config = {'configurable': {'thread_id': str(vo.session_id)}}
 
             state_snapshot = await compiled.aget_state(config)
             has_pending_interrupt = bool(
@@ -114,28 +125,25 @@ class AgentChatService(ABC):
 
             if not has_pending_interrupt:
                 error_msg = (
-                    f'[AgentResume] session_id={session_id} 调用 resume_stream 但无 pending interrupt，'
-                    f'状态异常: resume_value={resume_value}'
+                    f'[AgentResume] session_id={vo.session_id} 调用 resume_stream 但无 pending interrupt，'
+                    f'状态异常: resume_value={vo.resume_value}'
                 )
                 logger.error(error_msg)
                 yield format_sse('error', {'message': error_msg})
                 return
 
-            logger.info('[AgentResume] 有 pending interrupt，Command(resume={})', resume_value)
-            input_or_resume = await cls._build_resume_command(compiled, config, resume_value)
-            session = await AgentSessionService.get_session_vo(session_id, agent_type=cls.agent_type)
+            logger.info('[AgentResume] 有 pending interrupt，Command(resume={})', vo.resume_value)
+            input_or_resume = await cls._build_resume_command(compiled, config, vo.resume_value)
+            session = await AgentSessionService.get_session_vo(vo.session_id, agent_type=cls.agent_type)
             context = AgentIdentityContextVo(
-                session_id=session_id,
-                user_id=user_id,
-                dept_id=dept_id,
-                user_name=create_by,
+                session_id=vo.session_id,
+                user_id=vo.user_id,
+                dept_id=vo.dept_id,
+                user_name=vo.create_by,
                 model_id=session.model_id,
             )
 
-            async for event in AgentStreamProcessor(
-                context,
-                hidden_supervisor_tools=cls.hidden_supervisor_tools,
-            ).run(compiled, config, input_or_resume):
+            async for event in cls._stream_processor(context).run(compiled, config, input_or_resume):
                 yield event
 
             async for event in cls._check_post_interrupt(compiled, config):

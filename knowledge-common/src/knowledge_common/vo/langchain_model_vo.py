@@ -54,3 +54,15 @@ class EmbeddingModelConfigModel(BaseModel):
         default=None,
         description='是否先做 ctx length token 预处理',
     )
+
+
+class RerankModelConfigModel(BaseModel):
+    """Rerank 压缩器工厂入参（对接 DashScopeModelFactory / DashScopeRerank）。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    model_code: str = Field(description='模型编码，如 qwen3-rerank')
+    provider: str = Field(description='提供商，当前支持 DashScope')
+    api_key: str = Field(description='API Key')
+    base_url: str = Field(default='', description='DashScope API 根路径，如 https://dashscope.aliyuncs.com/api/v1')
+    top_n: int | None = Field(default=None, description='默认返回条数；调用时可覆盖')

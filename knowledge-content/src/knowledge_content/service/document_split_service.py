@@ -6,6 +6,7 @@ from typing import Any
 
 from knowledge_common.common.transactional import transactional
 from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.service.rag_config_service import RagConfigService
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.snowflake_util import SnowflakeUtil
 from knowledge_content.enums.embedding_task_status_enum import EmbeddingTaskStatus
@@ -34,15 +35,21 @@ class DocumentSplitService:
     """文档切分落库（canary 语义，不触碰 prod）"""
 
     @staticmethod
-    def _parse_split_param(task: KnowledgeDocumentEmbeddingTask) -> DocumentSplitParamVo:
+    async def _parse_split_param(task: KnowledgeDocumentEmbeddingTask) -> DocumentSplitParamVo:
         raw: Any = task.split_params
         if not raw:
             raise ServiceException('任务切分参数为空')
         data: dict[str, Any] = json.loads(raw) if isinstance(raw, str) else raw
         try:
+            chunk_size = int(data['chunkSize'])
+            max_chars = await RagConfigService.get_rerank_max_doc_chars()
+            if chunk_size > max_chars:
+                raise ServiceException(
+                    message=f'块大小不能超过精排单文档上限 {max_chars} 字符（参数 rag.rerank.max_doc_chars）'
+                )
             return DocumentSplitParamVo(
                 split_type=SplitType(data.get('splitType') or task.split_type),
-                chunk_size=int(data['chunkSize']),
+                chunk_size=chunk_size,
                 overlap=int(data.get('overlap') or 0),
                 title_level=data.get('titleLevel'),
                 separator=data.get('separator'),
@@ -107,7 +114,7 @@ class DocumentSplitService:
             )
 
         # 3. 构建切分器（参数来自任务快照，重试不改策略）
-        split_param: DocumentSplitParamVo = cls._parse_split_param(task)
+        split_param: DocumentSplitParamVo = await cls._parse_split_param(task)
         splitter: BaseDocumentSplitter = DocumentSplitterFactory.get(split_param)
 
         # 4. 逐文件切分；chunk_count 仅统计需入向量库的分片（不含父片）

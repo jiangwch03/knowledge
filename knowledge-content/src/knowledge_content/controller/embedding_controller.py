@@ -43,7 +43,7 @@ embedding_controller = APIRouterPro(
     dependencies=[UserInterfaceAuthDependency('rag:embedding:query')],
 )
 async def list_strategies(request: Request) -> Response:
-    return ResponseUtil.success(data=EmbeddingStrategyService.list_strategies())
+    return ResponseUtil.success(data=await EmbeddingStrategyService.list_strategies())
 
 
 @embedding_controller.get(

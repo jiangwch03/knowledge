@@ -11,7 +11,7 @@ class AgentMessageRespVo(BaseModel):
 
     message_id: int = Field(..., description='消息ID')
     session_id: int = Field(..., description='关联会话ID')
-    role: str = Field(..., description='消息角色')
+    role: str = Field(..., description='消息角色 human/ai/system/tool/business')
     content: str | None = Field(default=None, description='消息内容')
     tool_call_id: str | None = Field(default=None, description='工具调用ID')
     tool_name: str | None = Field(default=None, description='工具名称')

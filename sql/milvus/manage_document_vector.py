@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 """
-Milvus 初始化脚本：knowledge_document_vector
+Milvus collection 创建脚本：knowledge_document_vector
 有则删除，再按 schema + 索引重建。
+
+字段要点：
+- dept_id / user_id：向量侧 data_scope 过滤
+- parent_chunk_id：子片指向父（检索侧可直接读，无需先查 MySQL）
+- text + sparse + BM25 Function：混合检索关键词通道
+
+注意：本脚本只负责 DDL 建库，会清空 collection。
+存量数据需另行从 MySQL 回灌或重新向量化。
 
 运行：
     python sql/milvus/manage_document_vector.py
     # 或：uv run --with 'pymilvus>=2.6.9' python sql/milvus/manage_document_vector.py
 """
 
-from pymilvus import DataType, MilvusClient
+from pymilvus import DataType, Function, FunctionType, MilvusClient
 
 # ─── 连接（按环境自行修改）───
 MILVUS_URI = 'http://localhost:19530'
@@ -36,7 +44,7 @@ if client.has_collection(COLLECTION_NAME):
 schema = client.create_schema(
     auto_id=False,
     enable_dynamic_field=False,
-    description='知识库文档向量（一期单一维度，与 document_embedding 适配 dimensions 一致）',
+    description='知识库文档向量（稠密 ANN + BM25 全文；含 dept_id/user_id ACL）',
 )
 # 主键 id = MySQL knowledge_document_segment.embedding_id；chunk_id 为业务关联字段
 schema.add_field(
@@ -80,15 +88,44 @@ schema.add_field(
     description='业务分片 ID（对齐 knowledge_document_segment.chunk_id）',
 )
 schema.add_field(
+    field_name='parent_chunk_id',
+    datatype=DataType.VARCHAR,
+    max_length=64,
+    description='父分片 ID（对齐 segment.parent_chunk_id；无父为空串）',
+)
+schema.add_field(
     field_name='text',
     datatype=DataType.VARCHAR,
     max_length=65535,
-    description='分片正文冗余',
+    enable_analyzer=True,
+    analyzer_params={'type': 'standard'},
+    description='分片正文冗余（BM25 输入）',
+)
+schema.add_field(
+    field_name='dept_id',
+    datatype=DataType.INT64,
+    description='文档所属部门 ID（data_scope）',
+)
+schema.add_field(
+    field_name='user_id',
+    datatype=DataType.INT64,
+    description='文档上传用户 ID（data_scope）',
+)
+schema.add_field(
+    field_name='sparse',
+    datatype=DataType.SPARSE_FLOAT_VECTOR,
+    description='BM25 稀疏向量（由 Function 自动生成）',
 )
 
+bm25_function = Function(
+    name='text_bm25',
+    input_field_names=['text'],
+    output_field_names=['sparse'],
+    function_type=FunctionType.BM25,
+)
+schema.add_function(bm25_function)
+
 # 3. 索引
-# vector：向量索引 AUTOINDEX + COSINE（语义检索）
-# 其余：标量倒排 INVERTED（按字段值过滤，如 release_tag==prod、task_id in [...]）
 index_params = client.prepare_index_params()
 index_params.add_index(
     field_name='vector',
@@ -96,11 +133,20 @@ index_params.add_index(
     metric_type='COSINE',
     index_name='idx_vector',
 )
+index_params.add_index(
+    field_name='sparse',
+    index_type='SPARSE_INVERTED_INDEX',
+    metric_type='BM25',
+    index_name='idx_sparse_bm25',
+)
 index_params.add_index(field_name='release_tag', index_type='INVERTED', index_name='idx_release_tag')
 index_params.add_index(field_name='task_id', index_type='INVERTED', index_name='idx_task_id')
 index_params.add_index(field_name='doc_id', index_type='INVERTED', index_name='idx_doc_id')
 index_params.add_index(field_name='file_id', index_type='INVERTED', index_name='idx_file_id')
 index_params.add_index(field_name='chunk_id', index_type='INVERTED', index_name='idx_chunk_id')
+index_params.add_index(field_name='parent_chunk_id', index_type='INVERTED', index_name='idx_parent_chunk_id')
+index_params.add_index(field_name='dept_id', index_type='INVERTED', index_name='idx_dept_id')
+index_params.add_index(field_name='user_id', index_type='INVERTED', index_name='idx_user_id')
 
 # 4. 创建 collection
 print(f'创建 collection: {COLLECTION_NAME}, dim={DIMENSIONS}')

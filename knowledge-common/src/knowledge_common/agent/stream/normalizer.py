@@ -16,15 +16,19 @@ Agent 服务统一消费。业务层只需 `async for ev in normalize_astream(..
 """
 
 from collections.abc import AsyncIterator
+from typing import Any
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Overwrite
+from pydantic import ValidationError
 
+from knowledge_common.agent.schema.business_stream_vo import BusinessStreamMessageVo
 from knowledge_common.agent.stream.events import (
     SOURCE_SUBAGENT,
     SOURCE_SUPERVISOR,
     AITextEvent,
+    BusinessSseEvent,
     HumanMessageEvent,
     NormalizedEvent,
     PlainMessageEvent,
@@ -33,13 +37,16 @@ from knowledge_common.agent.stream.events import (
     ToolCallEvent,
     ToolResultEvent,
 )
+from knowledge_common.utils.log_util import logger
 
-# ── astream 的两种流式来源（并行、非互斥）──
-# 同一 LLM 节点执行时，两种事件会交错产出：
+# ── astream 的流式来源（并行、非互斥）──
+# 同一 LLM 节点执行时，messages / updates 会交错产出：
 #   messages — 执行过程中逐 token 推送（AIMessageChunk），供打字机
 #   updates  — 节点执行完毕时吐出该节点的状态增量（含完整 AIMessage），供落库/工具卡片
+#   custom   — LangGraph 旁路模式名（框架固定）；业务信封为 BusinessStreamMessageVo
 STREAM_MODE_MESSAGES = 'messages'
 STREAM_MODE_UPDATES = 'updates'
+STREAM_MODE_CUSTOM = 'custom'  # LangGraph 固定字面量，勿与业务 SSE 事件名混淆
 
 
 async def normalize_astream(
@@ -49,6 +56,7 @@ async def normalize_astream(
     context: dict,
     input_or_resume: Command | dict,
     skip_update_nodes: frozenset[str] = frozenset(),
+    skip_token_nodes: frozenset[str] = frozenset(),
 ) -> AsyncIterator[NormalizedEvent]:
     """
     驱动 astream 并逐个产出归一化事件。
@@ -59,26 +67,48 @@ async def normalize_astream(
     :param input_or_resume: 本轮输入（dict）或中断恢复指令（Command）
     :param skip_update_nodes: 需要跳过 update 的节点名集合（如仅修补历史的中间件节点），
                               避免旧消息重放；跳过仅影响事件产出，不影响图 state
+    :param skip_token_nodes: 需要丢弃 token 的节点名集合（匹配 metadata.langgraph_node），
+                             用于屏蔽中间件内嵌套 LLM 的打字机输出
     :return: 归一化事件异步生成器
     """
     async for item in compiled.astream(
         input=input_or_resume,
         config=config,
         context=context,
-        stream_mode=[STREAM_MODE_MESSAGES, STREAM_MODE_UPDATES],
+        stream_mode=[STREAM_MODE_MESSAGES, STREAM_MODE_UPDATES, STREAM_MODE_CUSTOM],
         subgraphs=True,
         version='v2',
     ):
         source, agent_ns = _resolve_source(item.get('ns') or ()) # 判定事件来自父图还是子图
-        mode = item.get('type') # messages 或 updates
+        mode = item.get('type') # messages / updates / custom
         data = item.get('data') # 消息数据
         if mode == STREAM_MODE_MESSAGES: # 处理 messages 模式
-            token = _normalize_token(data, source, agent_ns) # 归一化为 TokenEvent
+            token = _normalize_token(data, source, agent_ns, skip_token_nodes)
             if token is not None:
                 yield token # 产出 TokenEvent
         elif mode == STREAM_MODE_UPDATES: # 处理 updates 模式
             for event in _normalize_updates(data, source, agent_ns, skip_update_nodes): # 归一化为业务语义事件
                 yield event # 产出业务语义事件
+        elif mode == STREAM_MODE_CUSTOM:
+            business = _normalize_business_sse(data, source, agent_ns)
+            if business is not None:
+                yield business
+
+
+def _normalize_business_sse(data: Any, source: str, agent_ns: str | None) -> BusinessSseEvent | None:
+    """校验 BusinessStreamMessageVo，拆成字段化 BusinessSseEvent；非法信封丢弃。"""
+    try:
+        msg = BusinessStreamMessageVo.model_validate(data)
+    except ValidationError as exc:
+        logger.warning('[normalize] invalid BusinessStreamMessageVo, skip: {}', exc)
+        return None
+    return BusinessSseEvent(
+        source=source,
+        agent_ns=agent_ns,
+        persist=msg.persist,
+        push_sse=msg.push_sse,
+        data=msg.data,
+    )
 
 
 def _resolve_source(namespaces: tuple) -> tuple[str, str | None]:
@@ -110,11 +140,23 @@ def _extract_chunk_text(chunk: AIMessageChunk) -> str:
     return _resolve_message_text(chunk)
 
 
-def _normalize_token(data, source: str, agent_ns: str | None) -> TokenEvent | None:
-    """messages 模式：只保留有内容的 AIMessageChunk，归一化为 TokenEvent。"""
-    chunk, _metadata = data
+def _normalize_token(
+    data,
+    source: str,
+    agent_ns: str | None,
+    skip_token_nodes: frozenset[str] = frozenset(),
+) -> TokenEvent | None:
+    """messages 模式：只保留有内容的 AIMessageChunk，归一化为 TokenEvent。
+
+    若 metadata.langgraph_node 命中 skip_token_nodes（中间件内嵌套 LLM），则丢弃。
+    """
+    chunk, metadata = data
     if not isinstance(chunk, AIMessageChunk):
         return None
+    if skip_token_nodes:
+        node = (metadata or {}).get('langgraph_node') if isinstance(metadata, dict) else None
+        if node and node in skip_token_nodes:
+            return None
     text = _extract_chunk_text(chunk)
     if not text:
         return None

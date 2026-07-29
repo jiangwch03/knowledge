@@ -217,20 +217,24 @@ class UploadSettings(BaseSettings):
     UPLOAD_PATH: str = 'vf_admin/upload_path'
     UPLOAD_TEMP_PATH: str = 'vf_admin/upload_path/tmp'
     UPLOAD_MACHINE: str = 'A'
-    DEFAULT_ALLOWED_EXTENSION: Annotated[list[str], NoDecode] = Field(default = list)
+    DEFAULT_ALLOWED_EXTENSION: Annotated[list[str], NoDecode] = Field(default_factory=list)
     UPLOAD_MAX_SIZE: int = 100 * 1024 * 1024
     DOWNLOAD_PATH: str = 'vf_admin/download_path'
 
     @field_validator('DEFAULT_ALLOWED_EXTENSION', mode='before')
     @classmethod
-    def _parse_extensions(cls, v: str | list[str]) -> list[str]:
+    def _parse_extensions(cls, v: str | list[str] | type | None) -> list[str]:
         """
         从 .env 文件读取时支持两种格式：
         - 逗号分隔：DEFAULT_ALLOWED_EXTENSION = bmp,gif,jpg
         - JSON 数组：DEFAULT_ALLOWED_EXTENSION = '["bmp","gif","jpg"]'
         """
+        if v is None or v is list or callable(v):
+            return []
         if isinstance(v, list):
             return v
+        if not isinstance(v, str):
+            return []
         v_stripped = v.strip().strip("'\"")
         if v_stripped.startswith('[') and v_stripped.endswith(']'):
             try:
@@ -377,6 +381,10 @@ class AiModelFunctionAdapterSettings(BaseSettings):
     txt_to_markdown_param_id: str = 'txt_to_markdown'
     # 文档向量化功能适配参数ID
     document_embedding_param_id: str = 'document_embedding'
+    # 知识问答 Agent 功能适配参数ID
+    knowledge_qa_agent_param_id: str = 'knowledge_qa_agent'
+    # 检索精排（Rerank）功能适配参数ID；未配置或 enable_rerank=false 时跳过
+    document_rerank_param_id: str = 'document_rerank'
 
 
 class SemaphoreSettings(BaseSettings):
@@ -453,6 +461,23 @@ class MilvusSettings(BaseSettings):
     milvus_db: str = 'knowledge_rag'
     # 文档向量 collection（DDL：sql/milvus/manage_document_vector.py）
     document_vector_collection: str = 'knowledge_document_vector'
+
+
+class KnowledgeQaSettings(BaseSettings):
+    """
+    知识问答业务运行参数（换业务可另建一套 Settings，如 XxxQaSettings）。
+
+    通过 .env 覆盖，例如 KNOWLEDGE_QA_RETRIEVE_TOP_K=10。
+    """
+
+    # 混合检索返回条数
+    knowledge_qa_retrieve_top_k: int = 5
+    # 稠密 COSINE range 下界（radius）；0 表示不限制
+    knowledge_qa_retrieve_score_threshold: float = 0.5
+    # 是否对 hybrid RRF 候选做语义精排
+    knowledge_qa_retrieve_enable_rerank: bool = False
+    # RRFRanker 常数 k；越大名次衰减越缓
+    knowledge_qa_retrieve_rrf_k: int = 60
 
 
 class MinioSettings(BaseSettings):
@@ -632,6 +657,12 @@ class GetConfig:
         """
         return MilvusSettings()
 
+    def get_knowledge_qa_config(self) -> KnowledgeQaSettings:
+        """
+        获取知识问答业务配置
+        """
+        return KnowledgeQaSettings()
+
     def get_message_stream_config(self) -> MessageStreamSettings:
         """
         获取消息流后端配置
@@ -714,6 +745,8 @@ MinioConfig = get_config.get_minio_config()
 EmbeddingConfig = get_config.get_embedding_config()
 # Milvus配置
 MilvusConfig = get_config.get_milvus_config()
+# 知识问答业务配置
+KnowledgeQaConfig = get_config.get_knowledge_qa_config()
 # 消息流后端配置
 MessageStreamConfig = get_config.get_message_stream_config()
 # Stream topic 配置

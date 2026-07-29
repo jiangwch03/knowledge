@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from knowledge_common.config.env import EmbeddingConfig
 from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.service.rag_config_service import RagConfigService
 from knowledge_common.utils.snowflake_util import SnowflakeUtil
 from knowledge_content.enums.split_type_enum import SplitType
 from knowledge_content.mapper.dao.document_dao import KnowledgeDocumentDao
@@ -27,7 +28,18 @@ class EmbeddingPreviewService:
     """切分预览（不落库、不 embed）"""
 
     @staticmethod
-    def _to_split_param(model: EmbeddingSplitParamModel) -> DocumentSplitParamVo:
+    async def _ensure_chunk_size_within_rerank_limit(chunk_size: int) -> int:
+        """块大小不得超过精排单文档字符上限（sys_config: rag.rerank.max_doc_chars）。"""
+        max_chars = await RagConfigService.get_rerank_max_doc_chars()
+        if chunk_size > max_chars:
+            raise ServiceException(
+                message=f'块大小不能超过精排单文档上限 {max_chars} 字符（参数 rag.rerank.max_doc_chars）'
+            )
+        return max_chars
+
+    @staticmethod
+    async def _to_split_param(model: EmbeddingSplitParamModel) -> DocumentSplitParamVo:
+        await EmbeddingPreviewService._ensure_chunk_size_within_rerank_limit(model.chunk_size)
         try:
             return DocumentSplitParamVo(
                 split_type=SplitType(model.split_type),
@@ -90,7 +102,7 @@ class EmbeddingPreviewService:
         )
 
         # 3. 按请求参数切分样本 → 预览分片列表
-        split_param: DocumentSplitParamVo = cls._to_split_param(request)
+        split_param: DocumentSplitParamVo = await cls._to_split_param(request)
         segments: list[TextSegmentVo] = DocumentSplitterFactory.get(split_param).split(sample)
 
         preview_segments: list[EmbeddingPreviewSegmentVo] = []

@@ -4,6 +4,8 @@ Agent schema 定义
 
 from knowledge_common.agent.schema.agent_message_resp_vo import AgentMessageRespVo
 from knowledge_common.agent.schema.agent_session_vo import AgentSessionVo
+from knowledge_common.agent.schema.business_stream_vo import BusinessStreamMessageVo
+from knowledge_common.agent.schema.chat_vo import AgentChatStreamVo, AgentResumeStreamVo
 from knowledge_common.agent.schema.context import (
     AgentIdentityContext,
     AgentIdentityContextVo,
@@ -17,7 +19,10 @@ __all__ = [
     'AgentIdentityContextVo',
     'get_agent_identity_context_vo',
     'get_agent_identity_from_tool_runtime',
+    'AgentChatStreamVo',
+    'AgentResumeStreamVo',
     'AgentMessageVo',
     'AgentSessionVo',
     'AgentMessageRespVo',
+    'BusinessStreamMessageVo',
 ]

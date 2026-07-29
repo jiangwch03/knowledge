@@ -47,6 +47,44 @@ def test_normalize_token_uses_text_not_raw_content_blocks():
     assert event.content == '\n'
 
 
+def test_normalize_token_skips_blacklisted_langgraph_node():
+    chunk = AIMessageChunk(content='{"query": "你好"}')
+    event = _normalize_token(
+        (chunk, {'langgraph_node': 'QueryRewriteMiddleware.before_agent'}),
+        'supervisor',
+        None,
+        skip_token_nodes=frozenset({'QueryRewriteMiddleware.before_agent'}),
+    )
+    assert event is None
+
+
+def test_normalize_token_keeps_model_node_when_middleware_blacklisted():
+    chunk = AIMessageChunk(content='您好，我是知识库客服。')
+    event = _normalize_token(
+        (chunk, {'langgraph_node': 'model'}),
+        'supervisor',
+        None,
+        skip_token_nodes=frozenset({
+            'QueryRewriteMiddleware.before_agent',
+            'TopicGateMiddleware.before_agent',
+        }),
+    )
+    assert event is not None
+    assert event.content == '您好，我是知识库客服。'
+
+
+def test_normalize_token_keeps_when_skip_empty():
+    chunk = AIMessageChunk(content='{"related": false}')
+    event = _normalize_token(
+        (chunk, {'langgraph_node': 'TopicGateMiddleware.before_agent'}),
+        'supervisor',
+        None,
+        skip_token_nodes=frozenset(),
+    )
+    assert event is not None
+    assert event.content == '{"related": false}'
+
+
 def test_decompose_ai_message_keeps_internal_newlines_only():
     msg = AIMessage(content='第一行\n\n第二行\n\n\n')
     events = _decompose_ai_message(msg, SOURCE_SUPERVISOR, None)

@@ -35,7 +35,14 @@
           </template>
           <el-form ref="paramRef" :model="form" :rules="paramRules" label-width="100px">
             <el-form-item label="块大小" prop="chunkSize">
-              <el-input-number v-model="form.chunkSize" :min="1" :max="100000" controls-position="right" style="width: 100%" />
+              <el-input-number
+                v-model="form.chunkSize"
+                :min="1"
+                :max="chunkSizeMax"
+                controls-position="right"
+                style="width: 100%"
+              />
+              <div class="param-hint">上限 {{ chunkSizeMax }}（对齐精排单文档字符上限）</div>
             </el-form-item>
             <el-form-item v-if="showOverlap" prop="overlap">
               <template #label>
@@ -379,6 +386,14 @@ const currentStrategy = computed(() =>
   strategies.value.find((s) => s.code === form.splitType)
 );
 
+/** 块大小上限：来自策略 paramSchema.chunkSize.maximum（sys_config rag.rerank.max_doc_chars） */
+const chunkSizeMax = computed(() => {
+  const schema = currentStrategy.value?.paramSchema;
+  const props = schema?.properties || schema || {};
+  const max = props.chunkSize?.maximum;
+  return Number.isFinite(Number(max)) && Number(max) > 0 ? Number(max) : 4000;
+});
+
 function syncScroll(fromEl, toEl) {
   if (!fromEl || !toEl || syncingScroll) return;
   const fromMax = fromEl.scrollHeight - fromEl.clientHeight;
@@ -418,7 +433,15 @@ function handleRegexTemplateChange(val) {
 
 const paramRules = computed(() => {
   const rules = {
-    chunkSize: [{ required: true, message: "块大小不能为空", trigger: "blur" }],
+    chunkSize: [
+      { required: true, message: "块大小不能为空", trigger: "blur" },
+      {
+        type: "number",
+        max: chunkSizeMax.value,
+        message: `块大小不能超过 ${chunkSizeMax.value}`,
+        trigger: "blur",
+      },
+    ],
   };
   if (showTitleLevel.value) {
     rules.titleLevel = [{ required: true, message: "标题层级不能为空", trigger: "blur" }];
@@ -798,6 +821,9 @@ async function loadPageData() {
       form.splitType = strategies.value[0].code;
     }
     applyStrategyDefaults(currentStrategy.value);
+    if (form.chunkSize > chunkSizeMax.value) {
+      form.chunkSize = chunkSizeMax.value;
+    }
     await loadDocumentInfo();
   } catch (e) {
     ElMessage.error(e?.msg || e?.message || "加载配置数据失败");

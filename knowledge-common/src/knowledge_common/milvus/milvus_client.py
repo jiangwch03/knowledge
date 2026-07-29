@@ -4,12 +4,17 @@ import asyncio
 import threading
 from typing import Any, TypeVar
 
-from pymilvus import MilvusClient
+from pymilvus import AnnSearchRequest, MilvusClient, RRFRanker
 
 from knowledge_common.config.env import MilvusConfig
 from knowledge_common.exceptions.exception import ServiceException
-from knowledge_common.milvus.vo.base import BaseMilvusVo, MilvusSearchHit
-
+from knowledge_common.milvus.vo.base import (
+    BaseMilvusVo,
+    MilvusHybridSearchRequestVo,
+    MilvusQueryRequestVo,
+    MilvusSearchHit,
+    MilvusSearchRequestVo,
+)
 TVo = TypeVar('TVo', bound=BaseMilvusVo)
 
 
@@ -19,7 +24,7 @@ class KnowledgeMilvusClient:
     - 连接按进程懒加载单例（uri/token/db 来自 ``MilvusConfig``）
     - 同步 pymilvus SDK，对外 async 通过 ``asyncio.to_thread`` 卸到线程池
     - ``collection`` 必传；写入/读取均使用 ``BaseMilvusVo`` 子类，不做 DDL
-    - ``query`` / ``search`` 必传 ``vo_cls``，``output_fields`` 默认由其推导
+    - ``query`` / ``search`` 入参分别为 ``MilvusQueryRequestVo`` / ``MilvusSearchRequestVo``
     """
 
     _raw: MilvusClient | None = None
@@ -179,33 +184,33 @@ class KnowledgeMilvusClient:
 
     @staticmethod
     def _hit_entity(hit: dict[str, Any]) -> dict[str, Any]:
-        """兼容 entity 嵌套或扁平两种 search 返回形态。"""
+        """兼容 entity 嵌套或扁平两种 search 返回形态；缺 id 时从 hit 顶层回填。"""
         entity = hit.get('entity')
         if isinstance(entity, dict):
-            return entity
-        return {k: v for k, v in hit.items() if k not in {'id', 'distance', 'score'}}
+            payload = dict(entity)
+        else:
+            payload = {k: v for k, v in hit.items() if k not in {'id', 'distance', 'score'}}
+        if 'id' not in payload and hit.get('id') is not None:
+            payload['id'] = hit['id']
+        return payload
 
     async def query(
         self,
-        collection: str,
-        filter_expr: str,
-        vo_cls: type[TVo],
-        *,
-        output_fields: list[str] | None = None,
-        limit: int = 10,
+        request: MilvusQueryRequestVo[TVo],
     ) -> list[TVo]:
-        """查：标量过滤（非向量 ANN）；``output_fields`` 默认取自 ``vo_cls.output_fields()``。"""
-        name = self._collection(collection)
-        if not filter_expr or not filter_expr.strip():
+        """查：标量过滤（非向量 ANN）；``output_fields`` 默认取自 ``request.vo_cls``。"""
+        name = self._collection(request.collection)
+        if not request.filter_expr or not request.filter_expr.strip():
             raise ServiceException('Milvus query 必须提供 filter 表达式')
-        fields = self._resolve_output_fields(vo_cls, output_fields)
+        vo_cls = request.vo_cls
+        fields = self._resolve_output_fields(vo_cls, request.output_fields)
 
         def _run() -> list[dict[str, Any]]:
             self._assert_exists(name)
             return self._client().query(
                 collection_name=name,
-                filter=filter_expr,
-                limit=limit,
+                filter=request.filter_expr,
+                limit=request.limit,
                 output_fields=fields,
             )
 
@@ -214,35 +219,81 @@ class KnowledgeMilvusClient:
 
     async def search(
         self,
-        collection: str,
-        vectors: list[list[float]],
-        vo_cls: type[TVo],
-        *,
-        limit: int = 10,
-        filter_expr: str = '',
-        output_fields: list[str] | None = None,
-        search_params: dict[str, Any] | None = None,
-        anns_field: str = 'vector',
+        request: MilvusSearchRequestVo[TVo],
     ) -> list[list[MilvusSearchHit[TVo]]]:
-        """查：向量相似度检索；``output_fields`` 默认取自 ``vo_cls.output_fields()``。"""
-        name = self._collection(collection)
-        if not vectors:
+        """查：向量 / BM25 相似度检索；``output_fields`` 默认取自 ``request.vo_cls``。"""
+        name = self._collection(request.collection)
+        if not request.data:
             return []
-        fields = self._resolve_output_fields(vo_cls, output_fields)
+        vo_cls = request.vo_cls
+        fields = self._resolve_output_fields(vo_cls, request.output_fields)
 
         def _run() -> list[list[dict[str, Any]]]:
             self._assert_exists(name)
             return self._client().search(
                 collection_name=name,
-                data=vectors,
-                filter=filter_expr or '',
-                limit=limit,
-                search_params=search_params or {'metric_type': 'COSINE'},
-                anns_field=anns_field,
+                data=request.data,
+                filter=request.filter_expr or '',
+                limit=request.limit,
+                search_params=request.search_params or {'metric_type': 'COSINE'},
+                anns_field=request.anns_field,
                 output_fields=fields,
             )
 
         raw = await asyncio.to_thread(_run)
+        return self._parse_search_batches(raw, vo_cls)
+
+    async def hybrid_search(
+        self,
+        request: MilvusHybridSearchRequestVo[TVo],
+    ) -> list[MilvusSearchHit[TVo]]:
+        """查：dense + BM25 一路 ``hybrid_search``，服务端 ``RRFRanker`` 融合。"""
+        name = self._collection(request.collection)
+        dense = request.dense
+        sparse = request.sparse
+        if not dense.vector or not (sparse.text or '').strip():
+            return []
+        vo_cls = request.vo_cls
+        fields = self._resolve_output_fields(vo_cls, request.output_fields)
+        filter_expr = request.filter_expr or ''
+        dense_params = dense.search_params or {'metric_type': 'COSINE'}
+        sparse_params = sparse.search_params or {'metric_type': 'BM25'}
+
+        dense_req = AnnSearchRequest(
+            data=[dense.vector],
+            anns_field=dense.anns_field,
+            param=dense_params,
+            limit=dense.limit or request.limit,
+            expr=filter_expr or None,
+        )
+        sparse_req = AnnSearchRequest(
+            data=[sparse.text],
+            anns_field=sparse.anns_field,
+            param=sparse_params,
+            limit=sparse.limit or request.limit,
+            expr=filter_expr or None,
+        )
+        ranker = RRFRanker(k=request.rrf_k)
+
+        def _run() -> list[list[dict[str, Any]]]:
+            self._assert_exists(name)
+            return self._client().hybrid_search(
+                collection_name=name,
+                reqs=[dense_req, sparse_req],
+                ranker=ranker,
+                limit=request.limit,
+                output_fields=fields,
+            )
+
+        raw = await asyncio.to_thread(_run)
+        batches = self._parse_search_batches(raw, vo_cls)
+        return batches[0] if batches else []
+
+    def _parse_search_batches(
+        self,
+        raw: list[list[dict[str, Any]]],
+        vo_cls: type[TVo],
+    ) -> list[list[MilvusSearchHit[TVo]]]:
         result: list[list[MilvusSearchHit[TVo]]] = []
         for hits in raw:
             batch: list[MilvusSearchHit[TVo]] = []

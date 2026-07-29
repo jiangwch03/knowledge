@@ -28,4 +28,6 @@ def infer_current_project() -> str | None:
         return 'knowledge-admin'
     if 'knowledge_content' in argv_str or 'knowledge-content' in argv_str:
         return 'knowledge-content'
+    if 'knowledge_retrieval' in argv_str or 'knowledge-retrieval' in argv_str:
+        return 'knowledge-retrieval'
     return None

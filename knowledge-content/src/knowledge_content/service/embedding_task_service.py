@@ -54,8 +54,8 @@ class EmbeddingTaskService:
     """Embedding 任务 CRUD 与异步流水线"""
 
     @classmethod
-    def _split_params_payload(cls, request: EmbeddingCreateTaskRequest) -> dict[str, Any]:
-        EmbeddingPreviewService._to_split_param(request)
+    async def _split_params_payload(cls, request: EmbeddingCreateTaskRequest) -> dict[str, Any]:
+        await EmbeddingPreviewService._to_split_param(request)
         payload: dict[str, Any] = {
             'splitType': request.split_type,
             'chunkSize': request.chunk_size,
@@ -113,7 +113,7 @@ class EmbeddingTaskService:
         document: KnowledgeDocument = await cls._validate_document(request.doc_id)
         # 一期锁定的 Embedding 模型与维度
         model_info: EmbeddingModelInfoVo = await EmbeddingModelService.get_model_info()
-        split_params: dict[str, Any] = cls._split_params_payload(request)
+        split_params: dict[str, Any] = await cls._split_params_payload(request)
         now: datetime = datetime.now()
 
         task: KnowledgeDocumentEmbeddingTask = KnowledgeDocumentEmbeddingTask(

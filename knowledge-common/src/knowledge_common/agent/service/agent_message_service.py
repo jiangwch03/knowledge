@@ -171,6 +171,22 @@ class AgentMessageService:
 
     @classmethod
     @transactional()
+    async def add_business_stream_message(cls, vo: AgentMessageVo, *, role: str) -> AgentMessage:
+        """业务旁路落库；role 统一为 business，content 为 data 的 JSON。"""
+        message = AgentMessage(
+            session_id=vo.session_id,
+            role=role,
+            content=vo.content,
+            user_id=vo.user_id,
+            dept_id=vo.dept_id,
+            create_by=vo.create_by,
+            update_by=vo.create_by,
+            remark=vo.remark,
+        )
+        return await AgentMessageDao.add_message(message)
+
+    @classmethod
+    @transactional()
     async def add_system_message(cls, vo: AgentMessageVo) -> AgentMessage:
         message = AgentMessage(
             session_id=vo.session_id,
