@@ -17,7 +17,7 @@ ReAct 循环退出机制（create_deep_agent → langchain create_agent）：
   4. 写操作确认走 HITL（interrupt_on）：LLM 发出 crawl_execute / apply_scope_change
      后、执行前必拦。策略是否执行由对话约定（用户回复「爬取」等），不再走父图 interrupt_gate。
 
-deepagents API 限制与适配细节见 docs/rag/deepagents集成缺陷与适配说明.md
+deepagents API 限制与适配细节见 docs/rag功能流程说明/缺陷修复优化/deepagents集成缺陷与适配说明.md
 """
 
 from __future__ import annotations

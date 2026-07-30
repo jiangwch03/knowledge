@@ -84,6 +84,13 @@
     .sub-menu-title-noDropdown,
     .el-sub-menu__title {
       &:hover {
+        background-color: vars.$menuHover !important;
+      }
+    }
+
+    & .theme-light .sub-menu-title-noDropdown,
+    & .theme-light .el-sub-menu__title {
+      &:hover {
         background-color: rgba(0, 0, 0, 0.06) !important;
       }
     }
@@ -108,6 +115,19 @@
       &:hover {
         background-color: vars.$base-sub-menu-hover !important;
       }
+    }
+
+    // 深色主题一级菜单 hover / 选中：用青绿 hover，避免发黑
+    & .theme-dark .sub-menu-title-noDropdown,
+    & .theme-dark .el-sub-menu__title {
+      &:hover {
+        background-color: vars.$menuHover !important;
+      }
+    }
+
+    & .theme-dark .el-menu-item.is-active {
+      color: vars.$menuActiveText !important;
+      background-color: vars.$menuHover !important;
     }
   }
 

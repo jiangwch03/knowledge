@@ -1506,12 +1506,12 @@ wheels = [
 
 [[package]]
 name = "knowledge"
-version = "0.0.1"
+version = "1.0.0"
 source = { virtual = "." }
 
 [[package]]
 name = "knowledge-admin"
-version = "0.0.1"
+version = "1.0.0"
 source = { editable = "knowledge-admin" }
 dependencies = [
     { name = "alembic" },
@@ -1532,7 +1532,7 @@ requires-dist = [
 
 [[package]]
 name = "knowledge-common"
-version = "0.0.1"
+version = "1.0.0"
 source = { editable = "knowledge-common" }
 dependencies = [
     { name = "aiofiles" },
@@ -1627,7 +1627,7 @@ dev = [
 
 [[package]]
 name = "knowledge-content"
-version = "0.0.1"
+version = "1.0.0"
 source = { editable = "knowledge-content" }
 dependencies = [
     { name = "crawl4ai" },
@@ -1661,7 +1661,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "knowledge-retrieval"
-version = "0.0.1"
+version = "1.0.0"
 source = { editable = "knowledge-retrieval" }
 dependencies = [
     { name = "knowledge-common" },

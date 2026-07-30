@@ -22,7 +22,7 @@ class AppSettings(BaseSettings):
     app_root_path: str = '/api/common'
     app_host: str = '0.0.0.0'
     app_port: int = 9099
-    app_version: str = '0.0.1'
+    app_version: str = '1.0.0'
     app_reload: bool = True
     app_workers: int = 1
     app_ip_location_query: bool = True

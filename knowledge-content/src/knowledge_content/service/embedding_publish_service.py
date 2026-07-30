@@ -1,6 +1,6 @@
 """临时：自动发布切换 + pending_delete 异步清理。
 
-设计对齐 docs/rag/文档切分与向量化 §4A.1：
+设计对齐 docs/rag功能流程说明/切分与向量化流程.md：
   同 doc 创建时已保证最多一套 canary；发布时仅旧 prod → pending_delete，目标 canary → prod。
 
 正式发布 UI 上线后可下线对应 sys_job。

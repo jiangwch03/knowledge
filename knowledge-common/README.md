@@ -1,245 +1,94 @@
 # knowledge-common
 
-`knowledge-common` 是项目的公共基础库,封装跨子项目复用的能力(数据访问、配置、上下文、消息流、调度、Pub/Sub、日志聚合、事务装饰器等),由 `knowledge-admin` / `knowledge-content` 等子项目通过 uv workspace 引用。
+跨服务公共基础库，由 `knowledge-admin` / `knowledge-content` / `knowledge-retrieval` 通过 uv workspace 引用。
 
-> 设计原则:**通用归 common,业务归子项目**。所有"换中间件就要改的"基础设施都收敛到 common,业务层只对接 common 暴露的门面 / 装饰器。
-
-## 目录速览
-
-| 子模块 | 职责 |
-|---|---|
-| `common/` | 跨模块通用件:上下文(`ContextVar`)、注解(`@transactional`)、切面、路由自动注册 |
-| `config/` | 配置加载、DB / Redis / Scheduler 客户端注入 |
-| `dao/` | 通用 DAO 基类 |
-| `entity/` | ORM 实体 |
-| `message_stream/` | **消息流服务**(Kafka 风格门面,Redis Stream / Kafka 可插拔后端) |
-| `middlewares/` | FastAPI 中间件(异常、日志、上下文注入等) |
-| `service/` | 通用服务(日志聚合、配置 / 字典缓存等) |
-| `sub_applications/` | 子应用 Mount |
-| `utils/` | 工具类(Redis Pub/Sub、加密、IP、时间等) |
+设计原则：**通用归 common，业务归子项目**。换中间件才需要改的基础设施收敛于此，业务层只对接门面、装饰器与共享模型。
 
 ---
 
-## 消息流服务(`message_stream/`)
+## 能力一览
 
-Kafka 风格的 Python 消息流门面,业务层用 `@consumer` 装饰器声明消费点、用 `produce` 推送消息。底层 Redis Stream / Kafka 双后端可插拔,切后端时业务代码、装饰器签名、门面 API、消息结构**全部零修改**。
+| 能力域 | 模块 | 做什么 | 详细文档 |
+|--------|------|--------|----------|
+| 注解式事务 | `common/transactional.py` | `@transactional` / `@transactional_sync`，ContextVar Session，commit / rollback | [注解式事务管理](../docs/基础设施/注解式事务管理.md) |
+| 请求上下文 | `common/context.py` 等 | 当前用户、Session、Redis、Trace 等请求级状态 | [启动流程与生命周期](../docs/系统架构/启动流程与生命周期.md) |
+| 声明式注解 | `common/annotation/` | `@Log` 操作日志、`@Cache` 接口缓存、`@RateLimit` 限流 | [中间件链与注解切面](../docs/系统架构/中间件链与注解切面.md) |
+| 鉴权切面 | `common/aspect/` | `pre_auth`（JWT）、`interface_auth`（接口权限）、`data_scope`（数据范围） | 同上 |
+| 路由注册 | `common/router.py` | 按包路径自动发现并注册 FastAPI 路由 | [启动流程](../docs/系统架构/启动流程与生命周期.md) |
+| 中间件链 | `middlewares/` | Trace、CORS、GZip、Session、Redis 上下文、传输加密、演示模式、响应头等 | [中间件链与注解切面](../docs/系统架构/中间件链与注解切面.md) |
+| 配置与客户端 | `config/` | 环境配置、DB / Scheduler 注入、Prompt 配置 | [Redis 与数据库](../docs/基础设施/Redis与数据库基础设施.md) |
+| Redis | `redis/` | 连接池、客户端、Key 约定、分布式锁、分布式信号量、底层 Pub/Sub | [Redis 与数据库](../docs/基础设施/Redis与数据库基础设施.md)、[分布式信号量](../docs/基础设施/分布式信号量.md) |
+| 消息流 | `message_stream/` | Kafka 风格门面：`@consumer` + `produce`；Redis Stream / Kafka 可插拔 | [消息流服务](../docs/基础设施/消息流服务.md) |
+| 广播 | `broadcast/` | `@subscriber` + `publish`；Redis Pub/Sub，用于调度同步等扇出通知 | [广播服务](../docs/基础设施/广播服务.md) |
+| 内置消费者 / 订阅者 | `message/` | 日志聚合消费者、调度同步订阅者（各服务 lifespan 自动发现） | [日志聚合](../docs/基础设施/日志聚合.md)、[定时任务调度](../docs/基础设施/定时任务调度.md) |
+| 定时任务 | `config/get_scheduler.py` 等 | APScheduler + Leader 选举；跨实例通过广播同步 | [定时任务调度](../docs/基础设施/定时任务调度.md) |
+| 数据访问 | `mapper/` | 通用 `BaseDao`、共享表 DAO / DO（用户登录、字典、配置、日志、Job、AI 模型、Agent 会话等） | — |
+| 视图模型 | `vo/` | 跨服务共享 VO（用户、角色、字典、Job、AI 模型、分页基类等） | — |
+| 通用服务 | `service/` | 字典 / 配置缓存、登录用户、日志去重与落库、Job 日志、LLM Chat、文档 Embedding、RAG 配置等 | — |
+| Agent 抽象 | `agent/` | LangGraph 通用构建块：状态、Schema、节点、短期记忆、流式 / SSE、会话服务 | — |
+| 模型工厂 | `common/factory/` | LangChain / DashScope 等 LLM、Embedding 工厂 | — |
+| Milvus | `milvus/` | 向量库客户端与行 / 检索 VO（写入与检索共用） | — |
+| 跨服务 Facade | `facade/` | 跨进程调用相关接口 VO 约定 | — |
+| 异常处理 | `exceptions/` | 统一业务异常与全局异常处理器 | — |
+| 枚举 | `enums/`、`common/enums.py` | 删除标记、文档类型 / 来源、业务布尔标记等 | — |
+| 子应用挂载 | `sub_applications/` | FastAPI 子应用 Mount | — |
+| 工具集 | `utils/` | 加解密与传输加密、上传、分页、雪花 ID、Excel、Cron、IP、密码、响应封装等 | [MinIO 下载流程](../docs/基础设施/MinIO下载流程.md)（上传 / 对象相关） |
 
-### 核心 API
+消息流 vs 广播（选型）：
 
-```python
-from knowledge_common.message_stream import (
-    MessageStreamService,   # 门面(全 @classmethod)
-    consumer,               # @consumer 装饰器
-    Message,                # 消息结构(对齐 Kafka 字段)
-    MessageStreamError,     # 统一异常
-)
-from knowledge_common.message_stream.backends.redis_stream import RedisStreamBackend
-```
-
-### 接入范式(lifespan 三步)
-
-```python
-# 1. 业务方在任意模块顶层声明消费者(装饰器自动注册到 _consumers)
-@consumer(topic='log:op', group_id='log_writer')
-async def handle_log_op(msg: Message) -> None:
-    # 业务正常返回 → 框架自动 ack
-    # 业务抛异常    → 框架不 ack,由后端协议兜底(Stream PEL 接管 / Kafka 重平衡)
-    print(msg.value, msg.key)
-
-# 2. FastAPI lifespan 启动阶段:init → register_consumer_paths → discover_and_start
-async def _start_background_tasks(app):
-    MessageStreamService.init(RedisStreamBackend(app.state.redis))
-    MessageStreamService.register_consumer_paths([
-        'knowledge_admin.service',   # 业务方声明扫描路径(可累加)
-    ])
-    await MessageStreamService.discover_and_start()
-
-# 3. 关闭阶段:统一 shutdown(取消所有后台协程,释放后端连接)
-async def _stop_background_tasks(app):
-    await MessageStreamService.shutdown()
-```
-
-### 推送消息
-
-```python
-try:
-    msg_id = await MessageStreamService.produce(
-        topic='log:op',
-        value={'op': 'login', 'user_id': 1},
-        key='user_1',              # 业务键(顺序保证 / partition 路由用)
-        headers={'trace_id': 'x'},
-        max_retries=3,             # 默认 3 次重试
-        retry_interval=0.5,        # 重试间隔(秒)
-    )
-except MessageStreamError as e:
-    # 业务方自行决定:告警 / 落失败表 / 丢弃 / 重投
-    logger.error(f'push 失败: {e}')
-```
-
-### Message 字段(对齐 Kafka)
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `topic` | `str` | 主题 |
-| `key` | `str \| None` | 业务键(Kafka partition key / Stream 业务过滤键) |
-| `value` | `Any` | 载荷(自动 JSON 序列化) |
-| `headers` | `dict` | 头部元数据 |
-| `timestamp` | `int` | 毫秒时间戳 |
-| `offset` | `str` | 消息位置(Stream `xid` / Kafka offset) |
-| `partition` | `int \| None` | 分区号(Stream 无分区,值为 `None`) |
-| `stream` *(别名)* | `str` | ≡ `topic`,平滑过渡老代码 |
-| `payload` *(别名)* | `Any` | ≡ `value`,平滑过渡老代码 |
-
-### 与 `RedisPubSubUtil` 的对仗
-
-| 维度 | `RedisPubSubUtil` | `MessageStreamService` |
-|---|---|---|
-| 位置 | `utils/`(无状态工具) | `service/`(有生命周期 + 注册机制) |
-| 中间件 | Redis Pub/Sub(扇出广播) | Redis Stream / Kafka(可靠队列) |
-| 消息可靠性 | 离线订阅者收不到(可丢) | 消费组 + ack / PEL(不丢) |
-| 业务接入 | 命令式 `subscribe()` + 回调 | 声明式 `@consumer` 装饰器 |
-| 切 Kafka | 不支持(Pub/Sub 无对应) | **零修改**(契约对齐 Kafka) |
-| 典型场景 | 调度同步、实时广播 | 日志聚合、文档解析编排、长流程任务 |
-
-> 详细的"切 Kafka 4 个埋点"约定见:[`docs/rag/message-stream-service-design.md`](../docs/rag/message-stream-service-design.md)。
-
-### 设计要点
-
-- **门面命名中性**:`MessageStreamService` 不以 `Redis` / `Kafka` 开头,切后端命名不变
-- **装饰器参数 Kafka 化**:`topic` + `group_id` 与 confluent-kafka 原生参数一致
-- **业务方路径声明**:对齐 `auto_register_routers` 范式,框架不硬编码项目结构
-- **业务零感知 ack / 拉取 / 分发**:框架双层 `while True` 自愈,后端协议(PEL / 重平衡)兜底
-- **统一异常 `MessageStreamError`**:业务 `try/except` 一次,无需分别处理 Stream / Kafka 协议异常
-- **`reset()` + `shutdown()`**:测试可重复跑,生产优雅退出
-- **lifespan 单点接入**:与 `auto_register_routers` / `SchedulerUtil` 等基础设施注入风格一致
-
-### 日志聚合接入示例
-
-日志聚合作为 `MessageStreamService` 的标准业务方，由 common 集中维护消费者代码，admin / rag 通过框架默认扫描路径自动注册，业务项目侧零代码。
-
-**消费者文件**：`knowledge_common/message/consumer/log_consumer.py`
-
-```python
-"""
-日志聚合消费者（common 集中维护，admin / rag 自动复用）
-
-通过 @consumer 装饰器声明 4 个消费函数（admin/rag × login/operation），
-由 MessageStreamService 框架自动拉起后台消费协程。
-业务侧零代码复制，admin / rag 任一进程启动时都会 import 该文件并触发装饰器注册。
-
-topic 命名：log:{event_type}:{app_name}
-group_id 命名：log_writer:{app_name}
-"""
-from __future__ import annotations
-
-from knowledge_common.dao.log_dao import LoginLogDao, OperationLogDao
-from knowledge_common.entity.vo.log_vo import LogininforModel, OperLogModel
-from knowledge_common.message_stream import Message, consumer
-from knowledge_common.service.log_service import LogDedupHelper
-from knowledge_common.config.database import AsyncSessionLocal
-
-
-@consumer(topic='log:login:knowledge-admin', group_id='log_writer:knowledge-admin')
-async def handle_admin_login_log(msg: Message) -> None:
-    """
-    admin 端登录日志消费者
-
-    从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
-    """
-    event_id = msg.headers.get('event_id')
-    app_name = msg.headers.get('app_name', 'knowledge-admin')
-    async with LogDedupHelper.acquire(event_id, app_name) as ok:
-        if not ok:
-            return
-        async with AsyncSessionLocal() as session:
-            login_log = LogininforModel(**msg.value)
-            await LoginLogDao.add_login_log_dao(session, login_log)
-            await session.commit()
-
-
-@consumer(topic='log:operation:knowledge-admin', group_id='log_writer:knowledge-admin')
-async def handle_admin_operation_log(msg: Message) -> None:
-    """
-    admin 端操作日志消费者
-
-    从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
-    """
-    event_id = msg.headers.get('event_id')
-    app_name = msg.headers.get('app_name', 'knowledge-admin')
-    async with LogDedupHelper.acquire(event_id, app_name) as ok:
-        if not ok:
-            return
-        async with AsyncSessionLocal() as session:
-            operation_log = OperLogModel(**msg.value)
-            await OperationLogDao.add_operation_log_dao(session, operation_log)
-            await session.commit()
-
-
-@consumer(topic='log:login:knowledge-content', group_id='log_writer:knowledge-content')
-async def handle_rag_login_log(msg: Message) -> None:
-    """
-    rag 端登录日志消费者
-
-    从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
-    """
-    event_id = msg.headers.get('event_id')
-    app_name = msg.headers.get('app_name', 'knowledge-content')
-    async with LogDedupHelper.acquire(event_id, app_name) as ok:
-        if not ok:
-            return
-        async with AsyncSessionLocal() as session:
-            login_log = LogininforModel(**msg.value)
-            await LoginLogDao.add_login_log_dao(session, login_log)
-            await session.commit()
-
-
-@consumer(topic='log:operation:knowledge-content', group_id='log_writer:knowledge-content')
-async def handle_rag_operation_log(msg: Message) -> None:
-    """
-    rag 端操作日志消费者
-
-    从 message_stream 取消息 → 业务级去重 → 落库 → 框架自动 ack
-    """
-    event_id = msg.headers.get('event_id')
-    app_name = msg.headers.get('app_name', 'knowledge-content')
-    async with LogDedupHelper.acquire(event_id, app_name) as ok:
-        if not ok:
-            return
-        async with AsyncSessionLocal() as session:
-            operation_log = OperLogModel(**msg.value)
-            await OperationLogDao.add_operation_log_dao(session, operation_log)
-            await session.commit()
-
-
-__all__ = [
-    'handle_admin_login_log',
-    'handle_admin_operation_log',
-    'handle_rag_login_log',
-    'handle_rag_operation_log',
-]
-```
-
-**关键设计点**：
-- **common 集中维护**：消费者代码只在 `knowledge-common` 中维护一次，admin / rag 通过 uv workspace 自动引用
-- **自动注册**：`MessageStreamService._scan_paths` 默认值已含 `knowledge_common.message.consumer`，admin / rag 任一进程启动时都会 import 该文件并触发装饰器注册
-- **业务级去重**：`LogDedupHelper.acquire` 通过 Redis SET NX EX 实现，异常时自动释放，允许重试
-- **按 app_name 隔离**：topic 命名 `log:{event_type}:{app_name}`，group_id 命名 `log_writer:{app_name}`，admin / rag 各自消费自己的 topic，跨 app 不串扰
-- **框架自动 ack**：消费者函数正常返回 → 框架自动 ack；抛异常 → 框架不 ack，由后端协议兜底（PEL 接管）
-
-**业务项目侧零代码**：admin / rag 无需编写任何消费者代码，只需在 `server.py` 的 lifespan 中调用 `MessageStreamService.discover_and_start()` 即可自动发现并启动所有消费者协程。
+| | 消息流 `MessageStreamService` | 广播 `BroadcastService` |
+|--|------------------------------|-------------------------|
+| 语义 | 可靠队列（消费组 + ack） | 扇出通知（可丢） |
+| 接入 | `@consumer` + `produce` | `@subscriber` + `publish` |
+| 典型场景 | 日志聚合、文档解析编排、长流程任务 | 定时任务跨实例同步、实时广播 |
 
 ---
 
-## 运行测试
+## 目录结构
+
+```
+knowledge_common/
+├── agent/            # Agent 通用抽象（state / schema / node / memory / runtime / stream）
+├── broadcast/        # 广播门面与 Redis Pub/Sub 后端
+├── common/           # 上下文、事务、注解、切面、路由、模型工厂
+├── config/           # 环境与 DB / Scheduler / Prompt 配置
+├── enums/            # 跨服务枚举
+├── exceptions/       # 异常与全局处理
+├── facade/           # 跨服务接口 VO
+├── mapper/           # DAO / DO
+├── message/          # 内置 consumer / subscriber
+├── message_stream/   # 消息流门面与后端
+├── middlewares/      # FastAPI 中间件
+├── milvus/           # 向量库客户端与 VO
+├── redis/            # Redis 连接、锁、信号量、Pub/Sub
+├── service/          # 跨服务通用 Service
+├── sub_applications/ # 子应用挂载
+├── utils/            # 工具类
+└── vo/               # 共享 VO
+```
+
+---
+
+## 接入约定
+
+各业务服务在 FastAPI lifespan 中统一拉起公共基础设施（顺序与细节见 [启动流程与生命周期](../docs/系统架构/启动流程与生命周期.md)）：
+
+1. 初始化 DB / Redis / Scheduler 等客户端
+2. `MessageStreamService`：`init` → 注册扫描路径 → `discover_and_start`
+3. `BroadcastService`：同上
+4. 关闭阶段对上述门面调用 `shutdown`
+
+业务侧声明消费 / 订阅时用装饰器即可；框架负责扫描、拉起后台协程与 ack / 重连。日志聚合、调度同步等已在 `message/` 内维护，业务项目一般无需再写一份。
+
+---
+
+## 测试
 
 ```bash
-# 全部测试(项目根目录)
+# 项目根目录
+make test-common
+# 或
 .venv/bin/pytest knowledge-common/tests -v
-
-# 消息流服务专项
-.venv/bin/pytest knowledge-common/tests/test_message_stream.py -v
 ```
 
-测试套件分层:
-- ✅ 静态 / Mock 层:任意环境可跑(46 项)
-- ⚠️ 真 Redis 集成层:6379 未连通时自动 skip(1 项)
+静态 / Mock 用例任意环境可跑；依赖真 Redis 的集成用例在未连通时自动 skip。

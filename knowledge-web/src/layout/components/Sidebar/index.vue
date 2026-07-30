@@ -8,7 +8,7 @@
         :background-color="getMenuBackground"
         :text-color="getMenuTextColor"
         :unique-opened="true"
-        :active-text-color="theme"
+        :active-text-color="getMenuActiveText"
         :collapse-transition="false"
         mode="vertical"
         :class="sideTheme"
@@ -59,6 +59,21 @@ const getMenuTextColor = computed(() => {
   return sideTheme.value === 'theme-dark' ? variables.menuText : variables.menuLightText;
 });
 
+// 选中色：深色侧栏跟随 logo 青，不再用全局 Element 主题蓝
+const getMenuActiveText = computed(() => {
+  if (settingsStore.isDark) {
+    return 'var(--menu-active-text)';
+  }
+  return sideTheme.value === 'theme-dark' ? variables.menuActiveText : theme.value;
+});
+
+const getMenuHoverBg = computed(() => {
+  if (settingsStore.isDark) {
+    return 'var(--menu-hover)';
+  }
+  return sideTheme.value === 'theme-dark' ? variables.menuHover : variables.menuLightHover;
+});
+
 const activeMenu = computed(() => {
   const { meta, path } = route;
   if (meta.activeMenu) {
@@ -83,7 +98,7 @@ const activeMenu = computed(() => {
     
     .el-menu-item, .el-sub-menu__title {
       &:hover {
-        background-color: var(--menu-hover, rgba(0, 0, 0, 0.06)) !important;
+        background-color: v-bind(getMenuHoverBg) !important;
       }
     }
 
@@ -91,8 +106,8 @@ const activeMenu = computed(() => {
       color: v-bind(getMenuTextColor);
       
       &.is-active {
-        color: var(--menu-active-text, #409eff);
-        background-color: var(--menu-hover, rgba(0, 0, 0, 0.06)) !important;
+        color: v-bind(getMenuActiveText) !important;
+        background-color: v-bind(getMenuHoverBg) !important;
       }
     }
 

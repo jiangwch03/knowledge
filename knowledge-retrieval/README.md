@@ -23,7 +23,7 @@ uv run --package knowledge-retrieval python -m knowledge_retrieval.main
 
 - SQL：`sql/upgrade_knowledge_retrieval.sql`
 - Milvus：`sql/milvus/manage_document_vector.py` + `MIGRATION_ACL_BM25.md`
-- 冒烟：`docs/rag/知识检索/02-冒烟清单.md`
+- 流程文档：[知识问答流程](../docs/rag功能流程说明/知识问答流程.md)
 
 ## 约束
 
