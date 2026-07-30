@@ -9,9 +9,10 @@ from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_content.enums.mineru_parse_task_status_enum import MineruParseTaskStatus
 from knowledge_content.mapper.do.parse_task_do import KnowledgeMineruParseTask
 from knowledge_content.mapper.vo.parse_task_update_vo import MineruParseTaskUpdateVO
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class KnowledgeMineruParseTaskDao:
+class KnowledgeMineruParseTaskDao(BaseDao):
     """
     MinerU解析任务数据库操作层
     """

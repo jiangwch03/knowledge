@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from knowledge_common.common.transactional import async_session_scope
 from knowledge_retrieval.service.rerank_service import RerankService
 from knowledge_retrieval.vo.rerank_vo import RerankDocumentVo
 
@@ -27,8 +26,7 @@ async def test_rerank_live_dashscope_orders_relevant_first():
         RerankDocumentVo(id='weak', text='Milvus 支持多种索引类型，包括 IVF_FLAT 与 DISKANN。'),
     ]
 
-    async with async_session_scope():
-        out = await RerankService.rerank(query, documents, top_n=3)
+    out = await RerankService.rerank(query, documents, top_n=3)
 
     assert out is not None, '精排返回 None：检查 Key/网络/模型 qwen3-rerank'
     assert len(out) >= 1

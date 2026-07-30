@@ -4,7 +4,6 @@ LLM 实例工厂辅助模块
 提供爬虫 Agent 的模型配置加载与 BaseChatModel 获取能力。
 """
 
-from knowledge_common.common import with_session
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from knowledge_common.common.factory.langchain_model_factory import LangChainModelFactory
@@ -41,7 +40,6 @@ def _to_chat_model_config(adapter: AiModelConfigModel) -> ChatModelConfigModel:
         max_tokens=adapter.max_tokens,
     )
 
-@with_session
 async def _load_crawler_adapters() -> list[AiModelConfigModel]:
     """
     加载爬虫 Agent 可用模型适配列表（每次直接回源 DB）。

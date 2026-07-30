@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 # import module_task  # noqa: F401
 from knowledge_common.common.constant import LockConstant
-from knowledge_common.common.transactional import async_session_scope, session_scope
 from knowledge_common.config.database import (
     SYNC_SQLALCHEMY_DATABASE_URL,
     create_async_db_engine,
@@ -236,10 +235,9 @@ class SchedulerUtil:
         scheduler.start()
 
         # 加载数据库中的定时任务（只加载属于当前应用的任务）
-        async with async_session_scope():
-            job_list = await JobDao.get_job_list_for_scheduler(app_scope=cls._app_scope)
-            for item in job_list:
-                cls._add_job_to_scheduler(item)
+        job_list = await JobDao.get_job_list_for_scheduler(app_scope=cls._app_scope)
+        for item in job_list:
+            cls._add_job_to_scheduler(item)
 
         # 添加事件监听器
         scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
@@ -304,39 +302,38 @@ class SchedulerUtil:
             return
 
         try:
-            async with async_session_scope():
-                db_jobs_all = await JobDao.get_all_job_list_for_scheduler(app_scope=cls._app_scope)
+            db_jobs_all = await JobDao.get_all_job_list_for_scheduler(app_scope=cls._app_scope)
 
-                db_jobs_enabled = [job for job in db_jobs_all if job.status == '0']
-                db_enabled_ids = {str(job.job_id) for job in db_jobs_enabled}
-                db_job_map = {str(job.job_id): job for job in db_jobs_enabled}
-                db_job_update_time_map = {
-                    str(job.job_id): job.update_time for job in db_jobs_enabled if job.update_time is not None
-                }
-                scheduler_jobs = scheduler.get_jobs()
-                scheduler_job_map = {job.id: job for job in scheduler_jobs if not job.id.startswith('_')}
-                scheduler_job_ids = set(scheduler_job_map.keys())
+            db_jobs_enabled = [job for job in db_jobs_all if job.status == '0']
+            db_enabled_ids = {str(job.job_id) for job in db_jobs_enabled}
+            db_job_map = {str(job.job_id): job for job in db_jobs_enabled}
+            db_job_update_time_map = {
+                str(job.job_id): job.update_time for job in db_jobs_enabled if job.update_time is not None
+            }
+            scheduler_jobs = scheduler.get_jobs()
+            scheduler_job_map = {job.id: job for job in scheduler_jobs if not job.id.startswith('_')}
+            scheduler_job_ids = set(scheduler_job_map.keys())
 
-                jobs_to_remove = scheduler_job_ids - db_enabled_ids
-                for job_id in jobs_to_remove:
-                    scheduler.remove_job(job_id=job_id)
-                    logger.info(f'🗑️ 同步移除任务: {job_id}')
-                    cls._refresh_job_update_cache(job_id, None)
+            jobs_to_remove = scheduler_job_ids - db_enabled_ids
+            for job_id in jobs_to_remove:
+                scheduler.remove_job(job_id=job_id)
+                logger.info(f'🗑️ 同步移除任务: {job_id}')
+                cls._refresh_job_update_cache(job_id, None)
 
-                jobs_to_add = db_enabled_ids - scheduler_job_ids
-                for job_id in jobs_to_add:
-                    job_info = db_job_map.get(job_id)
-                    if job_info:
-                        cls._add_job_to_scheduler(job_info)
-                        logger.info(f'➕ 同步添加任务: {job_info.job_name}')
-                        cls._refresh_job_update_cache(job_id, job_info.update_time)
+            jobs_to_add = db_enabled_ids - scheduler_job_ids
+            for job_id in jobs_to_add:
+                job_info = db_job_map.get(job_id)
+                if job_info:
+                    cls._add_job_to_scheduler(job_info)
+                    logger.info(f'➕ 同步添加任务: {job_info.job_name}')
+                    cls._refresh_job_update_cache(job_id, job_info.update_time)
 
-                jobs_to_update = db_enabled_ids & scheduler_job_ids
-                for job_id in jobs_to_update:
-                    job_info = db_job_map.get(job_id)
-                    scheduler_job = scheduler_job_map.get(job_id)
-                    job_update_time = db_job_update_time_map.get(job_id)
-                    cls._sync_update_job(job_id, job_info, scheduler_job, job_update_time)
+            jobs_to_update = db_enabled_ids & scheduler_job_ids
+            for job_id in jobs_to_update:
+                job_info = db_job_map.get(job_id)
+                scheduler_job = scheduler_job_map.get(job_id)
+                job_update_time = db_job_update_time_map.get(job_id)
+                cls._sync_update_job(job_id, job_info, scheduler_job, job_update_time)
 
         except Exception as e:
             logger.error(f'❌ 任务同步异常: {e}')
@@ -517,11 +514,10 @@ class SchedulerUtil:
         :return: None
         """
         try:
-            async with async_session_scope():
-                job_orm = await JobDao.get_job_detail_by_id(job_id=int(job_id))
-                if job_orm:
-                    job_info = JobModel(**CamelCaseUtil.transform_result(job_orm))
-                    cls.execute_scheduler_job_once(job_info)
+            job_orm = await JobDao.get_job_detail_by_id(job_id=int(job_id))
+            if job_orm:
+                job_info = JobModel(**CamelCaseUtil.transform_result(job_orm))
+                cls.execute_scheduler_job_once(job_info)
         except Exception as e:
             logger.error(f'❌ 执行一次任务失败: job_id={job_id}, error={e}')
 
@@ -715,8 +711,7 @@ class SchedulerUtil:
                 exceptionInfo=exception_info,
                 createTime=datetime.now(),
             )
-            with session_scope():
-                JobLogService.add_job_log_services(job_log)
+            JobLogService.add_job_log_services(job_log)
         except Exception as e:
             logger.error(f'❌ 记录任务执行日志失败: {e}')
 
@@ -965,7 +960,6 @@ class SchedulerUtil:
                         exceptionInfo=exception_info,
                         createTime=datetime.now(),
                     )
-                    with session_scope():
-                        JobLogService.add_job_log_services(job_log)
+                    JobLogService.add_job_log_services(job_log)
         except Exception as e:
             logger.error(f'❌ 调度任务事件监听器异常: {e}')

@@ -7,9 +7,10 @@ from knowledge_common.common.vo import PageModel
 from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.mapper.do.agent_message_do import AgentMessage
 from knowledge_common.utils.page_util import PageUtil
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class AgentMessageDao:
+class AgentMessageDao(BaseDao):
     """Agent 消息数据库操作层"""
 
     @staticmethod

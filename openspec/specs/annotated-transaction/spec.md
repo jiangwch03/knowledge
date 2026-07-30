@@ -2,7 +2,7 @@
 
 ## Purpose
 
-提供类 Spring `@Transactional` 的注解式事务管理功能，支持异步和同步双模式，实现代码无侵入式的事务控制。解决现有手动事务管理在复杂嵌套场景下的不足，支持事务传播行为、嵌套事务统一提交/回滚、以及非 Web 场景的 session 注入。
+提供类 Spring `@Transactional` 的注解式事务管理功能，支持异步和同步双模式，实现代码无侵入式的事务控制。解决现有手动事务管理在复杂嵌套场景下的不足，支持事务传播行为、嵌套事务统一提交/回滚。Session MUST 仅来自活跃事务上下文（含 Service `@transactional` 与 DAO / PageUtil 隐式短事务），不再提供非事务 Session 注入。
 
 ## Requirements
 
@@ -164,88 +164,30 @@
 - **则** 整个事务（包括外层操作）应被回滚
 
 ### Requirement: 异步事务上下文访问
-系统必须提供 `get_current_session()` 函数，用于在异步事务方法内部获取当前事务的会话。
+系统必须提供 `get_current_session()` 函数，用于在异步事务方法内部获取当前事务的会话。`get_current_session()` MUST 仅从活跃的异步事务上下文栈获取 Session；MUST NOT 再从请求级、任务级或代码块级非事务 Session 上下文回退。
 
 #### Scenario: 在异步事务内获取会话
 - **当** `get_current_session()` 在 `@transactional` 装饰的方法内被调用时
 - **则** 应返回当前的 AsyncSession
 
-#### Scenario: 在请求上下文中获取会话（非事务场景）
-- **当** `get_current_session()` 在 FastAPI 请求处理流程中被调用
-- **并且** 当前请求已通过 SessionContextMiddleware 存入会话上下文
-- **并且** 调用方不在 `@transactional` 装饰的方法内
-- **则** 应返回当前请求对应的 AsyncSession
+#### Scenario: 在 DAO 隐式短事务内获取会话
+- **当** `get_current_session()` 在 `BaseDao` 子类已自动挂载事务的方法内被调用时
+- **则** 应返回当前短事务或外层事务对应的 AsyncSession
 
-#### Scenario: 在非 Web 异步任务上下文中获取会话
-- **当** `get_current_session()` 在 `@with_session` 装饰的后台任务方法中被调用
-- **并且** 调用方不在 `@transactional` 装饰的方法内
-- **则** 应返回当前任务对应的 AsyncSession
-
-#### Scenario: 使用 async_session_scope 获取异步会话
-- **当** `get_current_session()` 在 `async_session_scope()` 上下文管理器中被调用
-- **并且** 调用方不在 `@transactional` 装饰的方法内
-- **则** 应返回当前上下文对应的 AsyncSession
-
-#### Scenario: 在异步事务外且无上下文时获取会话
-- **当** `get_current_session()` 在任何 `@transactional` 装饰的方法外部被调用
-- **并且** 也不在 FastAPI 请求处理流程中
-- **并且** 也不在 `@with_session` 装饰的方法或 `async_session_scope()` 上下文中
+#### Scenario: 在异步事务外获取会话
+- **当** `get_current_session()` 在任何活跃异步事务上下文外部被调用时
 - **则** 应抛出 TransactionException
 
 ### Requirement: 同步事务上下文访问
-系统必须提供 `get_current_session_sync()` 函数，用于在同步事务方法内部获取当前事务的会话。
+系统必须提供 `get_current_session_sync()` 函数，用于在同步事务方法内部获取当前事务的会话。`get_current_session_sync()` MUST 仅从活跃的同步事务上下文栈获取 Session；MUST NOT 再从任务级或代码块级非事务 Session 上下文回退。
 
 #### Scenario: 在同步事务内获取会话
 - **当** `get_current_session_sync()` 在 `@transactional_sync` 装饰的方法内被调用时
 - **则** 应返回当前的 Session
 
-#### Scenario: 使用 session_scope 获取同步会话
-- **当** `get_current_session_sync()` 在 `session_scope()` 上下文管理器中被调用
-- **并且** 调用方不在 `@transactional_sync` 装饰的方法内
-- **则** 应返回当前上下文对应的 Session
-
-#### Scenario: 在同步事务外且无上下文时获取会话
-- **当** `get_current_session_sync()` 在任何 `@transactional_sync` 装饰的方法外部被调用
-- **并且** 也不在 `session_scope()` 上下文中
+#### Scenario: 在同步事务外获取会话
+- **当** `get_current_session_sync()` 在任何活跃同步事务上下文外部被调用时
 - **则** 应抛出 TransactionException
-
-### Requirement: 非 Web 异步场景的会话注入
-系统必须提供 `@with_session` 装饰器和 `async_session_scope()` 异步上下文管理器，用于在异步后台任务、异步定时任务、RPC 调用等非 Web 场景中注入会话上下文。
-
-#### Scenario: 后台任务使用 with_session 装饰器
-- **当** 一个后台任务方法被 `@with_session` 装饰
-- **并且** 该方法被调用
-- **则** 应自动创建 AsyncSession 并注入上下文
-- **并且** 方法执行完毕后应自动关闭 session
-
-#### Scenario: 定时任务使用 async_session_scope
-- **当** 一段代码在 `async with async_session_scope():` 块中执行
-- **则** 应自动创建 AsyncSession 并注入上下文
-- **并且** 代码块退出时应自动关闭 session
-
-#### Scenario: with_session 内调用 transactional
-- **当** 一个 `@with_session` 装饰的方法调用 `@transactional` 装饰的方法
-- **则** `@transactional` 应复用 `@with_session` 创建的 session
-- **并且** 事务提交后 session 仍由 `@with_session` 负责关闭
-
-### Requirement: 同步场景的会话注入
-系统必须提供 `@with_session_sync` 装饰器和 `session_scope()` 同步上下文管理器，用于在同步定时任务、脚本执行等场景中注入会话上下文。
-
-#### Scenario: 同步任务使用 with_session_sync 装饰器
-- **当** 一个同步任务方法被 `@with_session_sync` 装饰
-- **并且** 该方法被调用
-- **则** 应自动创建 Session 并注入上下文
-- **并且** 方法执行完毕后应自动关闭 session
-
-#### Scenario: 同步脚本使用 session_scope
-- **当** 一段代码在 `with session_scope():` 块中执行
-- **则** 应自动创建 Session 并注入上下文
-- **并且** 代码块退出时应自动关闭 session
-
-#### Scenario: with_session_sync 内调用 transactional_sync
-- **当** 一个 `@with_session_sync` 装饰的方法调用 `@transactional_sync` 装饰的方法
-- **则** `@transactional_sync` 应复用 `@with_session_sync` 创建的 session
-- **并且** 事务提交后 session 仍由 `@with_session_sync` 负责关闭
 
 ### Requirement: 向后兼容性
 系统必须保持与现有手动事务管理代码的向后兼容性。

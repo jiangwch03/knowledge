@@ -5,9 +5,10 @@ from sqlalchemy import select, update
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_content.mapper.do.document_file_do import KnowledgeDocumentFile
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class KnowledgeDocumentFileDao:
+class KnowledgeDocumentFileDao(BaseDao):
     """文档文件子表数据库操作层"""
 
     @staticmethod

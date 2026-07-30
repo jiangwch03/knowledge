@@ -9,9 +9,10 @@ from knowledge_common.mapper.do.dict_do import SysDictData, SysDictType
 from knowledge_common.vo.dict_vo import DictDataModel, DictDataPageQueryModel, DictTypeModel, DictTypePageQueryModel
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.utils.time_format_util import list_format_datetime
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class DictTypeDao:
+class DictTypeDao(BaseDao):
     """
     字典类型管理模块数据库操作层
     """
@@ -137,7 +138,7 @@ class DictTypeDao:
         await db.execute(delete(SysDictType).where(SysDictType.dict_id.in_([dict_type.dict_id])))
 
 
-class DictDataDao:
+class DictDataDao(BaseDao):
     """
     字典数据管理模块数据库操作层
     """

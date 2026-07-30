@@ -9,14 +9,12 @@ persist_crawl_results 入库已爬内容工具
 
 from langchain_core.tools import tool
 
-from knowledge_common.common import with_session
 from knowledge_common.exceptions.exception import format_exception_message
 from knowledge_common.utils.log_util import logger
 from knowledge_content.service.web_crawler_task_service import WebCrawlerTaskService
 
 
 @tool
-@with_session
 async def persist_crawl_results(task_id: int | None = None) -> str:
     """
     提交入库已爬内容：放弃失败的URL，将已成功爬取的页面投入文档落库队列。

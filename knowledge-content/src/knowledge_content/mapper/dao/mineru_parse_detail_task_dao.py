@@ -7,9 +7,10 @@ from knowledge_common.common.transactional import get_current_session
 from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_content.mapper.do.parse_detail_task_do import KnowledgeMineruParseDetailTask
 from knowledge_content.mapper.vo.parse_detail_task_update_vo import MineruParseDetailTaskUpdateVO
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class KnowledgeMineruParseDetailTaskDao:
+class KnowledgeMineruParseDetailTaskDao(BaseDao):
     """
     MinerU解析分段任务数据库操作层
     """

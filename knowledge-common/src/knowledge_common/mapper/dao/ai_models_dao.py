@@ -8,9 +8,10 @@ from knowledge_common.common.vo import PageModel
 from knowledge_common.mapper.do.ai_models_do import AiModels
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class AiModelDao:
+class AiModelDao(BaseDao):
     """
     AI模型管理数据库操作层
     """

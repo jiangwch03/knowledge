@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from knowledge_common.common import with_session
 from knowledge_common.config.prompt_config import prompt_config
 from knowledge_common.service.dict_service import DictDataService
 from knowledge_common.utils.log_util import logger
@@ -54,7 +53,6 @@ class TopicGateService:
         return result
 
     @classmethod
-    @with_session
     async def _load_topic_labels(cls) -> list[str]:
         rows = await DictDataService.query_dict_data_list_services(TOPIC_DICT_TYPE)
         labels: list[str] = []

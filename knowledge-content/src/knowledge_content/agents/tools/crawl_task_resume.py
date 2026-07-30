@@ -11,14 +11,12 @@ from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
 from knowledge_common.agent.schema.context import get_agent_identity_from_tool_runtime
-from knowledge_common.common import with_session
 from knowledge_common.exceptions.exception import format_exception_message
 from knowledge_common.utils.log_util import logger
 from knowledge_content.service.web_crawler_task_service import WebCrawlerTaskService
 
 
 @tool
-@with_session
 async def resume_crawl_task(
     task_id: int | None = None,
     runtime: ToolRuntime = None,

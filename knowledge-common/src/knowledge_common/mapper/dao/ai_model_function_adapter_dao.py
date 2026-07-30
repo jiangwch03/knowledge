@@ -7,6 +7,7 @@ from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.common.vo import PageModel
 from knowledge_common.mapper.do.ai_model_function_adapter_do import AiModelFunctionAdapter
 from knowledge_common.mapper.do.ai_models_do import AiModels
+from knowledge_common.mapper.dao.base_dao import BaseDao
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.vo.ai_model_function_adapter_vo import (
     AiModelConfigModel,
@@ -15,7 +16,7 @@ from knowledge_common.vo.ai_model_function_adapter_vo import (
 )
 
 
-class AiModelFunctionAdapterDao:
+class AiModelFunctionAdapterDao(BaseDao):
     """
     模型功能适配数据库操作层
     """

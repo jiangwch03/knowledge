@@ -3,7 +3,6 @@ from collections import defaultdict
 from pathlib import Path
 from urllib.parse import urlparse
 
-from knowledge_common.common import get_current_session
 from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import PageModel
 from knowledge_common.config.env import UploadConfig
@@ -95,7 +94,6 @@ class CrawlerDocumentService:
             logger.info(f'[CrawlDocConsumer][persist_documents] 爬取文档持久化完成: task_id={task_id}')
         except Exception as e:
             err = format_exception_message(e)
-            session = get_current_session()
             task = await WebCrawlerTaskDao.get_task_by_id(task_id)
             update_vo = CrawlTaskUpdateVo(
                 status=CrawlTaskStatus.CONVERT_FAILED.value,
@@ -104,7 +102,6 @@ class CrawlerDocumentService:
                 update_by=task.create_by if task else 'admin',
             )
             await WebCrawlerTaskDao.update_task(task_id, update_vo)
-            await session.commit()
             logger.exception(
                 '[CrawlDocConsumer][persist_documents] 文档持久化失败: task_id={}, error={}',
                 task_id,

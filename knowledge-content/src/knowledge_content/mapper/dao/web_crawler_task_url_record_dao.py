@@ -9,9 +9,10 @@ from knowledge_common.utils.page_util import PageUtil
 from knowledge_content.enums.crawl_url_record_status_enum import CrawlUrlRecordStatus
 from knowledge_content.mapper.do.web_crawler_task_url_record_do import WebCrawlerTaskUrlRecord
 from knowledge_content.vo.crawl_url_record_upsert_vo import UrlRecordUpsertVo
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class WebCrawlerTaskUrlRecordDao:
+class WebCrawlerTaskUrlRecordDao(BaseDao):
     """
     爬取任务URL记录数据库操作层
     """

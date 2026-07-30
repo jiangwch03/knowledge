@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from knowledge_common.common.transactional import with_session
 from knowledge_common.config.env import EmbeddingConfig
 from knowledge_common.redis import DistributedLock, LockKey
 from knowledge_common.utils.log_util import logger
@@ -85,19 +84,16 @@ class EmbeddingTaskScheduler:
                 logger.exception('[Embedding-scheduler] 失败自动重试异常: task_id={}, error={}', task.task_id, exc)
 
 
-@with_session
 async def embedding_task_fallback_job() -> None:
     """定时任务入口：Embedding 任务兜底。"""
     await EmbeddingTaskScheduler.run_fallback()
 
 
-@with_session
 async def embedding_auto_publish_job() -> None:
     """临时：COMPLETED+canary → 发布（旧 prod → pending_delete）。正式发布 UI 上线后下线本 job。"""
     await EmbeddingPublishService.auto_promote_completed_canary()
 
 
-@with_session
 async def embedding_pending_delete_cleanup_job() -> None:
     """临时：按批清理 pending_delete（Milvus 删向量 + MySQL 归档并物理删除）。正式链路可复用或下线。"""
     await EmbeddingPublishService.cleanup_pending_delete()

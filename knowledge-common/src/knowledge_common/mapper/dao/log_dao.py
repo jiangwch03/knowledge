@@ -9,9 +9,10 @@ from knowledge_common.vo.log_vo import LogininforModel, LoginLogPageQueryModel, 
 from knowledge_common.utils.common_util import SnakeCaseUtil
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.utils.time_format_util import TimeFormatUtil
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class OperationLogDao:
+class OperationLogDao(BaseDao):
     """
     操作日志管理模块数据库操作层
     """
@@ -96,7 +97,7 @@ class OperationLogDao:
         await db.execute(delete(SysOperLog))
 
 
-class LoginLogDao:
+class LoginLogDao(BaseDao):
     """
     登录日志管理模块数据库操作层
     """

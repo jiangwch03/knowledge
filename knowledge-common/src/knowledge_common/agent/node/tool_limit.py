@@ -13,7 +13,6 @@ from collections.abc import Awaitable, Callable
 
 from langchain_core.messages import ToolMessage
 
-from knowledge_common.common.transactional import with_session
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.utils.log_util import logger
 
@@ -29,7 +28,6 @@ def make_max_round_inject_node(max_rounds: int) -> Callable[[dict], Awaitable[di
     :return: 可注册到 StateGraph 的异步节点函数
     """
 
-    @with_session
     async def max_round_inject_node(state: dict) -> dict:
         """
         达到最大 ReAct 轮次时，为未执行的工具调用注入合成 ToolMessage

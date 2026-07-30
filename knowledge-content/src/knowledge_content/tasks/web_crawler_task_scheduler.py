@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from knowledge_common.common.transactional import with_session
 from knowledge_common.common.context import RedisContext
 from knowledge_common.config.env import Crawl4aiConfig, StreamTopicConfig
 from knowledge_common.message_stream import MessageStreamService
@@ -257,13 +256,11 @@ class WebCrawlerTaskScheduler:
 # APScheduler 可调用的顶层异步函数
 
 
-@with_session
 async def crawl_task_timeout_job() -> None:
     """爬取任务超时兜底定时任务入口"""
     await WebCrawlerTaskScheduler.timeout_fallback()
 
 
-@with_session
 async def crawl_task_retry_job() -> None:
     """爬取任务失败重试定时任务入口"""
     await WebCrawlerTaskScheduler.retry_failed_tasks()

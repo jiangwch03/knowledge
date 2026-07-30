@@ -15,15 +15,12 @@ from knowledge_common.common.transactional import (
     _AsyncTxContext,
     _SyncTransactionContextManager,
     _SyncTxContext,
-    async_session_scope,
     get_current_session,
     get_current_session_sync,
-    session_scope,
     transactional,
     transactional_sync,
-    with_session,
-    with_session_sync,
 )
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
 # =============================================================================
@@ -429,68 +426,58 @@ class TestGetCurrentSession:
 
 
 # =============================================================================
-# with_session / session_scope 测试
+# BaseDao 隐式短事务测试
 # =============================================================================
 
 
-class TestWithSession:
-    """Session 注入装饰器和上下文管理器测试"""
+class TestBaseDaoImplicitTransaction:
+    """BaseDao 自动挂载短事务测试"""
 
     @pytest.mark.asyncio
-    async def test_with_session_decorator(self):
-        """@with_session 装饰器测试"""
+    async def test_dao_method_opens_short_transaction(self):
+        """无外层事务时 DAO 方法自动开短事务"""
         mock_session = AsyncMock(spec=AsyncSession)
 
         with patch('knowledge_common.common.transactional.AsyncSessionLocal') as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            @with_session
-            async def test_func() -> AsyncSession:
-                return get_current_session()
+            class SampleDao(BaseDao):
+                @classmethod
+                async def get_one(cls) -> AsyncSession:
+                    return get_current_session()
 
-            result = await test_func()
+            result = await SampleDao.get_one()
             assert result is mock_session
+            mock_session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_async_session_scope(self):
-        """async_session_scope 上下文管理器测试"""
+    async def test_dao_method_joins_outer_transaction(self):
+        """有外层事务时 DAO 方法 join，不单独提交"""
         mock_session = AsyncMock(spec=AsyncSession)
 
         with patch('knowledge_common.common.transactional.AsyncSessionLocal') as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            async with async_session_scope() as session:
-                assert session is mock_session
-                assert get_current_session() is mock_session
+            class SampleDao(BaseDao):
+                @classmethod
+                async def get_one(cls) -> AsyncSession:
+                    return get_current_session()
 
-    def test_with_session_sync_decorator(self):
-        """@with_session_sync 装饰器测试"""
-        mock_session = MagicMock(spec=Session)
+            @transactional()
+            async def outer() -> AsyncSession:
+                return await SampleDao.get_one()
 
-        with patch('knowledge_common.common.transactional.SyncSessionLocal') as mock_factory:
-            mock_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
-            mock_factory.return_value.__exit__ = MagicMock(return_value=False)
-
-            @with_session_sync
-            def test_func() -> Session:
-                return get_current_session_sync()
-
-            result = test_func()
+            result = await outer()
             assert result is mock_session
+            mock_session.commit.assert_awaited_once()
 
-    def test_session_scope(self):
-        """session_scope 上下文管理器测试"""
-        mock_session = MagicMock(spec=Session)
-
-        with patch('knowledge_common.common.transactional.SyncSessionLocal') as mock_factory:
-            mock_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
-            mock_factory.return_value.__exit__ = MagicMock(return_value=False)
-
-            with session_scope() as session:
-                assert session is mock_session
-                assert get_current_session_sync() is mock_session
+    @pytest.mark.asyncio
+    async def test_get_current_session_outside_transaction_raises(self):
+        """无事务上下文时 get_current_session 抛异常"""
+        with pytest.raises(TransactionException):
+            get_current_session()
 
 
 # =============================================================================

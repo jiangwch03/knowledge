@@ -9,7 +9,6 @@ import json
 
 from langchain_core.tools import tool
 
-from knowledge_common.common import with_session
 from knowledge_common.exceptions.exception import ServiceException, format_exception_message
 from knowledge_common.utils.log_util import logger
 from knowledge_content.enums.crawl_task_status_enum import CrawlTaskStatus
@@ -43,7 +42,6 @@ async def _load_failed_url_details(task_id: int) -> list[dict]:
 
 
 @tool
-@with_session
 async def query_crawl_task(
     task_id: int | None = None,
     target_url: str | None = None,

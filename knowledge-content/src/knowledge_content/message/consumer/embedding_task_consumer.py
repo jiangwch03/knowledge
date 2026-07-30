@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from knowledge_common.common.transactional import with_session
 from knowledge_common.config.env import StreamTopicConfig
 from knowledge_common.exceptions.exception import format_exception_message
 from knowledge_common.message_stream import Message, consumer
@@ -19,7 +18,6 @@ from knowledge_content.service.vo.message_stream_topic_vo import EmbeddingPendin
 
 
 @consumer(topic=StreamTopicConfig.embedding_pending, group_id=StreamTopicConfig.group_id, pre_ack=True)
-@with_session
 async def handle_embedding_pending(msg: Message) -> None:
     value: Any = msg.value or {}
     payload: EmbeddingPending = EmbeddingPending.model_validate(value)

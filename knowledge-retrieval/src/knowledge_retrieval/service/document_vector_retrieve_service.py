@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from knowledge_common.common import with_session
 from knowledge_common.config.env import MilvusConfig
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.milvus import (
@@ -172,7 +171,6 @@ class DocumentVectorRetrieveService:
         )
 
     @classmethod
-    @with_session
     async def _expand_parents(
         cls,
         hits: list[DocumentVectorRetrieveHitVo],

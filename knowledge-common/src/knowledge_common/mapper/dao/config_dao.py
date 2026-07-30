@@ -8,9 +8,10 @@ from knowledge_common.common.vo import PageModel
 from knowledge_common.mapper.do.config_do import SysConfig
 from knowledge_common.vo.config_vo import ConfigModel, ConfigPageQueryModel
 from knowledge_common.utils.page_util import PageUtil
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class ConfigDao:
+class ConfigDao(BaseDao):
     """
     参数配置管理模块数据库操作层
     """

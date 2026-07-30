@@ -8,9 +8,10 @@ from knowledge_common.mapper.do.user_do import SysUser
 from knowledge_common.vo.dept_vo import DeptModel
 from sqlalchemy import ColumnElement, bindparam, func, select, update
 from sqlalchemy.util import immutabledict
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class DeptDao:
+class DeptDao(BaseDao):
     """
     部门管理模块数据库操作层
     """

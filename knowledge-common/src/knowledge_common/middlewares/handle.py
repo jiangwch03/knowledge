@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 
-from knowledge_common.common.transactional import SessionContextMiddleware
 from knowledge_common.config.env import AppConfig
 from knowledge_common.middlewares.api_response_header_middleware import add_api_response_header_middleware
 from knowledge_common.middlewares.context_middleware import add_context_cleanup_middleware
@@ -16,8 +15,6 @@ def handle_middleware(app: FastAPI) -> None:
     """
     全局中间件处理
     """
-    # 加载session上下文中间件（为get_current_session()提供请求级session）
-    app.add_middleware(SessionContextMiddleware)
     # 加载Redis上下文注入中间件（为HTTP请求处理路径的RedisContext.get_redis()提供redis）
     add_redis_context_middleware(app)
     # 加载上下文清理中间件

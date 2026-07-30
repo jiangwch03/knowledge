@@ -8,9 +8,10 @@ from sqlalchemy import delete, select, update
 
 from knowledge_admin.mapper.do.notice_do import SysNotice
 from knowledge_admin.vo.notice_vo import NoticeModel, NoticePageQueryModel
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class NoticeDao:
+class NoticeDao(BaseDao):
     """
     通知公告管理模块数据库操作层
     """

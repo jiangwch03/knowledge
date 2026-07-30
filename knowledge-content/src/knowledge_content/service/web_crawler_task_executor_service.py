@@ -24,7 +24,6 @@ from knowledge_content.mapper.dao.web_crawler_task_url_record_dao import WebCraw
 from knowledge_content.mapper.vo.crawl_task_update_vo import CrawlTaskUpdateVo
 from knowledge_content.vo.crawl_url_record_upsert_vo import UrlRecordUpsertVo
 from knowledge_content.enums.crawl_url_record_status_enum import CrawlUrlRecordStatus
-from knowledge_common.common.transactional import async_session_scope
 
 
 class WebCrawlerTaskExecutorService:
@@ -69,16 +68,14 @@ class WebCrawlerTaskExecutorService:
         except Exception as e:
             err = format_exception_message(e)
             # 更新任务为失败状态
-            async with async_session_scope() as session:
-                task = await WebCrawlerTaskDao.get_task_by_id(task_id)
-                update_vo = CrawlTaskUpdateVo(
-                    status=CrawlTaskStatus.FAILED.value,
-                    error_code=CrawlTaskErrorCode.CONSUMER_ERROR.value,
-                    error_message=err,
-                    update_by=task.create_by if task else '',
-                )
-                await WebCrawlerTaskDao.update_task(task_id, update_vo)
-                await session.commit()
+            task = await WebCrawlerTaskDao.get_task_by_id(task_id)
+            update_vo = CrawlTaskUpdateVo(
+                status=CrawlTaskStatus.FAILED.value,
+                error_code=CrawlTaskErrorCode.CONSUMER_ERROR.value,
+                error_message=err,
+                update_by=task.create_by if task else '',
+            )
+            await WebCrawlerTaskDao.update_task(task_id, update_vo)
             logger.error('[CrawlConsumer][execute_task] 爬取任务执行失败: task_id={}, error={}', task_id, err, exc_info=True)
 
     @classmethod
@@ -245,25 +242,23 @@ class WebCrawlerTaskExecutorService:
             # 保存URL记录：首次新增 / 重试按 task_id+url 更新（逐页独立事务）
             create_by = task.create_by if task else ''
             is_success = bool(vo.success and vo.object_name)
-            async with async_session_scope() as session:
-                await WebCrawlerTaskUrlRecordDao.upsert_by_task_url(
-                    UrlRecordUpsertVo(
-                        task_id=task_id,
-                        url=vo.url,
-                        status=(
-                            CrawlUrlRecordStatus.SUCCESS.value
-                            if is_success
-                            else CrawlUrlRecordStatus.FAILED.value
-                        ),
-                        doc_key=vo.object_name if is_success else None,
-                        title=vo.title or '',
-                        status_code=vo.status_code if is_success else None,
-                        error_code=vo.error_code if not is_success else None,
-                        error_message=vo.error_message if not is_success else None,
-                        create_by=create_by,
-                    )
+            await WebCrawlerTaskUrlRecordDao.upsert_by_task_url(
+                UrlRecordUpsertVo(
+                    task_id=task_id,
+                    url=vo.url,
+                    status=(
+                        CrawlUrlRecordStatus.SUCCESS.value
+                        if is_success
+                        else CrawlUrlRecordStatus.FAILED.value
+                    ),
+                    doc_key=vo.object_name if is_success else None,
+                    title=vo.title or '',
+                    status_code=vo.status_code if is_success else None,
+                    error_code=vo.error_code if not is_success else None,
+                    error_message=vo.error_message if not is_success else None,
+                    create_by=create_by,
                 )
-                await session.commit()
+            )
 
         return success, failed, success_results, failed_results
 

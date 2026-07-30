@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from langchain_core.embeddings import Embeddings
 
-from knowledge_common.common import with_session
 from knowledge_common.common.factory.langchain_model_factory import LangChainModelFactory
 from knowledge_common.config.env import AiModelFunctionAdapterConfig, EmbeddingConfig
 from knowledge_common.exceptions.exception import ServiceException
@@ -20,7 +19,6 @@ class DocumentEmbeddingService:
     """document_embedding 适配与向量生成。"""
 
     @classmethod
-    @with_session
     async def load_adapter(cls) -> AiModelConfigModel:
         adapters = await AiModelFunctionAdapterDao.get_adapters_by_param_id(
             AiModelFunctionAdapterConfig.document_embedding_param_id

@@ -10,6 +10,7 @@ from knowledge_common.mapper.do.menu_do import SysMenu
 from knowledge_common.mapper.do.post_do import SysPost
 from knowledge_common.mapper.do.role_do import SysRole, SysRoleMenu
 from knowledge_common.mapper.do.user_do import SysUser, SysUserPost, SysUserRole
+from knowledge_common.mapper.dao.base_dao import BaseDao
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.vo.user_vo import (
     UserModel,
@@ -22,7 +23,7 @@ from knowledge_common.vo.user_vo import (
 from sqlalchemy import ColumnElement, and_, delete, desc, func, or_, select, update
 
 
-class UserDao:
+class UserDao(BaseDao):
     """
     用户管理模块数据库操作层
     """

@@ -36,7 +36,7 @@ class VectorStoreService:
         阶段一 STORED → EMBEDDED：Embedding API + 写 MySQL。
         阶段二 EMBEDDED → VECTOR_STORED：事务内先更新 DB 再 upsert Milvus（批内串行，批间并发）。
 
-        拉批 / 落库均使用 REQUIRES_NEW 独立短事务，避免 consumer 外层 @with_session
+        拉批 / 落库均使用 REQUIRES_NEW 独立短事务，避免外层长事务
         在 MySQL REPEATABLE READ 下一直读到旧快照。
         """
         document: KnowledgeDocument | None = await KnowledgeDocumentDao.get_document_by_id(task.doc_id)

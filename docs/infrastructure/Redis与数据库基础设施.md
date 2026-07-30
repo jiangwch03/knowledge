@@ -8,7 +8,6 @@
 graph TB
     subgraph 请求级上下文
         ReqCtx["RequestContext<br/>current_user / exclude_patterns"]
-        SessCtx["SessionContext<br/>请求级 AsyncSession"]
     end
 
     subgraph 生命周期级上下文
@@ -16,15 +15,13 @@ graph TB
     end
 
     subgraph 事务上下文
-        TxStack["事务上下文栈<br/>@transactional 管理"]
+        TxStack["事务上下文栈<br/>@transactional / BaseDao"]
     end
 
     ReqCtx -->|"每请求设置/清理"| Handler["路由处理"]
-    SessCtx -->|"SessionContextMiddleware 注入"| Handler
     RedisCtx -->|"应用启动时注入一次"| Handler
-    TxStack -->|"@transactional 压入/弹出"| Handler
+    TxStack -->|"事务边界压入/弹出"| Handler
 
-    Handler -->|"get_current_session"| SessCtx
     Handler -->|"get_current_session"| TxStack
     Handler -->|"RedisConnection.get_redis"| RedisCtx
 ```
@@ -191,11 +188,10 @@ graph TB
 
 | 场景 | 异步 | 同步 |
 |------|------|------|
-| HTTP 请求（非事务） | `SessionContextMiddleware` → `get_current_session()` | - |
-| HTTP 请求（事务） | `@transactional` → `get_current_session()` | `@transactional_sync` → `get_current_session_sync()` |
-| 后台异步任务 | `@with_session` / `async_session_scope()` | - |
-| 后台同步任务 | - | `@with_session_sync` / `session_scope()` |
-| FastAPI 依赖注入 | `get_db()` 生成器 | - |
+| Service 显式事务 | `@transactional` → `get_current_session()` | `@transactional_sync` → `get_current_session_sync()` |
+| DAO 隐式短事务 | `BaseDao` 公开方法自动 `@transactional` | `BaseDao` 公开方法自动 `@transactional_sync` |
+| 分页工具 | `PageUtil.paginate` 隐式短事务 | - |
+| FastAPI 依赖注入 | `get_db()` 生成器（遗留，新代码优先走事务边界） | - |
 
 ### 3.3 get_db() 依赖注入
 

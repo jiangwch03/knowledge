@@ -13,9 +13,10 @@ from knowledge_content.enums.segment_status_enum import ReleaseTag
 from knowledge_content.mapper.do.document_do import KnowledgeDocument
 from knowledge_content.mapper.do.document_embedding_task_do import KnowledgeDocumentEmbeddingTask
 from knowledge_content.mapper.do.document_segment_do import KnowledgeDocumentSegment
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class KnowledgeDocumentEmbeddingTaskDao:
+class KnowledgeDocumentEmbeddingTaskDao(BaseDao):
     """文档 Embedding 任务 DAO"""
 
     @staticmethod

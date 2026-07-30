@@ -5,7 +5,6 @@ knowledge-content 爬取任务消息消费者
 """
 from __future__ import annotations
 
-from knowledge_common.common.transactional import with_session
 from knowledge_common.config.env import StreamTopicConfig
 from knowledge_common.message_stream import Message, consumer
 from knowledge_common.redis import DistributedLock, LockKey
@@ -16,9 +15,7 @@ from knowledge_content.service.web_crawler_task_executor_service import WebCrawl
 # pre_ack=True: 框架在调用 handler 前先 ACK 消息,移出 PEL
 # 避免 claim_idle_loop 因爬取耗时数分钟而每 5s 空转一次
 # 任务执行失败由 retry_failed_tasks 定时任务扫描 DB FAILED 状态兜底
-# @with_session 须在 @consumer 内侧：consumer 只注册 handler，实际调用的是 with_session 包装后的函数
 @consumer(topic=StreamTopicConfig.crawl_task_pending, group_id=StreamTopicConfig.group_id, pre_ack=True)
-@with_session
 async def handle_crawl_task_pending(msg: Message) -> None:
     """
     爬取任务消费者：接收消息并执行爬取任务

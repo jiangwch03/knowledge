@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import Any
 
-from knowledge_common.common.transactional import get_current_session, transactional
+from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import PageModel
 from knowledge_common.config.env import SemaphoreConfig, StreamTopicConfig
 from knowledge_common.exceptions.exception import ServiceException, format_exception_message
@@ -341,7 +341,6 @@ class EmbeddingTaskService:
                 status=EmbeddingTaskStatus.CHUNKING.value,
                 update_by='admin',
             )
-            await get_current_session().commit()
             task = await KnowledgeDocumentEmbeddingTaskDao.get_by_id(task_id)
             if not task:
                 return
@@ -359,16 +358,10 @@ class EmbeddingTaskService:
                     error_message=err,
                     update_by='admin',
                 )
-                await get_current_session().commit()
                 return
 
         # 阶段二：向量化并写入向量库；内部会将任务置为 COMPLETED
-        # _finalize_split 在独立 session 提交 EMBEDDING；外层 @with_session 若仍持有
-        # 切分前的 MySQL RR 快照，populate_existing 也会一直读到 CHUNKING 并误跳过。
-        # 先结束外层快照再读，才能看到已提交的 EMBEDDING。
-        outer_session = get_current_session()
-        await outer_session.commit()
-        outer_session.expire_all()
+        # DAO 短事务各自提交；直接重读即可看到已提交的 EMBEDDING。
         task = await KnowledgeDocumentEmbeddingTaskDao.get_by_id(task_id)
         if not task:
             return
@@ -392,7 +385,6 @@ class EmbeddingTaskService:
                 update_by='admin',
             )
             # 已提交的 VECTOR_STORED 分段保留；重试从剩余 STORED 段续跑
-            await get_current_session().commit()
 
     @classmethod
     async def republish_pending(cls, task_id: int) -> None:
@@ -412,5 +404,4 @@ class EmbeddingTaskService:
             return
         # 刷新 update_time，避免调度每轮重复投递
         await KnowledgeDocumentEmbeddingTaskDao.update_task(task_id, update_by='admin')
-        await get_current_session().commit()
         await cls._publish_pending(task_id)

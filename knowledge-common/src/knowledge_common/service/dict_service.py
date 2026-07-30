@@ -6,7 +6,7 @@ from fastapi import Request
 from redis import asyncio as aioredis
 
 from knowledge_common.common.constant import CommonConstant
-from knowledge_common.common.transactional import transactional, async_session_scope
+from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.redis.key import RedisKey
@@ -235,13 +235,12 @@ class DictDataService:
     @classmethod
     async def init_cache(cls, redis: aioredis.Redis) -> None:
         """
-        应用启动时缓存字典表（封装 session 作用域，供 server.py 生命周期调用）
+        应用启动时缓存字典表（供 server.py 生命周期调用）
 
         :param redis: redis对象
         :return:
         """
-        async with async_session_scope():
-            await cls.init_cache_sys_dict_services(redis)
+        await cls.init_cache_sys_dict_services(redis)
 
     @classmethod
     async def init_cache_sys_dict_services(cls, redis: aioredis.Redis) -> None:
@@ -282,8 +281,7 @@ class DictDataService:
             return CamelCaseUtil.transform_result(json.loads(dict_data_list_result))
 
         # 缓存未命中时回源 DB 并回填，避免 SQL 初始化字典后未重启服务导致前端无数据
-        async with async_session_scope():
-            dict_data_list = await DictDataDao.query_dict_data_list(dict_type)
+        dict_data_list = await DictDataDao.query_dict_data_list(dict_type)
         result = [CamelCaseUtil.transform_result(row) for row in dict_data_list if row]
         await redis.set(
             f'{RedisKey.SYS_DICT}:{dict_type}',

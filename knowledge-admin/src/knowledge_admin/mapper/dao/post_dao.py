@@ -7,9 +7,10 @@ from knowledge_common.mapper.do.user_do import SysUserPost
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.vo.post_vo import PostModel, PostPageQueryModel
 from sqlalchemy import delete, func, select, update
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class PostDao:
+class PostDao(BaseDao):
     """
     岗位管理模块数据库操作层
     """

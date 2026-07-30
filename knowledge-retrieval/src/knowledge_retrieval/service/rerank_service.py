@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 
-from knowledge_common.common import with_session
 from knowledge_common.common.factory.dashscope_model_factory import DashScopeModelFactory
 from knowledge_common.config.env import AiModelFunctionAdapterConfig
 from knowledge_common.exceptions.exception import ServiceException
@@ -73,7 +72,6 @@ class RerankService:
         return out
 
     @classmethod
-    @with_session
     async def _load_adapter(cls) -> AiModelConfigModel:
         """加载 document_rerank 适配；未配置或缺关键字段则抛错，提示运营补齐。"""
         adapters = await AiModelFunctionAdapterDao.get_adapters_by_param_id(

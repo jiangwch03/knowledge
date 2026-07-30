@@ -7,9 +7,10 @@ from knowledge_common.common.vo import PageModel
 from knowledge_common.mapper.do.job_do import SysJobLog
 from knowledge_common.vo.job_vo import JobLogModel, JobLogPageQueryModel
 from knowledge_common.utils.page_util import PageUtil
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class JobLogDao:
+class JobLogDao(BaseDao):
     """
     定时任务日志管理模块数据库操作层
     """

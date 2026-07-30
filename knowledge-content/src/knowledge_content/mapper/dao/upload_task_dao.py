@@ -16,9 +16,10 @@ from knowledge_content.mapper.do.document_do import KnowledgeDocument
 from knowledge_content.mapper.vo.upload_task_update_vo import UploadTaskUpdateVO
 from knowledge_content.mapper.vo.upload_task_vo import UploadTaskRow
 from knowledge_content.vo.document_upload_parse_vo import ListDocumentRecordsQueryModel
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class KnowledgeUploadTaskDao:
+class KnowledgeUploadTaskDao(BaseDao):
     """
     文档上传任务数据库操作层
     """

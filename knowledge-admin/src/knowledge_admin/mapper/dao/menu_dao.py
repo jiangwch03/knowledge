@@ -9,9 +9,10 @@ from knowledge_common.mapper.do.user_do import SysUser, SysUserRole
 from sqlalchemy import and_, delete, func, select, update
 
 from knowledge_admin.vo.menu_vo import MenuModel, MenuQueryModel
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class MenuDao:
+class MenuDao(BaseDao):
     """
     菜单管理模块数据库操作层
     """

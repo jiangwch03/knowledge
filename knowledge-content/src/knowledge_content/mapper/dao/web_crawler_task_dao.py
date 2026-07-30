@@ -9,9 +9,10 @@ from knowledge_common.utils.page_util import PageUtil
 from knowledge_content.enums.crawl_task_status_enum import CrawlTaskStatus
 from knowledge_content.mapper.do.web_crawler_task_do import WebCrawlerTask
 from knowledge_content.mapper.vo.crawl_task_update_vo import CrawlTaskUpdateVo
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class WebCrawlerTaskDao:
+class WebCrawlerTaskDao(BaseDao):
     """
     爬取任务数据库操作层
     """

@@ -10,7 +10,6 @@ import json
 
 from langchain_core.tools import tool
 
-from knowledge_common.common import with_session
 from knowledge_common.common.context import RedisContext
 from knowledge_common.exceptions.exception import format_exception_message
 from knowledge_common.redis.key import RedisKey
@@ -25,7 +24,6 @@ _PAUSE_POLL_INTERVAL = 1
 
 
 @tool
-@with_session
 async def pause_crawl_task(task_id: int | None = None) -> str:
     """
     暂停指定的爬取任务。

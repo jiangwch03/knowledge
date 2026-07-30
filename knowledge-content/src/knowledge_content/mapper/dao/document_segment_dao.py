@@ -12,9 +12,10 @@ from knowledge_common.utils.page_util import PageUtil
 from knowledge_content.enums.segment_status_enum import ReleaseTag, SegmentArchiveReason, SegmentStatus
 from knowledge_content.mapper.do.document_segment_archive_do import KnowledgeDocumentSegmentArchive
 from knowledge_content.mapper.do.document_segment_do import KnowledgeDocumentSegment
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class KnowledgeDocumentSegmentDao:
+class KnowledgeDocumentSegmentDao(BaseDao):
     """文档分段 DAO"""
 
     @staticmethod

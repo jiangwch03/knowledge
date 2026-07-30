@@ -19,7 +19,6 @@ import json
 from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
-from knowledge_common.common import with_session
 from knowledge_common.exceptions.exception import format_exception_message
 from knowledge_common.utils.log_util import logger
 from knowledge_content.agents.utils.crawl_submit_gate import (
@@ -32,7 +31,6 @@ from knowledge_content.service.web_crawler_task_service import WebCrawlerTaskSer
 
 
 @tool
-@with_session
 async def crawl_retry(
     crawl_config: CrawlConfigArg = None,
     task_id: int | None = None,
@@ -116,7 +114,7 @@ async def crawl_retry(
             extend_max_retry=True,
         )
 
-        # 独立事务已提交；勿再经外层 with_session 的 identity map 读旧实体
+        # 独立事务已提交；勿依赖外层 session identity map 读旧实体
         status = result['status']
         retry_count = result['retry_count']
         max_retry_count = result['max_retry_count']

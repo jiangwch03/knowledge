@@ -2,7 +2,6 @@
 
 import json
 
-from knowledge_common.common.transactional import async_session_scope
 from knowledge_common.mapper.dao.dict_dao import DictDataDao
 from knowledge_common.utils.log_util import logger
 from knowledge_content.enums.crawl_proxy_pool_dict_enum import CrawlProxyPoolDict
@@ -29,8 +28,7 @@ class WebCrawlerProxyPoolService:
 
         :return: 代理池查询结果；无数据时 available=false
         """
-        async with async_session_scope():
-            rows = await DictDataDao.query_dict_data_list(CrawlProxyPoolDict.DICT_TYPE)
+        rows = await DictDataDao.query_dict_data_list(CrawlProxyPoolDict.DICT_TYPE)
 
         proxies: list[ProxyPoolItemVo] = []
         for row in rows:

@@ -9,7 +9,6 @@ import json
 
 from langchain_core.tools import tool
 
-from knowledge_common.common import with_session
 from knowledge_common.exceptions.exception import ServiceException, format_exception_message
 from knowledge_common.utils.log_util import logger
 from knowledge_content.agents.utils.strategy_config_util import (
@@ -20,7 +19,6 @@ from knowledge_content.service.web_crawler_task_service import WebCrawlerTaskSer
 
 
 @tool
-@with_session
 async def preview_scope_removal(
     crawl_config: CrawlConfigArgRequired,
     task_id: int | None = None,

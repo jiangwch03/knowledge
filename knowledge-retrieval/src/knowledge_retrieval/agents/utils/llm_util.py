@@ -1,6 +1,5 @@
 """知识问答 Agent 模型加载。"""
 
-from knowledge_common.common import with_session
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from knowledge_common.common.factory.langchain_model_factory import LangChainModelFactory
@@ -30,7 +29,6 @@ def _to_chat_model_config(adapter: AiModelConfigModel) -> ChatModelConfigModel:
     )
 
 
-@with_session
 async def _load_adapters() -> list[AiModelConfigModel]:
     param_id = AiModelFunctionAdapterConfig.knowledge_qa_agent_param_id
     adapters = await AiModelFunctionAdapterDao.get_adapters_by_param_id(param_id)

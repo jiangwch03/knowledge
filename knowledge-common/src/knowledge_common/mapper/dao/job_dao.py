@@ -8,9 +8,10 @@ from knowledge_common.common.vo import PageModel
 from knowledge_common.mapper.do.job_do import SysJob
 from knowledge_common.vo.job_vo import JobModel, JobPageQueryModel
 from knowledge_common.utils.page_util import PageUtil
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class JobDao:
+class JobDao(BaseDao):
     """
     定时任务管理模块数据库操作层
     """

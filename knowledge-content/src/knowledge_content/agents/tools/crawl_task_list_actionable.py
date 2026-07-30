@@ -9,7 +9,6 @@ import json
 
 from langchain_core.tools import tool
 
-from knowledge_common.common import with_session
 from knowledge_common.common.vo import PageModel
 from knowledge_common.exceptions.exception import format_exception_message
 from knowledge_common.utils.log_util import logger
@@ -21,7 +20,6 @@ _STATUS_LABELS = {status.value: status.label for status in CrawlTaskStatus}
 
 
 @tool
-@with_session
 async def list_actionable_crawl_tasks(
     page_num: int = 1,
     page_size: int = 20,

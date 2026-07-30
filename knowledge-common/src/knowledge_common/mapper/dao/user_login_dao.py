@@ -9,9 +9,10 @@ from knowledge_common.mapper.do.menu_do import SysMenu
 from knowledge_common.mapper.do.post_do import SysPost
 from knowledge_common.mapper.do.role_do import SysRole, SysRoleMenu
 from knowledge_common.mapper.do.user_do import SysUser, SysUserPost, SysUserRole
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class UserDao:
+class UserDao(BaseDao):
 
     @classmethod
     async def get_user_by_id(cls, user_id: int) -> dict[str, Sequence[SysUser | SysDept | SysRole | SysMenu] | SysUser | SysDept | None]:

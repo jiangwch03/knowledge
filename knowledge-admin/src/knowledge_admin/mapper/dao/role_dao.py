@@ -12,9 +12,10 @@ from knowledge_common.mapper.do.user_do import SysUser, SysUserRole
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_common.vo.role_vo import RoleDeptModel, RoleMenuModel, RoleModel, RolePageQueryModel
 from sqlalchemy import ColumnElement, and_, delete, desc, func, select, update
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class RoleDao:
+class RoleDao(BaseDao):
     """
     角色管理模块数据库操作层
     """

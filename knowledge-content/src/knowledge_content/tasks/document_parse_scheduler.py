@@ -8,7 +8,6 @@ knowledge-content Stage2 / Stage3 / Stage4 定时任务
 """
 from __future__ import annotations
 
-from knowledge_common.common.transactional import get_current_session, with_session
 from knowledge_common.redis import DistributedLock, LockKey
 from knowledge_common.utils.log_util import logger
 
@@ -160,32 +159,26 @@ class DocumentParseScheduler:
                         error_code='STAGE4_ERROR',
                         error_message=str(e),
                     )
-                    db = get_current_session()
-                    await db.commit()
 
 
 # APScheduler 可调用的顶层异步函数
 
 
-@with_session
 async def stage2_path_a_job() -> None:
     """Stage2 路径 A 定时任务入口"""
     await DocumentParseScheduler.stage2_path_a_link_failed()
 
 
-@with_session
 async def stage2_path_b_job() -> None:
     """Stage2 路径 B 定时任务入口"""
     await DocumentParseScheduler.stage2_path_b_upload_failed()
 
 
-@with_session
 async def stage3_poll_job() -> None:
     """Stage3 定时任务入口"""
     await DocumentParseScheduler.stage3_poll_results()
 
 
-@with_session
 async def stage4_retry_job() -> None:
     """Stage4 定时任务入口"""
     await DocumentParseScheduler.stage4_retry_convert_failed()

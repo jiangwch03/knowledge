@@ -3,7 +3,7 @@ from typing import TypeVar, cast
 
 from sqlalchemy import Row, Select, func, select
 
-from knowledge_common.common.transactional import get_current_session
+from knowledge_common.common.transactional import get_current_session, transactional
 from knowledge_common.common.vo import PageModel
 from knowledge_common.utils.common_util import CamelCaseUtil
 
@@ -41,6 +41,7 @@ class PageUtil:
         return result
 
     @staticmethod
+    @transactional()
     async def paginate(
         query: Select, page_num: int, page_size: int, is_page: bool = False
     ) -> PageModel[T] | list[T]:

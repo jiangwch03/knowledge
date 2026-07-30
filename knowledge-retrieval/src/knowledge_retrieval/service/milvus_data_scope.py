@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, or_, select
 
-from knowledge_common.common import get_current_session, with_session
+from knowledge_common.common import get_current_session, transactional
 from knowledge_common.common.aspect.data_scope import GetDataScope
 from knowledge_common.mapper.do.dept_do import SysDept
 from knowledge_common.mapper.do.role_do import SysRoleDept
@@ -56,7 +56,7 @@ class MilvusDataScopeBuilder:
         return f'{field} in [{joined}]'
 
     @classmethod
-    @with_session
+    @transactional()
     async def _dept_and_children(cls, dept_id: int | None) -> list[int]:
         if dept_id is None:
             return []
@@ -71,7 +71,7 @@ class MilvusDataScopeBuilder:
         return [int(x) for x in rows]
 
     @classmethod
-    @with_session
+    @transactional()
     async def _custom_dept_ids(cls, role_ids: list[int]) -> list[int]:
         if not role_ids:
             return []

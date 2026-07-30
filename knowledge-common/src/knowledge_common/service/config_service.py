@@ -4,7 +4,7 @@ from fastapi import Request
 from redis import asyncio as aioredis
 
 from knowledge_common.common.constant import CommonConstant
-from knowledge_common.common.transactional import transactional, async_session_scope
+from knowledge_common.common.transactional import transactional
 from knowledge_common.common.vo import CrudResponseModel, PageModel
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.redis.key import RedisKey
@@ -37,13 +37,12 @@ class ConfigService:
     @classmethod
     async def init_cache(cls, redis: aioredis.Redis) -> None:
         """
-        应用启动时缓存参数配置表（封装 session 作用域，供 server.py 生命周期调用）
+        应用启动时缓存参数配置表（供 server.py 生命周期调用）
 
         :param redis: redis对象
         :return:
         """
-        async with async_session_scope():
-            await cls.init_cache_sys_config_services(redis)
+        await cls.init_cache_sys_config_services(redis)
 
     @classmethod
     async def init_cache_sys_config_services(cls, redis: aioredis.Redis) -> None:

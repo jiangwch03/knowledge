@@ -6,7 +6,6 @@ knowledge-content Stage2 / Stage4 消息消费者
 """
 from __future__ import annotations
 
-from knowledge_common.common.transactional import async_session_scope
 from knowledge_common.config.env import StreamTopicConfig
 from knowledge_content.enums.document_upload_status_enum import DocumentUploadStatus
 from knowledge_common.message_stream import Message, consumer
@@ -61,20 +60,18 @@ async def handle_document_parse_pending(msg: Message) -> None:
                 '[Stage2-consumer] 解析任务处理失败: parse_task_id={}, error={}',
                 parse_task_id, err,
             )
-            async with async_session_scope() as session:
-                await KnowledgeMineruParseTaskDao.update_status(
-                    parse_task_id,
-                    MineruParseTaskStatus.LINK_FAILED.value,
-                    error_code='STAGE2_ERROR',
-                    error_message=err,
-                )
-                await KnowledgeUploadTaskDao.update_status(
-                    task.task_id,
-                    DocumentUploadStatus.LINK_FAILED.value,
-                    error_code='STAGE2_ERROR',
-                    error_message=err,
-                )
-                await session.commit()
+            await KnowledgeMineruParseTaskDao.update_status(
+                parse_task_id,
+                MineruParseTaskStatus.LINK_FAILED.value,
+                error_code='STAGE2_ERROR',
+                error_message=err,
+            )
+            await KnowledgeUploadTaskDao.update_status(
+                task.task_id,
+                DocumentUploadStatus.LINK_FAILED.value,
+                error_code='STAGE2_ERROR',
+                error_message=err,
+            )
         logger.info(f'[Stage2-consumer] 解析任务处理完成: parse_task_id={parse_task_id}')
 
 
@@ -111,12 +108,10 @@ async def handle_document_md_pending(msg: Message) -> None:
                 '[Stage4-consumer] Markdown 合并失败: task_id={}, error={}',
                 task_id, err,
             )
-            async with async_session_scope() as session:
-                await KnowledgeUploadTaskDao.update_status(
-                    task_id,
-                    DocumentUploadStatus.CONVERT_FAILED.value,
-                    error_code='STAGE4_ERROR',
-                    error_message=err,
-                )
-                await session.commit()
+            await KnowledgeUploadTaskDao.update_status(
+                task_id,
+                DocumentUploadStatus.CONVERT_FAILED.value,
+                error_code='STAGE4_ERROR',
+                error_message=err,
+            )
         logger.info(f'[Stage4-consumer] Markdown 合并完成: task_id={task_id}')

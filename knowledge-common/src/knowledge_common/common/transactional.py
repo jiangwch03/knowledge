@@ -2,19 +2,15 @@
 注解式事务管理模块
 
 提供类 Spring @Transactional 的注解式事务管理装饰器，支持异步和同步双模式。
+Session 仅由事务边界提供（Service @transactional 或 DAO / PageUtil 隐式短事务）。
 
 异步 API:
     - @transactional: 异步事务装饰器
-    - get_current_session(): 获取当前异步 session
-    - @with_session: 异步 session 注入装饰器
-    - async_session_scope(): 异步 session 上下文管理器
-    - SessionContextMiddleware: FastAPI 中间件
+    - get_current_session(): 获取当前异步事务 session
 
 同步 API:
     - @transactional_sync: 同步事务装饰器
-    - get_current_session_sync(): 获取当前同步 session
-    - @with_session_sync: 同步 session 注入装饰器
-    - session_scope(): 同步 session 上下文管理器
+    - get_current_session_sync(): 获取当前同步事务 session
 
 示例:
     >>> @transactional
@@ -35,8 +31,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import threading
-from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
-from contextlib import asynccontextmanager, contextmanager
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, TypeVar
@@ -50,6 +45,7 @@ from knowledge_common.common.context_var_task_local import ContextVarTaskLocal
 from knowledge_common.config.database import AsyncSessionLocal, SyncSessionLocal
 
 __all__ = [
+    'IS_TRANSACTIONAL_ATTR',
     'PropagationBehavior',
     'TransactionException',
     'TransactionTimeoutError',
@@ -57,13 +53,11 @@ __all__ = [
     'transactional_sync',
     'get_current_session',
     'get_current_session_sync',
-    'with_session',
-    'with_session_sync',
-    'async_session_scope',
-    'session_scope',
-    'SessionContextMiddleware',
     'ContextVarTaskLocal',
 ]
+
+# 装饰器 wrapper 上的标记属性名；BaseDao 等据此识别「已包装」，避免重复挂事务
+IS_TRANSACTIONAL_ATTR = '__is_transactional__'
 
 # =============================================================================
 # 基础类型与枚举
@@ -217,41 +211,6 @@ class _SyncTransactionContextManager:
 
 
 # =============================================================================
-# Session 请求/任务级上下文（非事务场景）
-# =============================================================================
-
-
-class _AsyncSessionContextManager:
-    """异步 session 请求/任务级上下文（非事务场景）"""
-
-    _ctx_var: ContextVarTaskLocal[AsyncSession | None] = ContextVarTaskLocal(
-        'async_session_context', default=None
-    )
-
-    @classmethod
-    def get(cls) -> AsyncSession | None:
-        return cls._ctx_var.get()
-
-    @classmethod
-    def set(cls, session: AsyncSession | None) -> None:
-        cls._ctx_var.set(session)
-
-
-class _SyncSessionContextManager:
-    """同步 session 任务级上下文（非事务场景）"""
-
-    _local = threading.local()
-
-    @classmethod
-    def get(cls) -> Session | None:
-        return getattr(cls._local, 'session', None)
-
-    @classmethod
-    def set(cls, session: Session | None) -> None:
-        cls._local.session = session
-
-
-# =============================================================================
 # 异常类型检查工具
 # =============================================================================
 
@@ -369,6 +328,7 @@ def transactional(
             else:
                 raise TransactionException(f'Unknown propagation behavior: {propagation}')
 
+        setattr(wrapper, IS_TRANSACTIONAL_ATTR, True)
         return wrapper
 
     return decorator
@@ -544,6 +504,7 @@ def transactional_sync(
             else:
                 raise TransactionException(f'Unknown propagation behavior: {propagation}')
 
+        setattr(wrapper, IS_TRANSACTIONAL_ATTR, True)
         return wrapper
 
     return decorator
@@ -636,220 +597,32 @@ def _run_in_sync_nested_transaction(
 
 
 def get_current_session() -> AsyncSession:
-    """获取当前异步事务或请求上下文中的 AsyncSession
-
-    查找优先级：
-        1. 事务上下文（@transactional 装饰的方法内）
-        2. 请求/任务级上下文（FastAPI 中间件或 @with_session 内）
-        3. 抛出 TransactionException
+    """获取当前异步事务上下文中的 AsyncSession
 
     :return: 当前 AsyncSession
-    :raises TransactionException: 未在任何 session 上下文中
+    :raises TransactionException: 未在活跃异步事务中
     """
-    # 1. 优先从事务上下文获取
     tx_ctx = _AsyncTransactionContextManager.current()
     if tx_ctx and tx_ctx.is_active:
         return tx_ctx.session
 
-    # 2. 从请求/任务级上下文获取
-    session = _AsyncSessionContextManager.get()
-    if session is not None:
-        return session
-
     raise TransactionException(
-        'No active async session found. Ensure you are within a @transactional, '
-        '@with_session, async_session_scope, or FastAPI request context.'
+        'No active async session found. Ensure you are within a @transactional '
+        'context (Service annotation, BaseDao implicit short transaction, or PageUtil.paginate).'
     )
 
 
 def get_current_session_sync() -> Session:
-    """获取当前同步事务或任务上下文中的 Session
-
-    查找优先级：
-        1. 事务上下文（@transactional_sync 装饰的方法内）
-        2. 任务级上下文（@with_session_sync 或 session_scope 内）
-        3. 抛出 TransactionException
+    """获取当前同步事务上下文中的 Session
 
     :return: 当前 Session
-    :raises TransactionException: 未在任何 session 上下文中
+    :raises TransactionException: 未在活跃同步事务中
     """
     tx_ctx = _SyncTransactionContextManager.current()
     if tx_ctx and tx_ctx.is_active:
         return tx_ctx.session
 
-    session = _SyncSessionContextManager.get()
-    if session is not None:
-        return session
-
     raise TransactionException(
-        'No active sync session found. Ensure you are within a @transactional_sync, '
-        '@with_session_sync, or session_scope context.'
+        'No active sync session found. Ensure you are within a @transactional_sync '
+        'context (Service annotation or BaseDao implicit short transaction).'
     )
-
-
-# =============================================================================
-# with_session 装饰器与上下文管理器
-# =============================================================================
-
-
-def with_session(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., Coroutine[Any, Any, T]]:
-    """异步 session 注入装饰器
-
-    为异步函数自动创建 AsyncSession 并注入上下文。
-    适用于后台任务、定时任务、RPC 调用等非 Web 场景。
-    若已有 session（事务或请求上下文），则直接复用，不再创建冗余 session。
-
-    :param func: 被装饰的异步函数
-    :return: 包装后的函数
-    """
-
-    @functools.wraps(func)
-    async def wrapper(*args: Any, **kwargs: Any) -> T:
-        # 预检：已有 session 时复用，不创建冗余 session
-        try:
-            get_current_session()
-            return await func(*args, **kwargs)
-        except TransactionException:
-            pass
-
-        async with AsyncSessionLocal() as session:
-            _AsyncSessionContextManager.set(session)
-            try:
-                return await func(*args, **kwargs)
-            finally:
-                _AsyncSessionContextManager.set(None)
-
-    return wrapper
-
-
-@asynccontextmanager
-async def async_session_scope() -> AsyncGenerator[AsyncSession, None]:
-    """异步 session 上下文管理器
-
-    适用于需要在代码块中使用 session 的非 Web 异步场景。
-    若已有 session（事务或请求上下文），则直接复用该 session。
-
-    示例:
-        >>> async with async_session_scope() as session:
-        ...     result = await session.execute(select(User))
-    """
-    # 预检：已有 session 时直接复用
-    try:
-        session = get_current_session()
-        yield session
-        return
-    except TransactionException:
-        pass
-
-    async with AsyncSessionLocal() as session:
-        _AsyncSessionContextManager.set(session)
-        try:
-            yield session
-        finally:
-            _AsyncSessionContextManager.set(None)
-
-
-def with_session_sync(func: Callable[..., T]) -> Callable[..., T]:
-    """同步 session 注入装饰器
-
-    为同步函数自动创建 Session 并注入上下文。
-    适用于同步定时任务、脚本执行等场景。
-    若已有 session（事务或任务上下文），则直接复用。
-
-    :param func: 被装饰的同步函数
-    :return: 包装后的函数
-    """
-
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> T:
-        # 预检：已有 session 时复用
-        try:
-            get_current_session_sync()
-            return func(*args, **kwargs)
-        except TransactionException:
-            pass
-
-        with SyncSessionLocal() as session:
-            _SyncSessionContextManager.set(session)
-            try:
-                return func(*args, **kwargs)
-            finally:
-                _SyncSessionContextManager.set(None)
-
-    return wrapper
-
-
-@contextmanager
-def session_scope() -> Generator[Session, None, None]:
-    """同步 session 上下文管理器
-
-    适用于需要在代码块中使用 session 的同步场景。
-    若已有 session（事务或任务上下文），则直接复用该 session。
-
-    示例:
-        >>> with session_scope() as session:
-        ...     result = session.execute(select(User))
-    """
-    # 预检：已有 session 时直接复用
-    try:
-        session = get_current_session_sync()
-        yield session
-        return
-    except TransactionException:
-        pass
-
-    with SyncSessionLocal() as session:
-        _SyncSessionContextManager.set(session)
-        try:
-            yield session
-        finally:
-            _SyncSessionContextManager.set(None)
-
-
-# =============================================================================
-# FastAPI 中间件
-# =============================================================================
-
-
-class SessionContextMiddleware:
-    """FastAPI Session 上下文中间件
-
-    在每个请求进入时将 get_db() 创建的 AsyncSession 存入 ContextVar，
-    使 get_current_session() 在非 @transactional 装饰的方法中也能返回当前请求的 session。
-    若进入时已有 session（如子应用嵌套），则直接复用，不重复创建。
-
-    注册方式:
-        >>> from fastapi import FastAPI
-        >>> app = FastAPI()
-        >>> app.add_middleware(SessionContextMiddleware)
-    """
-
-    def __init__(self, app: Any) -> None:
-        self.app = app
-
-    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
-        if scope['type'] != 'http':
-            await self.app(scope, receive, send)
-            return
-
-        # 预检：已有 session 时复用，不重复创建
-        try:
-            get_current_session()
-            await self.app(scope, receive, send)
-            return
-        except TransactionException:
-            pass
-
-        from knowledge_common.config.get_db import get_db
-
-        db_gen = get_db()
-        session = await db_gen.__anext__()
-        _AsyncSessionContextManager.set(session)
-        try:
-            await self.app(scope, receive, send)
-        finally:
-            _AsyncSessionContextManager.set(None)
-            try:
-                await db_gen.__anext__()
-            except StopAsyncIteration:
-                pass

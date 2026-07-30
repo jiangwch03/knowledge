@@ -7,9 +7,10 @@ from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.enums.document_source_type_enum import DocumentSourceType
 from knowledge_common.utils.page_util import PageUtil
 from knowledge_content.mapper.do.document_do import KnowledgeDocument
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class KnowledgeDocumentDao:
+class KnowledgeDocumentDao(BaseDao):
     """
     文档主表数据库操作层
     """

@@ -3,9 +3,10 @@ from sqlalchemy import select
 from knowledge_common.common.transactional import get_current_session
 from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_retrieval.mapper.do.document_segment_ro_do import KnowledgeDocumentSegmentRo
+from knowledge_common.mapper.dao.base_dao import BaseDao
 
 
-class DocumentSegmentRoDao:
+class DocumentSegmentRoDao(BaseDao):
     """分段只读查询（父片回填）。"""
 
     @staticmethod
