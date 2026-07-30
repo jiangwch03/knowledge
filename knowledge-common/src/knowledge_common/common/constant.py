@@ -164,7 +164,6 @@ class ApiNamespace:
     TRANSPORT_CRYPTO_PUBLIC_KEY: 传输层加密公钥接口命名空间
     TRANSPORT_CRYPTO_FRONTEND_CONFIG: 传输层加密前端配置接口命名空间
 
-    MONITOR_SERVER_INFO: 服务监控信息接口命名空间
     MONITOR_CACHE_CLEAR_NAME: 缓存名称清理接口命名空间
     MONITOR_CACHE_CLEAR_KEY: 缓存键清理接口命名空间
     MONITOR_CACHE_CLEAR_ALL: 缓存全量清理接口命名空间
@@ -242,7 +241,6 @@ class ApiNamespace:
     TRANSPORT_CRYPTO_PUBLIC_KEY = 'transport-crypto:public-key'
     TRANSPORT_CRYPTO_FRONTEND_CONFIG = 'transport-crypto:frontend-config'
 
-    MONITOR_SERVER_INFO = 'monitor:server:info'
     MONITOR_CACHE_CLEAR_NAME = 'monitor:cache:clear-name'
     MONITOR_CACHE_CLEAR_KEY = 'monitor:cache:clear-key'
     MONITOR_CACHE_CLEAR_ALL = 'monitor:cache:clear-all'
