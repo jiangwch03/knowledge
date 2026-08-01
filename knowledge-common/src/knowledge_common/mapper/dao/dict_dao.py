@@ -279,6 +279,32 @@ class DictDataDao(BaseDao):
         await db.execute(delete(SysDictData).where(SysDictData.dict_code.in_([dict_data.dict_code])))
 
     @classmethod
+    async def delete_dict_data_by_type(cls, dict_type: str) -> int:
+        """
+        按字典类型删除全部字典数据
+
+        :param dict_type: 字典类型
+        :return: 删除行数
+        """
+        db = get_current_session()
+        result = await db.execute(delete(SysDictData).where(SysDictData.dict_type == dict_type))
+        return int(result.rowcount or 0)
+
+    @classmethod
+    async def delete_dict_data_by_codes(cls, dict_codes: list[int]) -> int:
+        """
+        按字典编码批量删除
+
+        :param dict_codes: 字典编码列表
+        :return: 删除行数
+        """
+        if not dict_codes:
+            return 0
+        db = get_current_session()
+        result = await db.execute(delete(SysDictData).where(SysDictData.dict_code.in_(dict_codes)))
+        return int(result.rowcount or 0)
+
+    @classmethod
     async def count_dict_data_dao(cls, dict_type: str) -> int | None:
         """
         根据字典类型查询字典类型关联的字典数据数量

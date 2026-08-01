@@ -365,6 +365,33 @@ class Crawl4aiSettings(BaseSettings):
         return [item.strip() for item in v_stripped.split(',') if item.strip()]
 
 
+class ProxyPoolSettings(BaseSettings):
+    """
+    外部免费代理池（jhao104/proxy_pool）配置
+
+    拉取任务只新增字典中尚无的节点；清理任务只删除探测不通的节点。
+    """
+
+    # 总开关：false 时拉取任务与清理任务均直接跳过
+    proxy_pool_sync_enabled: bool = True
+    # 源代理池 HTTP API 根地址（勿带尾斜杠）；拉取 {base}/all/，清理回调 {base}/delete/
+    proxy_pool_api_base_url: str = 'http://127.0.0.1:5010'
+    # 【拉取】单次最多从 /all 纳入比对的候选条数（截断后再排除已有，只插入新增）
+    proxy_pool_sync_limit: int = 50
+    # 请求源池 API（/all、/delete）的超时秒数
+    proxy_pool_request_timeout: int = 15
+    # 【清理】是否启用清理任务的存活探测；false 时清理跳过（拉取仍会写库）
+    proxy_pool_verify_enabled: bool = True
+    # 【清理】探测目标 URL：经字典中每个代理访问该地址，能通才保留（默认百度，国内可达）
+    proxy_pool_verify_url: str = 'https://www.baidu.com'
+    # 【清理】单个代理探测超时秒数；超时或非 2xx/3xx 判为死亡并从字典删除
+    proxy_pool_verify_timeout: int = 8
+    # 【清理】探测并发上限：同时经多少个代理发起探测
+    proxy_pool_verify_concurrency: int = 20
+    # 【清理】探测失败的代理是否同时回调源池 /delete 剔除
+    proxy_pool_delete_dead: bool = True
+
+
 class AiModelFunctionAdapterSettings(BaseSettings):
     """
     模型功能适配配置
@@ -620,6 +647,12 @@ class GetConfig:
         """
         return Crawl4aiSettings()
 
+    def get_proxy_pool_config(self) -> ProxyPoolSettings:
+        """
+        获取外部代理池同步配置
+        """
+        return ProxyPoolSettings()
+
     def get_ai_model_function_adapter_config(self) -> AiModelFunctionAdapterSettings:
         """
         获取模型功能适配配置
@@ -733,6 +766,8 @@ UploadConfig = get_config.get_upload_config()
 MinerUConfig = get_config.get_mineru_config()
 # crawl4ai 爬取引擎配置
 Crawl4aiConfig = get_config.get_crawl4ai_config()
+# 外部代理池同步配置
+ProxyPoolConfig = get_config.get_proxy_pool_config()
 # 模型功能适配配置
 AiModelFunctionAdapterConfig = get_config.get_ai_model_function_adapter_config()
 # 分布式信号量配置

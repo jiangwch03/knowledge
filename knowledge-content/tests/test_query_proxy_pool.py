@@ -1,4 +1,4 @@
-"""query_proxy_pool 工具与代理池服务测试"""
+"""query_proxy_pool 工具与代理池查询服务测试"""
 
 from unittest.mock import AsyncMock, patch
 

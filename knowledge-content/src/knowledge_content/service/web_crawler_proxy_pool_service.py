@@ -1,4 +1,8 @@
-"""爬虫代理池查询服务（sys_dict_data）"""
+"""爬虫代理池查询服务（sys_dict_data）
+
+仅负责从字典读取可用代理，供爬取 Agent / 工具消费。
+字典数据由 ProxyPoolDictSyncService 定时同步维护，与本服务解耦。
+"""
 
 import json
 
