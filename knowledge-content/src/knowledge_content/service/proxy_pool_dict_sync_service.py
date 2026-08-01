@@ -118,7 +118,7 @@ class ProxyPoolDictSyncService:
         """
         清理任务：读字典 → 存活探测 → 只删除不通节点；可选回调源池 /delete。
 
-        不新增行；与拉取任务写路径不交叉。
+        不新增行；与拉取任务写路径不交叉。空窗靠 30 秒拉取任务补回。
         """
         if not ProxyPoolConfig.proxy_pool_sync_enabled:
             logger.info('[ProxyPool] 清理已禁用（proxy_pool_sync_enabled=false），跳过')

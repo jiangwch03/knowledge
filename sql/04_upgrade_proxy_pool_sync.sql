@@ -9,7 +9,7 @@
 DELETE FROM `sys_job`
 WHERE `invoke_target` = 'knowledge_content.tasks.proxy_pool_sync_scheduler.sync_proxy_pool_job';
 
--- 拉取：每 2 分钟只新增字典中尚不存在的代理
+-- 拉取：每 30 秒只新增字典中尚不存在的代理
 INSERT INTO `sys_job` (
     `job_name`, `job_group`, `job_executor`, `invoke_target`, `job_args`, `job_kwargs`,
     `cron_expression`, `misfire_policy`, `concurrent`, `status`, `app_scope`,
@@ -17,16 +17,17 @@ INSERT INTO `sys_job` (
 ) SELECT
     '爬虫代理池拉取', 'default', 'default',
     'knowledge_content.tasks.proxy_pool_sync_scheduler.sync_proxy_pool_fetch_job',
-    '', '', '0 0/2 * * * ?', '3', '1', '0', 'knowledge-content',
+    '', '', '0/30 * * * * ?', '3', '1', '0', 'knowledge-content',
     'admin', NOW(), 'admin', NOW(),
-    '每2分钟从 proxy_pool API(/all) 拉取；丢弃 last_status=false，排除字典已有 server，只插入新增并刷新缓存'
+    '每30秒从 proxy_pool API(/all) 拉取；丢弃 last_status=false，排除字典已有 server，只插入新增并刷新缓存'
 WHERE NOT EXISTS (
     SELECT 1 FROM `sys_job`
     WHERE `invoke_target` = 'knowledge_content.tasks.proxy_pool_sync_scheduler.sync_proxy_pool_fetch_job'
 );
 
 UPDATE `sys_job`
-SET `remark` = '每2分钟从 proxy_pool API(/all) 拉取；丢弃 last_status=false，排除字典已有 server，只插入新增并刷新缓存',
+SET `cron_expression` = '0/30 * * * * ?',
+    `remark` = '每30秒从 proxy_pool API(/all) 拉取；丢弃 last_status=false，排除字典已有 server，只插入新增并刷新缓存',
     `update_by` = 'admin',
     `update_time` = NOW()
 WHERE `invoke_target` = 'knowledge_content.tasks.proxy_pool_sync_scheduler.sync_proxy_pool_fetch_job';

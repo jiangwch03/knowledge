@@ -9,7 +9,7 @@
 | 01 | `01_ruoyi-fastapi.sql` | 基础框架表（部门、用户、角色、菜单、字典、参数、定时任务、AI模型等） | DROP + CREATE + INSERT |
 | 02 | `02_upgrade_knowledge_content.sql` | 知识内容业务（文档/上传/解析/Embedding/分段/爬取 Agent/模型适配/切分字典/菜单/调度；含 models.dev Profile 同步任务） | CREATE IF NOT EXISTS + INSERT(幂等) |
 | 03 | `03_upgrade_knowledge_retrieval.sql` | 知识检索种子（主题字典、Tavily/精排参数、问答菜单权限、精排模型、QA Agent 适配） | INSERT(幂等) + UPDATE |
-| 04 | `04_upgrade_proxy_pool_sync.sql` | 爬虫代理池拉取（2 分钟，只增）+ 清理（1 分钟，只删）定时任务 | DELETE 旧单任务 + INSERT/UPDATE(幂等) |
+| 04 | `04_upgrade_proxy_pool_sync.sql` | 爬虫代理池拉取（30 秒，只增）+ 清理（1 分钟，只删）定时任务 | DELETE 旧单任务 + INSERT/UPDATE(幂等) |
 
 ## 依赖关系
 
