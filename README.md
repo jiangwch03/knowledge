@@ -22,6 +22,9 @@
     <img alt="langgraph version" src="https://img.shields.io/badge/LangGraph-1.2-blue">
     <img alt="deepagents version" src="https://img.shields.io/badge/DeepAgents-0.4-blue">
     <img alt="crawl4ai version" src="https://img.shields.io/badge/Crawl4AI-0.9-blue">
+    <a href="https://github.com/jhao104/proxy_pool">
+        <img alt="proxy pool" src="https://img.shields.io/badge/proxy__pool-jhao104-blue">
+    </a>
 </p>
 
 ## 平台简介
@@ -72,7 +75,7 @@ knowledge 是一套企业知识库 RAG 系统，基于 [RuoYi-Vue3-FastAPI](http
 ### 新增功能点
 
 1. 资料上传：上传知识文档，查看解析状态，支持预览、下载与删除。
-2. 网页爬虫：通过对话配置网页爬取，管理爬取会话、任务与入库文档。  
+2. 网页爬虫：通过对话配置网页爬取，管理爬取会话、任务与入库文档；高强度反爬时可使用系统代理池（由外部代理池定时同步至字典 `crawl_proxy_pool`）。  
    > **说明**：当前实现距离「理想的动态适配爬取参数」还有一定距离，后续迭代优化。
 3. Embedding 任务：对已入库文档发起切分与向量化，支持任务查询、创建、重试、删除与发布。
 4. 知识问答：基于知识库进行会话式问答（含会话管理与流式回答）。
@@ -108,16 +111,43 @@ Python 包由根目录 [uv workspace](./pyproject.toml) 管理（`requires-pytho
 | Redis Stack | 缓存 / 会话 / 消息流等 | ≥ 6.2；需 Redis Stack（含 RedisJSON 等模块） |
 | MinIO | 对象存储 | 文档与解析产物等 |
 | Milvus | 向量库 | ≥ 2.6；集合脚本见 `sql/milvus/` |
+| 代理池（可选） | 爬虫代理 IP | 本地需单独 Docker 部署；见下方「爬虫代理池」 |
 
 连接地址与账号请按各服务 `configs/.env.*` 自行配置。
 
 文档解析与知识问答还需自行配置：**MinerU Token**（`knowledge-content` 的 `.env`）、以及 **LLM / Embedding 模型 API**（后台「AI 管理 / 模型适配」）。Crawl4AI 默认 `sdk` 进程内调用，无需单独起服务；消息流默认 Redis Stream，无需 Kafka。
 
+### 爬虫代理池（本地 Docker）
+
+网页爬取在高强度反爬场景会查询字典 `crawl_proxy_pool`。本仓库**不内置**代理采集服务，需本地另行部署 [jhao104/proxy_pool](https://github.com/jhao104/proxy_pool)，由 `knowledge-content` 定时任务同步进字典：
+
+| 项目 | 说明 |
+|------|------|
+| 源码 | [https://github.com/jhao104/proxy_pool](https://github.com/jhao104/proxy_pool) |
+| 默认 API | `http://127.0.0.1:5010`（拉取 `/all/`，清理可选回调 `/delete/`） |
+| 同步节奏 | 拉取每 30 秒（只增）；清理每 1 分钟（只删不通节点） |
+| 配置 | `knowledge-content` 的 `.env`：`proxy_pool_*`（见 `.env.dev`） |
+| 定时任务种子 | `sql/04_upgrade_proxy_pool_sync.sql` |
+
+本地推荐用官方镜像（需自备 Redis，并把 `DB_CONN` 指到可连通地址）：
+
+```bash
+docker pull jhao104/proxy_pool
+
+# 将 redis://:password@host:port/0 换成你的 Redis 连接串
+docker run -d --name proxy_pool \
+  --env DB_CONN=redis://:password@host:port/0 \
+  -p 5010:5010 \
+  jhao104/proxy_pool:latest
+```
+
+也可用源码目录下的 `docker-compose up -d`。启动后确认 `http://127.0.0.1:5010/count/` 有返回，再启动 `knowledge-content`；不需要代理时可在 `.env` 将 `proxy_pool_sync_enabled = false`。
+
 ```bash
 # 依赖（本地无 Nexus 时改用 PyPI）
 uv sync --default-index pypi
 
-# 数据库：按 sql/README.md 顺序执行 01 → 02 → 03
+# 数据库：按 sql/README.md 顺序执行 01 → 02 → 03 → 04
 
 # 后端
 uv run --package knowledge-admin python -m knowledge_admin.main
