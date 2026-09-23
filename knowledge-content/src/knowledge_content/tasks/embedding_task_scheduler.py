@@ -89,11 +89,6 @@ async def embedding_task_fallback_job() -> None:
     await EmbeddingTaskScheduler.run_fallback()
 
 
-async def embedding_auto_publish_job() -> None:
-    """临时：COMPLETED+canary → 发布（旧 prod → pending_delete）。正式发布 UI 上线后下线本 job。"""
-    await EmbeddingPublishService.auto_promote_completed_canary()
-
-
 async def embedding_pending_delete_cleanup_job() -> None:
     """临时：按批清理 pending_delete（Milvus 删向量 + MySQL 归档并物理删除）。正式链路可复用或下线。"""
     await EmbeddingPublishService.cleanup_pending_delete()

@@ -18,11 +18,13 @@ from knowledge_common.broadcast import BroadcastService
 from knowledge_common.message_stream import MessageStreamService
 from knowledge_common.middlewares.handle import handle_middleware
 from knowledge_common.sub_applications.handle import handle_sub_applications
+from knowledge_common.nacos import nacos_deregister_current_app, nacos_register_current_app
 from knowledge_common.utils.common_util import worship
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.server_util import APIDocsUtil, IPUtil, StartupUtil
 from knowledge_common.utils.transport_crypto_util import TransportKeyProvider
 from knowledge_content.common.root_path import CODE_ROOT
+from knowledge_content.server.mcp_server import mount_mcp
 from knowledge_content.message.broadcast_test_publisher import RagBroadcastTestPublisher
 from knowledge_content.message.test_publisher import RagMessageTestPublisher
 from knowledge_common.agent.memory.short_memory.checkpointer import Checkpointer
@@ -209,10 +211,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
             logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
 
-    yield
+    await nacos_register_current_app()
+    # MCP 挂在 FastAPI 上，子应用 lifespan 不会自动跑；这里拉起 session manager
+    mcp_server = app.state.mcp_server
+    async with mcp_server.session_manager.run():
+        yield
 
     shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
     with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
+        await nacos_deregister_current_app()
         # 先关闭消息广播服务（依赖 Redis，须在连接池关闭前）
         await BroadcastService.shutdown()
         # 关闭消息流服务（依赖 Redis，须在连接池关闭前）
@@ -265,5 +272,7 @@ def create_app() -> FastAPI:
 
     # 自动注册路由
     auto_register_routers(app,CODE_ROOT)
+
+    mount_mcp(app)
 
     return app

@@ -1,9 +1,9 @@
-"""临时：自动发布切换 + pending_delete 异步清理。
+"""canary→prod 发布切换 + pending_delete 异步清理。
 
 设计对齐 docs/rag功能流程说明/切分与向量化流程.md：
   同 doc 创建时已保证最多一套 canary；发布时仅旧 prod → pending_delete，目标 canary → prod。
 
-正式发布 UI 上线后可下线对应 sys_job。
+promote 仅由 knowledge-admin 测评任务编排调用（无自动发布、无 content 侧独立手动入口）。
 清理时：Milvus 物理删向量 → segment 写入归档表后主表物理删除。
 """
 from __future__ import annotations
@@ -14,7 +14,6 @@ from knowledge_common.common.transactional import PropagationBehavior, transacti
 from knowledge_common.config.env import EmbeddingConfig, MilvusConfig
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_common.milvus import DocumentVectorVo, KnowledgeMilvusClient
-from knowledge_common.redis import DistributedLock, LockKey
 from knowledge_common.utils.log_util import logger
 from knowledge_content.enums.segment_status_enum import ReleaseTag, SegmentArchiveReason
 from knowledge_content.mapper.dao.document_embedding_task_dao import KnowledgeDocumentEmbeddingTaskDao
@@ -24,44 +23,10 @@ from knowledge_content.mapper.do.document_segment_do import KnowledgeDocumentSeg
 
 
 class EmbeddingPublishService:
-    """临时发布切换 / pending_delete 清理。"""
+    """发布切换 / pending_delete 清理。"""
 
     _milvus = KnowledgeMilvusClient()
     _collection = MilvusConfig.document_vector_collection
-
-    @classmethod
-    async def auto_promote_completed_canary(cls) -> int:
-        """扫描 COMPLETED+canary，自动发布；返回成功文档数。"""
-        limit: int = EmbeddingConfig.embedding_publish_promote_batch_size
-        tasks: list[KnowledgeDocumentEmbeddingTask] = (
-            await KnowledgeDocumentEmbeddingTaskDao.list_completed_canary_candidates(limit)
-        )
-        if not tasks:
-            return 0
-        logger.info('[Embedding-publish] 扫描到 {} 个待发布 COMPLETED+canary', len(tasks))
-        ok: int = 0
-        for task in tasks:
-            # 与删除/消费/重试共用 embedding_task 锁，避免 canary 发布中被删
-            lock_key: str = LockKey.embedding_task_key(task.task_id)
-            async with DistributedLock(lock_key, expire=120, timeout=0) as acquired:
-                if not acquired:
-                    continue
-                try:
-                    await cls.promote_task(task.task_id)
-                    ok += 1
-                    logger.info(
-                        '[Embedding-publish] 发布成功: doc_id={}, task_id={}',
-                        task.doc_id,
-                        task.task_id,
-                    )
-                except Exception as exc:
-                    logger.exception(
-                        '[Embedding-publish] 发布失败: doc_id={}, task_id={}, error={}',
-                        task.doc_id,
-                        task.task_id,
-                        exc,
-                    )
-        return ok
 
     @classmethod
     async def promote_task(cls, task_id: int) -> None:

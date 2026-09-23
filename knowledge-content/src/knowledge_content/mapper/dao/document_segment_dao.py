@@ -13,6 +13,7 @@ from knowledge_content.enums.segment_status_enum import ReleaseTag, SegmentArchi
 from knowledge_content.mapper.do.document_segment_archive_do import KnowledgeDocumentSegmentArchive
 from knowledge_content.mapper.do.document_segment_do import KnowledgeDocumentSegment
 from knowledge_common.mapper.dao.base_dao import BaseDao
+from knowledge_common.facade.api.knowledge_content.document_segment_mcp_vo import SegmentDirectoryItemVo
 
 
 class KnowledgeDocumentSegmentDao(BaseDao):
@@ -613,3 +614,115 @@ class KnowledgeDocumentSegmentDao(BaseDao):
             KnowledgeDocumentSegment.chunk_order.asc(),  # type: ignore
         )
         return await PageUtil.paginate(query, page_num, page_size, is_page=True)
+
+    @staticmethod
+    def _doc_version_filters(
+        doc_id: int,
+        *,
+        release_tag: str | None = None,
+        task_id: int | None = None,
+    ) -> list[Any]:
+        """按文档 + 可选 release_tag / task_id 过滤未删除分段。"""
+        conditions: list[Any] = [
+            KnowledgeDocumentSegment.doc_id == doc_id,  # type: ignore
+            KnowledgeDocumentSegment.del_flag == DeleteFlag.NORMAL.value,  # type: ignore
+        ]
+        if task_id is not None:
+            conditions.append(KnowledgeDocumentSegment.task_id == task_id)  # type: ignore
+        if release_tag is not None:
+            conditions.append(KnowledgeDocumentSegment.release_tag == release_tag)  # type: ignore
+        return conditions
+
+    @staticmethod
+    async def list_by_doc_page(
+        doc_id: int,
+        *,
+        release_tag: str | None = None,
+        task_id: int | None = None,
+        page_num: int = 1,
+        page_size: int = 50,
+    ) -> PageModel:
+        """按文档分页列出分段目录：不拉全文，带 preview / text_length，rows 为 SegmentDirectoryItemVo。"""
+        conditions = KnowledgeDocumentSegmentDao._doc_version_filters(
+            doc_id, release_tag=release_tag, task_id=task_id
+        )
+        query: Select[Any] = (
+            select(
+                KnowledgeDocumentSegment.task_id,
+                KnowledgeDocumentSegment.doc_id,
+                KnowledgeDocumentSegment.file_id,
+                KnowledgeDocumentSegment.chunk_id,
+                KnowledgeDocumentSegment.chunk_order,
+                KnowledgeDocumentSegment.parent_chunk_id,
+                KnowledgeDocumentSegment.skip_embedding,
+                KnowledgeDocumentSegment.release_tag,
+                func.char_length(KnowledgeDocumentSegment.text).label('text_length'),
+                func.substr(KnowledgeDocumentSegment.text, 1, 120).label('preview'),
+            )
+            .where(*conditions)
+            .order_by(
+                KnowledgeDocumentSegment.file_id.asc(),  # type: ignore
+                KnowledgeDocumentSegment.chunk_order.asc(),  # type: ignore
+            )
+        )
+        page: PageModel = await PageUtil.paginate(query, page_num, page_size, is_page=True)
+        page.rows = [SegmentDirectoryItemVo.model_validate(row) for row in (page.rows or [])]
+        return page
+
+    @staticmethod
+    async def list_by_chunk_ids(
+        doc_id: int,
+        chunk_ids: list[str],
+        *,
+        release_tag: str | None = None,
+        task_id: int | None = None,
+    ) -> list[KnowledgeDocumentSegment]:
+        """按业务 chunk_id 批量取正文；保持传入顺序。"""
+        if not chunk_ids:
+            return []
+        conditions = KnowledgeDocumentSegmentDao._doc_version_filters(
+            doc_id, release_tag=release_tag, task_id=task_id
+        )
+        conditions.append(KnowledgeDocumentSegment.chunk_id.in_(chunk_ids))  # type: ignore
+        db: AsyncSession = get_current_session()
+        rows: list[KnowledgeDocumentSegment] = list(
+            (await db.execute(select(KnowledgeDocumentSegment).where(*conditions))).scalars().all()
+        )
+        by_chunk: dict[str, KnowledgeDocumentSegment] = {str(r.chunk_id): r for r in rows}
+        return [by_chunk[cid] for cid in chunk_ids if cid in by_chunk]
+
+    @staticmethod
+    async def search_by_doc(
+        doc_id: int,
+        query_text: str,
+        *,
+        release_tag: str | None = None,
+        task_id: int | None = None,
+        limit: int = 10,
+    ) -> list[KnowledgeDocumentSegment]:
+        """文档内关键词 LIKE 检索（补洞用）；返回含正文的分段。"""
+        needle: str = (query_text or '').strip()
+        if not needle:
+            return []
+        conditions = KnowledgeDocumentSegmentDao._doc_version_filters(
+            doc_id, release_tag=release_tag, task_id=task_id
+        )
+        conditions.append(KnowledgeDocumentSegment.text.like(f'%{needle}%'))  # type: ignore
+        db: AsyncSession = get_current_session()
+        rows: list[KnowledgeDocumentSegment] = list(
+            (
+                await db.execute(
+                    select(KnowledgeDocumentSegment)
+                    .where(*conditions)
+                    .order_by(
+                        KnowledgeDocumentSegment.file_id.asc(),  # type: ignore
+                        KnowledgeDocumentSegment.chunk_order.asc(),  # type: ignore
+                    )
+                    .limit(limit)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return rows
+

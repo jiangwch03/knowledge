@@ -8,6 +8,7 @@ from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
 from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.utils.page_util import PageUtil
+from knowledge_common.facade.api.knowledge_content.embedding_eval_vo import CanaryEmbeddingTaskItemVo
 from knowledge_content.enums.embedding_task_status_enum import EmbeddingTaskStatus
 from knowledge_content.enums.segment_status_enum import ReleaseTag
 from knowledge_content.mapper.do.document_do import KnowledgeDocument
@@ -290,6 +291,60 @@ class KnowledgeDocumentEmbeddingTaskDao(BaseDao):
             .all()
         )
         return rows
+
+    @staticmethod
+    async def list_completed_canary_for_eval(
+        *,
+        doc_id: int | None = None,
+        page_num: int = 1,
+        page_size: int = 20,
+    ) -> PageModel:
+        """评测绑定：COMPLETED 且仍有 canary segment 的任务（可按 doc_id 过滤）。"""
+        T = KnowledgeDocumentEmbeddingTask
+        D = KnowledgeDocument
+        canary_task_ids = (
+            select(KnowledgeDocumentSegment.task_id)
+            .where(
+                KnowledgeDocumentSegment.release_tag == ReleaseTag.CANARY.value,  # type: ignore
+                KnowledgeDocumentSegment.del_flag == DeleteFlag.NORMAL.value,  # type: ignore
+            )
+            .distinct()
+        )
+        query: Select[Any] = (
+            select(
+                T.task_id,
+                T.doc_id,
+                T.source_type,
+                T.split_type,
+                T.status,
+                T.chunk_count,
+                T.embedded_count,
+                T.embedding_model_code,
+                T.dimensions,
+                T.create_by,
+                T.create_time,
+                T.update_time,
+                D.doc_title,
+            )
+            .outerjoin(
+                D,
+                and_(
+                    D.doc_id == T.doc_id,  # type: ignore
+                    D.del_flag == DeleteFlag.NORMAL.value,  # type: ignore
+                ),
+            )
+            .where(
+                T.status == EmbeddingTaskStatus.COMPLETED.value,  # type: ignore
+                T.del_flag == DeleteFlag.NORMAL.value,  # type: ignore
+                T.task_id.in_(canary_task_ids),  # type: ignore
+            )
+        )
+        if doc_id is not None:
+            query = query.where(T.doc_id == doc_id)  # type: ignore
+        query = query.order_by(T.task_id.desc())  # type: ignore
+        page: PageModel = await PageUtil.paginate(query, page_num, page_size, is_page=True)
+        page.rows = [CanaryEmbeddingTaskItemVo.model_validate(row) for row in (page.rows or [])]
+        return page
 
     @staticmethod
     def stale_before(minutes: int) -> datetime:

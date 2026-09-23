@@ -474,8 +474,24 @@ class EmbeddingSettings(BaseSettings):
     embedding_pending_repost_minutes: int = 2
     # pending_delete 清理每轮软删条数
     embedding_publish_cleanup_batch_size: int = 200
-    # 分段 MCP/facade：单次 get_document_segments 最多条数
+    # 分段 MCP：单次 get_document_segments 最多条数
     embedding_segment_get_batch_limit: int = 20
+
+
+class McpSettings(BaseSettings):
+    """content MCP。挂载路径不含 APP_ROOT_PATH，调用方按跨服务 root 拼接。"""
+
+    mcp_mount: str = '/mcp'
+    mcp_server_name: str = 'knowledge-content'
+    mcp_server_instructions: str = 'knowledge-content 工具服务。按各工具说明调用。'
+
+    @field_validator('mcp_mount')
+    @classmethod
+    def normalize_mcp_mount(cls, value: str) -> str:
+        path = (value or '/mcp').strip()
+        if not path.startswith('/'):
+            path = f'/{path}'
+        return path.rstrip('/') or '/mcp'
 
 
 class CrossServiceSettings(BaseSettings):
@@ -713,6 +729,10 @@ class GetConfig:
         """
         return EmbeddingSettings()
 
+    def get_mcp_config(self) -> McpSettings:
+        """content MCP 服务配置。"""
+        return McpSettings()
+
     def get_cross_service_config(self) -> CrossServiceSettings:
         """跨服务基址配置。"""
         return CrossServiceSettings()
@@ -815,6 +835,8 @@ CrawlerAgentConfig = get_config.get_crawler_agent_config()
 MinioConfig = get_config.get_minio_config()
 # 文档切分与向量化配置
 EmbeddingConfig = get_config.get_embedding_config()
+# content MCP
+McpConfig = get_config.get_mcp_config()
 # 跨服务基址
 CrossServiceConfig = get_config.get_cross_service_config()
 # Nacos
