@@ -14,6 +14,7 @@ from knowledge_common.config.env import KnowledgeQaConfig
 from knowledge_common.utils.log_util import logger
 from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_retrieval.agents.utils.message_util import last_human_text
+from knowledge_retrieval.enums.release_tag_enum import ReleaseTag
 from knowledge_retrieval.service.document_vector_retrieve_service import DocumentVectorRetrieveService
 from knowledge_retrieval.vo.document_vector_retrieve_vo import (
     DocumentVectorRetrieveRequestVo,
@@ -46,12 +47,21 @@ class HybridRetrieveMiddleware(AgentMiddleware):
 
         # 数据权限依赖完整登录用户（含 role.data_scope）；拿不到直接抛，不兜底
         current_user: CurrentUserModel = RequestContext.get_current_user()
+        release_raw: str = str(state.get('release_tag') or ReleaseTag.PROD.value).strip() or ReleaseTag.PROD.value
+        try:
+            release_tag: ReleaseTag = ReleaseTag(release_raw)
+        except ValueError:
+            release_tag = ReleaseTag.PROD
+        task_id_raw = state.get('task_id')
+        task_id: int | None = int(task_id_raw) if task_id_raw is not None else None
         request: DocumentVectorRetrieveRequestVo = DocumentVectorRetrieveRequestVo(
             query=query,
             top_k=KnowledgeQaConfig.knowledge_qa_retrieve_top_k,
             score_threshold=KnowledgeQaConfig.knowledge_qa_retrieve_score_threshold,
             enable_rerank=KnowledgeQaConfig.knowledge_qa_retrieve_enable_rerank,
             rrf_k=KnowledgeQaConfig.knowledge_qa_retrieve_rrf_k,
+            release_tag=release_tag,
+            task_id=task_id,
         )
         try:
             result: DocumentVectorRetrieveResponseVo = await DocumentVectorRetrieveService.hybrid_retrieve(

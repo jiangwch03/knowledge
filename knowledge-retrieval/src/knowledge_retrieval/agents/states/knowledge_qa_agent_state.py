@@ -10,14 +10,18 @@ class KnowledgeQaAgentState(AgentState):
 
     # ================================ 改写相关 ================================
     # 改写后的检索问句（本轮 HumanMessage 同步为同文，供 LLM/压缩）
-    search_query: NotRequired[str]  
-    
+    search_query: NotRequired[str]
+
     # ================================ 路由相关 ================================
     # cs=客服 / knowledge=知识问答（兼作是否混合检索）；空串表示本轮待路由
-    prompt_profile: NotRequired[str]  
+    prompt_profile: NotRequired[str]
 
     # ================================ 检索相关 ================================
     # 混合检索命中结果
-    retrieve_hits: NotRequired[list[dict]]  
-     # 本轮检索是否已完成（避免重复检索）
-    retrieve_done: NotRequired[bool] 
+    retrieve_hits: NotRequired[list[dict]]
+    # 本轮检索是否已完成（避免重复检索）
+    retrieve_done: NotRequired[bool]
+    # 发布标签：默认 prod；评测传 canary
+    release_tag: NotRequired[str]
+    # 可选：按向量化任务过滤（评测 / 调试）
+    task_id: NotRequired[int | None]

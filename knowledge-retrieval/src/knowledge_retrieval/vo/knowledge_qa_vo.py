@@ -51,6 +51,14 @@ class ChatMessageVo(BaseVo):
 
     content: str = Field(..., min_length=1, description='消息内容')
     model_id: int | None = Field(default=None, gt=0, description='关联的AI模型ID')
+    release_tag: str | None = Field(
+        default=None,
+        description='可选：检索发布标签，默认 prod；评测可传 canary',
+    )
+    task_id: int | None = Field(
+        default=None,
+        description='可选：按 embedding 任务过滤（评测/调试）',
+    )
 
     @NotBlank(field_name='content', message='消息内容不能为空')
     def get_content(self) -> str:
