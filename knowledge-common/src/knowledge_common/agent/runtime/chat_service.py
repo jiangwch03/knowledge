@@ -46,8 +46,8 @@ class AgentChatService(ABC):
         """将 deepagents HITL interrupt 映射为 user_choice SSE。"""
 
     @classmethod
-    def build_chat_input(cls, content: str) -> dict[str, Any]:
-        """构建 chat_stream 本轮图输入。"""
+    def build_chat_input(cls, content: str, **_: Any) -> dict[str, Any]:
+        """构建本轮图输入。基类只放用户消息；需要额外状态的 Agent 重写此方法。"""
         return {'messages': [HumanMessage(content=content)]}
 
     @classmethod
@@ -88,7 +88,11 @@ class AgentChatService(ABC):
         try:
             compiled = await cls.get_graph()
             config = {'configurable': {'thread_id': str(vo.session_id)}}
-            input_or_resume = cls.build_chat_input(vo.content)
+            input_or_resume = cls.build_chat_input(
+                vo.content,
+                release_tag=vo.release_tag,
+                task_id=vo.task_id,
+            )
             context = AgentIdentityContextVo(
                 session_id=vo.session_id,
                 user_id=vo.user_id,

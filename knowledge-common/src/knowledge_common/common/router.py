@@ -289,7 +289,7 @@ class APIRouterPro(APIRouter):
 
 class RouterRegister:
     """
-    路由注册器，用于自动注册所有controller目录下的路由
+    路由注册器，用于自动注册 controller 与 facade 目录下的路由
     """
 
     def __init__(self, app: FastAPI, project_root: str | None = None) -> None:
@@ -308,14 +308,15 @@ class RouterRegister:
 
     def _find_controller_files(self) -> list[str]:
         """
-        查找所有controller目录下的py文件
+        查找 controller 与 facade 目录下的 py 文件。
 
         :return: py文件路径列表
         """
-        # 扫描当前目录下的 controller 以及子目录下的 controller
         patterns = [
             os.path.join(self.project_root, 'controller', '[!_]*.py'),
             os.path.join(self.project_root, '*', 'controller', '[!_]*.py'),
+            os.path.join(self.project_root, 'facade', '[!_]*.py'),
+            os.path.join(self.project_root, '*', 'facade', '[!_]*.py'),
         ]
         controller_files = []
         for pattern in patterns:
@@ -379,11 +380,11 @@ class RouterRegister:
 
     def register_routers(self) -> None:
         """
-        自动注册所有controller目录下的路由
+        自动注册 controller 与 facade 目录下的路由
 
         :return: None
         """
-        # 查找所有controller目录下的py文件
+        # 查找 controller 与 facade 目录下的 py 文件
         controller_files = self._find_controller_files()
         # 导入模块并获取路由实例
         routers = self._import_module_and_get_routers(controller_files)
@@ -395,7 +396,7 @@ class RouterRegister:
 
 def auto_register_routers(app: FastAPI, project_root: str | None = None) -> None:
     """
-    自动注册所有controller目录下的路由
+    自动注册 controller 与 facade 目录下的路由
 
     :param app: FastAPI对象
     :return: None

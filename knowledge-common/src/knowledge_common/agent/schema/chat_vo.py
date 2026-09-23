@@ -14,6 +14,14 @@ class AgentChatStreamVo(BaseModel):
     content: str = Field(min_length=1, description='用户消息内容')
     current_user: CurrentUserModel = Field(description='当前登录用户')
     model_id: int | None = Field(default=None, description='模型ID')
+    release_tag: str | None = Field(
+        default=None,
+        description='仅知识问答检索使用的发布标签（canary/prod），空则问答默认 prod；其他 Agent 忽略',
+    )
+    task_id: int | None = Field(
+        default=None,
+        description='仅知识问答检索使用，按 embedding 任务过滤；其他 Agent 忽略',
+    )
 
     @property
     def user_id(self) -> int:

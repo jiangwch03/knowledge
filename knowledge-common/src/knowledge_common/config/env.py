@@ -472,10 +472,39 @@ class EmbeddingSettings(BaseSettings):
     embedding_task_timeout_minutes: int = 30
     # PENDING 长时间未消费的重投递阈值（分钟）
     embedding_pending_repost_minutes: int = 2
-    # 临时：自动发布每轮处理的 COMPLETED+canary 文档数
-    embedding_publish_promote_batch_size: int = 20
-    # 临时：pending_delete 清理每轮软删条数
+    # pending_delete 清理每轮软删条数
     embedding_publish_cleanup_batch_size: int = 200
+    # 分段 MCP/facade：单次 get_document_segments 最多条数
+    embedding_segment_get_batch_limit: int = 20
+
+
+class CrossServiceSettings(BaseSettings):
+    """跨服务调用：优先 Nacos 服务名发现，静态 URL 兜底。"""
+
+    knowledge_content_base_url: str = 'http://127.0.0.1:9098'
+    knowledge_content_root_path: str = '/api/knowledge_content'
+    knowledge_content_service_name: str = 'knowledge-content'
+    knowledge_retrieval_base_url: str = 'http://127.0.0.1:9101'
+    knowledge_retrieval_root_path: str = '/api/knowledge_retrieval'
+    knowledge_retrieval_service_name: str = 'knowledge-retrieval'
+    knowledge_eval_judge_model: str = ''
+
+
+class NacosSettings(BaseSettings):
+    """Nacos 服务注册 / 发现。"""
+
+    nacos_enabled: bool = False
+    nacos_server_addr: str = '127.0.0.1:8848'
+    nacos_namespace: str = ''
+    nacos_group: str = 'DEFAULT_GROUP'
+    nacos_username: str = ''
+    nacos_password: str = ''
+    # 注册 IP；空则自动取本机网卡 IP
+    nacos_register_ip: str = ''
+    nacos_weight: float = 1.0
+    nacos_beat_interval_seconds: float = 5.0
+    # True：注册失败阻断启动
+    nacos_fail_fast: bool = False
 
 
 class MilvusSettings(BaseSettings):
@@ -684,6 +713,14 @@ class GetConfig:
         """
         return EmbeddingSettings()
 
+    def get_cross_service_config(self) -> CrossServiceSettings:
+        """跨服务基址配置。"""
+        return CrossServiceSettings()
+
+    def get_nacos_config(self) -> NacosSettings:
+        """Nacos 服务发现配置。"""
+        return NacosSettings()
+
     def get_milvus_config(self) -> MilvusSettings:
         """
         获取 Milvus 配置
@@ -778,6 +815,10 @@ CrawlerAgentConfig = get_config.get_crawler_agent_config()
 MinioConfig = get_config.get_minio_config()
 # 文档切分与向量化配置
 EmbeddingConfig = get_config.get_embedding_config()
+# 跨服务基址
+CrossServiceConfig = get_config.get_cross_service_config()
+# Nacos
+NacosConfig = get_config.get_nacos_config()
 # Milvus配置
 MilvusConfig = get_config.get_milvus_config()
 # 知识问答业务配置
