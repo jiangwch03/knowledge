@@ -42,7 +42,10 @@ class _KnowledgeQaAgentService(AgentChatService):
         task_id: int | None = None,
         **_: Any,
     ) -> dict[str, Any]:
-        # checkpointer 会保留上轮路由/检索字段，每轮显式清空，由中间件重算
+        """知识问答图输入：用户消息，重置上轮检索字段，写入 release_tag 和 task_id。
+
+        checkpointer 会保留上轮路由和检索结果，这里每轮清空，由中间件重算。
+        """
         return {
             'messages': [HumanMessage(content=content)],
             'search_query': '',
@@ -91,7 +94,7 @@ class KnowledgeQaAgentService:
         config = {'configurable': {'thread_id': thread_id}}
         context = AgentIdentityContextVo(
             session_id=0,
-            user_id=int(current_user.user.user_id),
+            user_id=int(current_user.user.user_id or 0),
             dept_id=current_user.user.dept_id,
             user_name=current_user.user.user_name or '',
             model_id=vo.model_id,

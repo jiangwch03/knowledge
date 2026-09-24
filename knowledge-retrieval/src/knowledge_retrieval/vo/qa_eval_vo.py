@@ -18,6 +18,7 @@ class EvalAnswerRequestVo(BaseVo):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     question: str = Field(..., min_length=1, description='评测问题')
+    user_id: int = Field(..., gt=0, description='操作者用户 ID，接口内据此加载用户与数据范围')
     release_tag: ReleaseQueryTag = Field(
         default=ReleaseTag.CANARY,
         description='发布标签，只能是 canary 或 prod，默认 canary',
