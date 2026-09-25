@@ -1,9 +1,7 @@
-"""对外接口：canary 任务查询与 promote。分段查询只走 MCP。"""
+"""对内接口：canary 任务查询与 promote。不挂登录，也不挂菜单权限。"""
 from typing import Annotated
 
 from fastapi import Path, Query, Request, Response
-from knowledge_common.common.aspect.interface_auth import UserInterfaceAuthDependency
-from knowledge_common.common.aspect.pre_auth import PreAuthDependency
 from knowledge_common.common.router import APIRouterPro
 from knowledge_common.common.vo import DataResponseModel, PageResponseModel
 from knowledge_common.utils.response_util import ResponseUtil
@@ -20,7 +18,6 @@ embedding_facade_controller = APIRouterPro(
     prefix='/internal/embedding',
     order_num=12,
     tags=['CONTENT-Embedding-Facade'],
-    dependencies=[PreAuthDependency()],
 )
 
 
@@ -28,7 +25,6 @@ embedding_facade_controller = APIRouterPro(
     '/canary-tasks',
     summary='分页查询已完成且仍为 canary 的向量化任务，供评测任务绑定',
     response_model=PageResponseModel[CanaryEmbeddingTaskItemVo],
-    dependencies=[UserInterfaceAuthDependency('rag:embedding:list')],
 )
 async def list_canary_tasks(
     request: Request,
@@ -46,7 +42,6 @@ async def list_canary_tasks(
     '/tasks/{task_id}',
     summary='Embedding 任务详情（评测用）',
     response_model=DataResponseModel[EmbeddingTaskForEvalVo],
-    dependencies=[UserInterfaceAuthDependency('rag:embedding:query')],
 )
 async def get_task_for_eval(
     request: Request,
@@ -60,7 +55,6 @@ async def get_task_for_eval(
     '/promote',
     summary='发布 canary→prod（仅评测编排调用）',
     response_model=DataResponseModel[None],
-    dependencies=[UserInterfaceAuthDependency('rag:embedding:publish')],
 )
 async def promote_task(
     request: Request,

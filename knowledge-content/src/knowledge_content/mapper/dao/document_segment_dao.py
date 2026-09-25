@@ -13,7 +13,10 @@ from knowledge_content.enums.segment_status_enum import ReleaseTag, SegmentArchi
 from knowledge_content.mapper.do.document_segment_archive_do import KnowledgeDocumentSegmentArchive
 from knowledge_content.mapper.do.document_segment_do import KnowledgeDocumentSegment
 from knowledge_common.mapper.dao.base_dao import BaseDao
-from knowledge_common.facade.api.knowledge_content.document_segment_mcp_vo import SegmentDirectoryItemVo
+from knowledge_common.facade.api.knowledge_content.segment_facade_vo import (
+    SegmentDirectoryItemVo,
+    SegmentFullItemVo,
+)
 
 
 class KnowledgeDocumentSegmentDao(BaseDao):
@@ -667,6 +670,43 @@ class KnowledgeDocumentSegmentDao(BaseDao):
         )
         page: PageModel = await PageUtil.paginate(query, page_num, page_size, is_page=True)
         page.rows = [SegmentDirectoryItemVo.model_validate(row) for row in (page.rows or [])]
+        return page
+
+    @staticmethod
+    async def list_full_by_doc_page(
+        doc_id: int,
+        *,
+        release_tag: str | None = None,
+        task_id: int | None = None,
+        page_num: int = 1,
+        page_size: int = 20,
+    ) -> PageModel:
+        """按文档分页返回分段正文，供测评集全量送入 RAGAS。"""
+        conditions = KnowledgeDocumentSegmentDao._doc_version_filters(
+            doc_id, release_tag=release_tag, task_id=task_id
+        )
+        query: Select[Any] = (
+            select(
+                KnowledgeDocumentSegment.task_id,
+                KnowledgeDocumentSegment.doc_id,
+                KnowledgeDocumentSegment.file_id,
+                KnowledgeDocumentSegment.chunk_id,
+                KnowledgeDocumentSegment.chunk_order,
+                KnowledgeDocumentSegment.parent_chunk_id,
+                KnowledgeDocumentSegment.skip_embedding,
+                KnowledgeDocumentSegment.release_tag,
+                KnowledgeDocumentSegment.text,
+                func.char_length(KnowledgeDocumentSegment.text).label('text_length'),
+                func.substr(KnowledgeDocumentSegment.text, 1, 120).label('preview'),
+            )
+            .where(*conditions)
+            .order_by(
+                KnowledgeDocumentSegment.file_id.asc(),  # type: ignore
+                KnowledgeDocumentSegment.chunk_order.asc(),  # type: ignore
+            )
+        )
+        page: PageModel = await PageUtil.paginate(query, page_num, page_size, is_page=True)
+        page.rows = [SegmentFullItemVo.model_validate(row) for row in (page.rows or [])]
         return page
 
     @staticmethod

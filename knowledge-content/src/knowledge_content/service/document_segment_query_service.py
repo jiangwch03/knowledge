@@ -1,4 +1,4 @@
-"""文档分段查询，仅供分段 MCP 调用。"""
+"""文档分段查询，供内部分页接口使用。"""
 from __future__ import annotations
 
 from knowledge_common.common.vo import PageModel
@@ -6,7 +6,7 @@ from knowledge_common.config.env import EmbeddingConfig
 from knowledge_common.exceptions.exception import ServiceException
 from knowledge_content.mapper.dao.document_segment_dao import KnowledgeDocumentSegmentDao
 from knowledge_content.mapper.do.document_segment_do import KnowledgeDocumentSegment
-from knowledge_common.facade.api.knowledge_content.document_segment_mcp_vo import (
+from knowledge_common.facade.api.knowledge_content.segment_facade_vo import (
     SegmentDirectoryItemVo,
     SegmentFullItemVo,
     SegmentGetRequest,
@@ -16,7 +16,9 @@ from knowledge_common.facade.api.knowledge_content.document_segment_mcp_vo impor
 
 
 class DocumentSegmentQueryService:
-    """文档分段查询：供 MCP list / get / search 使用。"""
+    """文档分段查询：目录分页与全文分页。"""
+
+    _FULL_PAGE_SIZE_MAX = 500
 
     @classmethod
     async def list_segments(cls, query: SegmentListQuery) -> PageModel[SegmentDirectoryItemVo]:
@@ -27,6 +29,18 @@ class DocumentSegmentQueryService:
             task_id=query.task_id,
             page_num=query.page_num,
             page_size=query.page_size,
+        )
+
+    @classmethod
+    async def list_full_segments(cls, query: SegmentListQuery) -> PageModel[SegmentFullItemVo]:
+        """按 doc_id 分页返回正文。单页最多 500 条。"""
+        page_size = min(max(query.page_size, 1), cls._FULL_PAGE_SIZE_MAX)
+        return await KnowledgeDocumentSegmentDao.list_full_by_doc_page(
+            query.doc_id,
+            release_tag=query.release_tag,
+            task_id=query.task_id,
+            page_num=query.page_num,
+            page_size=page_size,
         )
 
     @classmethod
