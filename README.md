@@ -34,7 +34,8 @@ knowledge 是一套企业知识库 RAG 系统，基于 [RuoYi-Vue3-FastAPI](http
 * 前端采用 Vue3、Element Plus，基于若依前端改造，提供后台管理与知识业务界面。
 * 后端采用 FastAPI、SQLAlchemy，按职责拆分为 `knowledge-admin`（后台管理）、`knowledge-content`（文档入库）、`knowledge-retrieval`（检索问答）三个服务，公共能力下沉至 `knowledge-common`。
 * 数据层使用 MySQL、Redis、MinIO、Milvus；权限认证沿用 OAuth2 & Jwt，支持动态权限菜单与数据范围控制。
-* 文档入库支持上传解析（MinerU）、切分向量化、网页爬取（Crawl4AI）；检索问答基于 LangChain / LangGraph / DeepAgents，支持混合检索与流式对话。
+* 文档入库支持上传解析（MinerU）、切分向量化、网页爬取（Crawl4AI）；检索问答基于 LangChain / LangGraph / DeepAgents，支持主题关键词路由、混合检索、精排与流式对话。
+* 发布前用测评集和 RAGAS 对 canary 向量打分（召回率、精确率、忠实度、相关性），确认后再发布到正式库。
 * Python 包由 uv workspace 统一管理（`requires-python >= 3.13`）；不提供若依 uni-app 移动端。
 * 特别鸣谢：[RuoYi-Vue3-FastAPI](https://github.com/insistence/RuoYi-Vue3-FastAPI)、[RuoYi-Vue3](https://github.com/yangzongzhuan/RuoYi-Vue3)
 
@@ -68,7 +69,7 @@ knowledge 是一套企业知识库 RAG 系统，基于 [RuoYi-Vue3-FastAPI](http
 
 ### 改造功能点
 
-1. AI管理：保留「模型管理」；去掉原「AI对话」；新增「模型适配」，为业务功能点（如文档向量化、网页爬取、知识问答）绑定所用模型。
+1. AI管理：保留「模型管理」；去掉原「AI对话」；新增「模型适配」，为业务功能点（如文档向量化、网页爬取、知识问答、测评打分）绑定所用模型。
 2. 系统接口：仍可查看接口文档；随后台拆分为多个服务，文档入口按服务分别提供。
 3. 定时任务：界面增删改查与调度日志保留；任务按所属应用区分（管理后台 / 知识内容等）。
 
@@ -77,24 +78,81 @@ knowledge 是一套企业知识库 RAG 系统，基于 [RuoYi-Vue3-FastAPI](http
 1. 资料上传：上传知识文档，查看解析状态，支持预览、下载与删除。
 2. 网页爬虫：通过对话配置网页爬取，管理爬取会话、任务与入库文档；高强度反爬时可使用系统代理池（由外部代理池定时同步至字典 `crawl_proxy_pool`）。  
    > **说明**：当前实现距离「理想的动态适配爬取参数」还有一定距离，后续迭代优化。
-3. Embedding 任务：对已入库文档发起切分与向量化，支持任务查询、创建、重试、删除与发布。
-4. 知识问答：基于知识库进行会话式问答（含会话管理与流式回答）。
+3. Embedding 任务：对已入库文档发起切分与向量化，支持向量先写入 canary、任务查询、创建、重试与删除。正式发布不在本页，改由测评任务执行。
+4. 知识问答：基于知识库进行会话式问答（含会话管理与流式回答）。问句先按主题关键词决定是否检索，再做混合检索与精排。
+5. 测评集：针对一篇文档生成题目，可查看标准答案、题目类型，改题，并选择是否计入测评。
+6. 测评任务：绑定一篇文档、一份测评集和一次 canary 向量化任务。可多次跑测评，查看历次召回率、精确率、忠实度、相关性，以及逐题得分。历史上有成功记录后可发布，把该次向量从 canary 切到正式库。
+7. 主题管理：从一个已完成的切分任务抽取关键词，供问答路由使用。页内「日常词」用来滤掉 data、user 这类普通词，可按语种、词类、来源查看，也可新增、剔除和重新初始化。
+
+## 系统架构
+
+三个业务服务加一个公共库。前端按路径把请求分到对应服务。测评由管理端编排：向内容服务要文档和向量任务，向检索服务要回答和上下文，再用 RAGAS 打分。
+
+```mermaid
+graph TB
+    Web["knowledge-web"] -->|"/dev-api"| Admin["knowledge-admin :9099<br/>用户权限 / 模型 / 测评"]
+    Web -->|"/dev-content-api"| Content["knowledge-content :9098<br/>入库 / 切分向量化 / 主题词"]
+    Web -->|"/dev-retrieval-api"| Retrieval["knowledge-retrieval :9101<br/>主题路由 / 混合检索 / 问答"]
+    Admin -->|"评测采数、发布"| Content
+    Admin -->|"非流式问答"| Retrieval
+    Content --> Common["knowledge-common"]
+    Retrieval --> Common
+    Admin --> Common
+    Content --> Milvus[(Milvus)]
+    Retrieval --> Milvus
+    Common --> MySQL[(MySQL)]
+    Common --> Redis[(Redis)]
+    Common --> MinIO[(MinIO)]
+```
+
+入库到发布的顺序：
+
+```text
+资料上传 / 网页爬虫
+  → 切分并写入 canary 向量
+  → 生成测评集
+  → 测评任务跑 RAGAS
+  → 发布，canary 切到正式库
+```
+
+问答时：问句用 jieba 切开，命中已完成主题的关键词就走知识检索；没命中再问主题模型。检索是稠密向量加 BM25，合并后再精排，留下的片段回填父段后交给模型。
+
+分层、启动和中间件见 [系统架构总览](./docs/系统架构/系统架构总览.md)。
 
 ## 演示图
 
-完整演示图见 [docs/演示图.md](./docs/演示图/演示图.md)。
+完整演示图见 [演示图](./docs/演示图/演示图.md)。
 
 - **若依原有模块**：外联上游截图（见 [README-RuoYi.md · 演示图](./README-RuoYi.md#演示图)），仅收录本项目仍使用的界面。
-- **本项目新增 / 改造模块**：模型管理、模型适配、资料上传、网页爬虫、Embedding 任务、知识问答。
+- **本项目新增 / 改造模块**：模型管理、模型适配、资料上传、网页爬虫、Embedding 任务、知识问答、测评集、测评任务、主题管理、日常词。
+
+<table>
+    <tr>
+        <td><img alt="测评集" src="./docs/演示图/images/eval-dataset.png"></td>
+        <td><img alt="测评集题目" src="./docs/演示图/images/eval-dataset-items.png"></td>
+    </tr>
+    <tr>
+        <td><img alt="测评任务" src="./docs/演示图/images/eval-task.png"></td>
+        <td><img alt="执行记录" src="./docs/演示图/images/eval-run.png"></td>
+    </tr>
+    <tr>
+        <td><img alt="逐题得分" src="./docs/演示图/images/eval-run-items.png"></td>
+        <td><img alt="主题管理" src="./docs/演示图/images/topic.png"></td>
+    </tr>
+    <tr>
+        <td><img alt="主题关键词" src="./docs/演示图/images/topic-keywords.png"></td>
+        <td><img alt="日常词" src="./docs/演示图/images/everyday-word.png"></td>
+    </tr>
+</table>
 
 ## 仓库结构
 
 | 包 / 目录 | 职责 | 默认端口 |
 |-----------|------|----------|
 | `knowledge-common` | 公共基础设施（事务、消息流、广播、中间件、DAO 等） | — |
-| `knowledge-admin` | 后台管理（用户 / 角色 / 菜单 / 字典 / 定时任务 / AI 模型） | `9099` |
-| `knowledge-content` | 知识内容（文档上传、MinerU 解析、切分向量化、网页爬取） | `9098` |
-| `knowledge-retrieval` | 知识检索与问答（混合检索、QA Agent） | `9101` |
+| `knowledge-admin` | 后台管理（用户 / 角色 / 菜单 / 字典 / 定时任务 / AI 模型 / 测评编排） | `9099` |
+| `knowledge-content` | 知识内容（文档上传、MinerU 解析、切分向量化、网页爬取、主题与日常词） | `9098` |
+| `knowledge-retrieval` | 知识检索与问答（主题路由、混合检索、精排、QA Agent） | `9101` |
 | `knowledge-web` | Vue3 + Element Plus 前端 | Vite `:80` |
 | `sql/` | MySQL 初始化与升级脚本；`milvus/` 为向量库脚本 | — |
 | `docs/` | 架构与业务设计文档 | — |
@@ -193,6 +251,10 @@ cd knowledge-web && npm install && npm run dev
 | 网页爬虫 | [网页爬虫流程](./docs/rag功能流程说明/网页爬虫流程.md) |
 | 切分与向量化 | [切分与向量化流程](./docs/rag功能流程说明/切分与向量化流程.md) |
 | 知识问答 | [知识问答流程](./docs/rag功能流程说明/知识问答流程.md) |
+| 知识库发布评测 | [发布评测方案](./docs/rag/03-知识库发布评测方案.md) |
+| 测评集出题 | [出题架构](./docs/rag/07-测试集出题架构方案.md) |
+| 主题关键词 | [过滤方案](./docs/rag/16-主题关键词过滤方案.md) |
+| 召回与精确率优化 | [优化记录](./docs/rag/15-召回率精确率指标优化提升记录.md) |
 | SQL 脚本说明 | [sql/README.md](./sql/README.md) |
 | 检索服务说明 | [knowledge-retrieval/README.md](./knowledge-retrieval/README.md) |
 
