@@ -180,18 +180,15 @@ class DocumentVectorRetrieveService:
         # 没有父分片，直接返回
         if not parent_ids:
             return hits
-        # 获取父分片全文
+        # get_by_chunk_ids 已经是 chunk_id → 父片
         parents = await DocumentSegmentRoDao.get_by_chunk_ids(parent_ids)
-        # 映射：parent_chunk_id→父分片 字典
-        by_id = {h.chunk_id: h for h in parents}
-        # 遍历命中，有父分片且父分片全文不为空，则替换 text
         expanded: list[DocumentVectorRetrieveHitVo] = []
         for hit in hits:
             parent = parents.get(hit.parent_chunk_id or '')
-            if parent :
+            parent_text = (parent.text or '').strip() if parent is not None else ''
+            if parent_text:
                 expanded.append(hit.model_copy(update={'text': parent.text}))
                 continue
-            # 没有父分片，直接添加
             expanded.append(hit)
         # 返回
         return expanded

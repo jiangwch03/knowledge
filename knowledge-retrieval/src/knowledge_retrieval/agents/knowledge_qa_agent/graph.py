@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import threading
+import asyncio
 
 from langchain.agents import create_agent
 from langgraph.graph.state import CompiledStateGraph
@@ -19,7 +19,8 @@ from knowledge_retrieval.agents.tools.tavily_search import tavily_search
 from knowledge_retrieval.agents.utils.llm_util import get_base_chat_model
 
 _graph: CompiledStateGraph | None = None
-_lock = threading.Lock()
+# 初始化里有 await。用线程锁会把事件循环卡住，并发采数时全部超时。
+_lock = asyncio.Lock()
 
 
 async def get_knowledge_qa_graph() -> CompiledStateGraph:
@@ -36,7 +37,7 @@ async def get_knowledge_qa_graph() -> CompiledStateGraph:
     # 无锁快路径：已初始化则直接返回
     if _graph is not None:
         return _graph
-    with _lock:
+    async with _lock:
         # 锁内再判一次，避免并发下重复 create_agent
         if _graph is not None:
             return _graph

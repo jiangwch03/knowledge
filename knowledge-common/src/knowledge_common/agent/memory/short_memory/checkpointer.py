@@ -1,4 +1,4 @@
-import threading
+import asyncio
 from typing import Optional
 
 from knowledge_common.utils.log_util import logger
@@ -18,7 +18,7 @@ class Checkpointer:
     - InMemory: InMemorySaver（开发/测试用，进程重启丢失）
     """
     _saver: Optional[BaseCheckpointSaver] = None
-    _lock: threading.Lock = threading.Lock()
+    _lock: asyncio.Lock = asyncio.Lock()
 
     @staticmethod
     async def init_checkpointer() -> None:
@@ -28,7 +28,7 @@ class Checkpointer:
         在应用 lifespan 中 Redis 连接就绪后调用。
         """
         if Checkpointer._saver is None:
-            with Checkpointer._lock:
+            async with Checkpointer._lock:
                 if Checkpointer._saver is None:
                     # ── 后端选择 ──────────────────────────────────────
                     # Redis（默认）：持久化，支持进程重启恢复（需 Redis Stack）

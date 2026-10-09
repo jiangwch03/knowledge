@@ -143,6 +143,40 @@ export const dynamicRoutes = [
         meta: { title: '调度日志', activeMenu: '/monitor/job' }
       }
     ]
+  },
+  {
+    path: '/knowledge/eval-dataset-item',
+    component: Layout,
+    hidden: true,
+    permissions: ['rag:eval:dataset:query'],
+    children: [
+      {
+        path: 'index/:datasetId(\\d+)',
+        component: () => import('@/views/knowledge/eval/dataset/items'),
+        name: 'EvalDatasetItems',
+        meta: { title: '测评集题目', activeMenu: '/knowledge/eval-dataset', noCache: true }
+      }
+    ]
+  },
+  {
+    path: '/knowledge/eval-task-run',
+    component: Layout,
+    hidden: true,
+    permissions: ['rag:eval:task:query'],
+    children: [
+      {
+        path: 'index/:evalTaskId(\\d+)',
+        component: () => import('@/views/knowledge/eval/task/runs'),
+        name: 'EvalTaskRuns',
+        meta: { title: '执行记录', activeMenu: '/knowledge/eval-task', noCache: true }
+      },
+      {
+        path: 'report/:runId(\\d+)',
+        component: () => import('@/views/knowledge/eval/task/report'),
+        name: 'EvalTaskReport',
+        meta: { title: '逐题得分', activeMenu: '/knowledge/eval-task', noCache: true }
+      }
+    ]
   }
 ]
 

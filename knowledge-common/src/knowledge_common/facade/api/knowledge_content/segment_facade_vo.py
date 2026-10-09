@@ -1,7 +1,7 @@
-"""knowledge-content 文档分段 MCP 跨服务 VO。
+"""knowledge-content 分段 facade 跨服务 VO。
 
-提供者：knowledge-content MCP
-消费者：knowledge-admin 等（禁止在子项目重复定义）
+提供者：knowledge-content `/internal/segments`
+消费者：knowledge-admin 测评集生成
 """
 from __future__ import annotations
 
@@ -12,18 +12,17 @@ from knowledge_common.vo.base_page_query_vo import BasePageQueryModel
 
 
 class SegmentListQuery(BasePageQueryModel):
-    """分段目录分页查询（MCP list）。"""
+    """按文档分页查询分段。"""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     doc_id: int = Field(..., description='文档ID')
     release_tag: str | None = Field(default=None, description='可选 canary/prod')
     task_id: int | None = Field(default=None, description='可选 embedding 任务ID')
-    page_size: int = Field(default=50, description='每页记录数')
 
 
 class SegmentGetRequest(BaseModel):
-    """按 chunk_id 取正文（MCP get）。"""
+    """按 chunk_id 取正文。"""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -34,7 +33,7 @@ class SegmentGetRequest(BaseModel):
 
 
 class SegmentSearchQuery(BaseModel):
-    """文档内关键词检索（MCP search）。"""
+    """文档内关键词检索。"""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -66,36 +65,3 @@ class SegmentFullItemVo(SegmentDirectoryItemVo):
     """含正文的分段。"""
 
     text: str = ''
-
-
-class SegmentListResult(BaseModel):
-    """list_document_segments 返回。"""
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-
-    page_num: int = 1
-    page_size: int = 50
-    total: int = 0
-    has_next: bool = False
-    rows: list[SegmentDirectoryItemVo] = Field(default_factory=list)
-    error: str | None = None
-
-
-class SegmentGetResult(BaseModel):
-    """get_document_segments 返回。"""
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-
-    items: list[SegmentFullItemVo] = Field(default_factory=list)
-    hint: str = ''
-    note: str | None = None
-    error: str | None = None
-
-
-class SegmentSearchResult(BaseModel):
-    """search_document_segments 返回。"""
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-
-    items: list[SegmentFullItemVo] = Field(default_factory=list)
-    error: str | None = None

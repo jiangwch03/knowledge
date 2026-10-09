@@ -30,3 +30,12 @@ class EmbeddingPending(BaseModel):
     task_id: int = Field(description='Embedding 任务ID', alias='taskId')
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class TopicKeywordPending(BaseModel):
+    """topic.keyword.pending 消息载荷"""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    topic_id: int = Field(description='主题ID')
+    keep_keywords: bool = Field(default=False, description='是否保留旧关键词')

@@ -12,7 +12,7 @@ from pydantic_validation_decorator import ValidateFields
 from starlette.background import BackgroundTask
 
 from knowledge_content.service.document_service import DocumentService
-from knowledge_content.vo.document_vo import DocumentFileRespVo, TxtToMarkdownModel
+from knowledge_content.vo.document_vo import DocumentFileRespVo, DocumentOptionVo, TxtToMarkdownModel
 
 document_controller = APIRouterPro(
     prefix='/document', order_num=10, tags=['CONTENT-资料管理'], dependencies=[PreAuthDependency()]
@@ -33,6 +33,21 @@ async def txt_to_markdown(
 ) -> Response:
     result = await DocumentService.txt_to_markdown(convert_model)
     return ResponseUtil.success(data=result)
+
+
+@document_controller.get(
+    '/options',
+    summary='文档下拉选项',
+    description='只返回已完成向量化且分段仍在的文档；已归档的不选出题',
+    response_model=DataResponseModel[list[DocumentOptionVo]],
+    dependencies=[UserInterfaceAuthDependency('rag:document:list')],
+)
+async def list_document_options(
+    request: Request,
+    keyword: Annotated[str | None, Query(description='按标题筛选')] = None,
+) -> Response:
+    options = await DocumentService.list_options(keyword)
+    return ResponseUtil.success(data=options)
 
 
 @document_controller.get(

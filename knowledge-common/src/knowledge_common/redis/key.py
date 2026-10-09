@@ -43,12 +43,14 @@ class RedisKey:
     CRAWL_TASK_CANCEL = 'crawl:task:cancel'
     CRAWL_TASK_PAUSE = 'crawl:task:pause'
     CRAWL_TRIAL_VERIFIED = 'crawl:trial:ok'
+    EVERYDAY_WORD = 'everyday:word'
 
     # ==================== 缓存名称 → 展示名映射 ====================
 
     CACHE_KEY_REMARKS: dict[str, str] = {
         ACCESS_TOKEN: '登录令牌信息',
         SYS_DICT: '数据字典',
+        EVERYDAY_WORD: '抽词日常词',
         SYS_CONFIG: '配置信息',
         API_CACHE: '接口响应缓存',
         API_RATE_LIMIT: '接口限流',
@@ -130,6 +132,11 @@ class RedisKey:
         return f'{RedisKey.CRAWL_TASK_PAUSE}:{task_id}'
 
     @staticmethod
+    def everyday_word_key() -> str:
+        """抽词用的日常词。全库一份，未剔除的词整表放在这一个 key 里。"""
+        return RedisKey.EVERYDAY_WORD
+
+    @staticmethod
     def crawl_trial_verified_key(session_id: int, fingerprint: str) -> str:
         """
         试爬成功凭证 key
@@ -155,6 +162,8 @@ class LockKey:
     CRAWL_TASK = 'crawl:task'
     CRAWL_TASK_RETRY_JOB = 'crawl:task:retry:job'
     EMBEDDING_TASK = 'embedding:task'
+    EVAL_DATASET = 'eval:dataset'
+    EVAL_RUN = 'eval:run'
 
     # ==================== Key 生成方法 ====================
 
@@ -214,6 +223,16 @@ class LockKey:
         return f'{LockKey.PREFIX}:{LockKey.CRAWL_TASK_RETRY_JOB}'
 
     @staticmethod
+    def eval_dataset_key(dataset_id: int) -> str:
+        """测评集生成锁：消费、兜底重投递互斥。"""
+        return f'{LockKey.PREFIX}:{LockKey.EVAL_DATASET}:{dataset_id}'
+
+    @staticmethod
+    def eval_run_key(eval_task_id: int) -> str:
+        """测评执行锁。进程在跑时持有并续期，进程停掉后锁过期即可重新拉起。"""
+        return f'{LockKey.PREFIX}:{LockKey.EVAL_RUN}:{eval_task_id}'
+
+    @staticmethod
     def embedding_task_key(task_id: int) -> str:
         """
         Embedding 任务统一锁
@@ -252,6 +271,11 @@ class SemaphoreKey:
         限制多 worker 下同时执行的爬取任务数。
         """
         return f'{SemaphoreKey.PREFIX}:crawl_pipeline:global'
+
+    @staticmethod
+    def eval_dataset_generate_key() -> str:
+        """测评集 RAGAS 生成全局并发。全量分段进内存，默认只放行 1 个。"""
+        return f'{SemaphoreKey.PREFIX}:eval_dataset_generate:global'
 
     @staticmethod
     def embedding_pipeline_key() -> str:

@@ -8,26 +8,21 @@ from knowledge_common.facade.api.knowledge_content import (
     SegmentDirectoryItemVo,
     SegmentFullItemVo,
     SegmentGetRequest,
-    SegmentGetResult,
     SegmentListQuery,
-    SegmentListResult,
     SegmentSearchQuery,
-    SegmentSearchResult,
 )
-from knowledge_common.facade.api.knowledge_retrieval import EvalQaAnswerVo
+from knowledge_common.facade.api.knowledge_retrieval import EvalQaAnswerRequestVo, EvalQaAnswerVo
 
 __all__ = [
     'CanaryEmbeddingTaskItemVo',
     'CompletedCanaryTaskQuery',
     'EmbeddingTaskForEvalVo',
+    'EvalQaAnswerRequestVo',
     'EvalQaAnswerVo',
     'PromoteTaskRequest',
     'SegmentDirectoryItemVo',
     'SegmentFullItemVo',
     'SegmentGetRequest',
-    'SegmentGetResult',
     'SegmentListQuery',
-    'SegmentListResult',
     'SegmentSearchQuery',
-    'SegmentSearchResult',
 ]

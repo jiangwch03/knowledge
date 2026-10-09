@@ -207,6 +207,10 @@ class StreamTopicSettings(BaseSettings):
     crawl_document_pending: str = 'crawl.document.pending'
     # 文档 Embedding 待处理队列
     embedding_pending: str = 'embedding.pending'
+    # 主题关键词抽取队列
+    topic_keyword_pending: str = 'topic.keyword.pending'
+    # 测评集生成待处理队列（admin 消费）
+    eval_dataset_pending: str = 'eval.dataset.pending'
 
 class UploadSettings(BaseSettings):
     """
@@ -410,6 +414,8 @@ class AiModelFunctionAdapterSettings(BaseSettings):
     document_embedding_param_id: str = 'document_embedding'
     # 知识问答 Agent 功能适配参数ID
     knowledge_qa_agent_param_id: str = 'knowledge_qa_agent'
+    # 测评集出题与指标评分的对话模型
+    eval_dataset_param_id: str = 'eval_dataset'
     # 检索精排（Rerank）功能适配参数ID；未配置或 enable_rerank=false 时跳过
     document_rerank_param_id: str = 'document_rerank'
 
@@ -428,6 +434,24 @@ class SemaphoreSettings(BaseSettings):
     # Embedding 切分+向量化流水线令牌池大小（DistributedSemaphore.create_pool size）
     # 对应 SemaphoreKey.embedding_pipeline_key()
     semaphore_embedding_pipeline_size: int = 20
+
+    # 测评集 RAGAS 出题同时进行的任务数（DistributedSemaphore.create_pool size）
+    semaphore_eval_dataset_generate_size: int = 10
+
+
+class EvalDatasetSettings(BaseSettings):
+    """测评集生成：按对象键从 MinIO 下载原文，再交给 RAGAS。"""
+
+    # 保留字段。出题已不再分页拉向量分段。
+    eval_dataset_fetch_page_size: int = 500
+    # 同一篇文档下载原文的并发上限。
+    eval_dataset_fetch_concurrency: int = 4
+    # 测评执行每批同时跑的题数。单机默认 4，跑完一批就写入进度、逐题分数和当前均分。
+    eval_run_batch_size: int = 4
+    # 打分时限（秒）。RAGAS 四个指标共用；裁判模型和向量模型的 HTTP 连接、读取也用同一个值。
+    eval_metric_timeout_seconds: int = 360
+    # 还没到可测评、超过该分钟数且没有执行锁时，定时任务重新投递。
+    eval_dataset_stale_minutes: int = 30
 
 
 class CrawlerAgentSettings(BaseSettings):
@@ -494,16 +518,23 @@ class McpSettings(BaseSettings):
         return path.rstrip('/') or '/mcp'
 
 
-class CrossServiceSettings(BaseSettings):
-    """跨服务调用：优先 Nacos 服务名发现，静态 URL 兜底。"""
+class RpcClientSettings(BaseSettings):
+    """RPC / Feign 客户端配置。
 
-    knowledge_content_base_url: str = 'http://127.0.0.1:9098'
-    knowledge_content_root_path: str = '/api/knowledge_content'
+    - service_name：Nacos 服务名（默认）
+    - url：非空则直连，绕过 Nacos（本地调试，类比 @FeignClient(url=...)）
+    - root_path：应用上下文路径
+    """
+
     knowledge_content_service_name: str = 'knowledge-content'
-    knowledge_retrieval_base_url: str = 'http://127.0.0.1:9101'
-    knowledge_retrieval_root_path: str = '/api/knowledge_retrieval'
+    knowledge_content_root_path: str = '/api/knowledge_content'
+    knowledge_content_url: str = ''
     knowledge_retrieval_service_name: str = 'knowledge-retrieval'
+    knowledge_retrieval_root_path: str = '/api/knowledge_retrieval'
+    knowledge_retrieval_url: str = ''
     knowledge_eval_judge_model: str = ''
+    # 对齐 Ribbon MaxAutoRetriesNextServer：传输/网关失败后换下一实例的次数
+    rpc_max_retries_next_server: int = 1
 
 
 class NacosSettings(BaseSettings):
@@ -521,6 +552,8 @@ class NacosSettings(BaseSettings):
     nacos_beat_interval_seconds: float = 5.0
     # True：注册失败阻断启动
     nacos_fail_fast: bool = False
+    # 调用失败后实例临时拉黑秒数（对齐 LoadBalancer 失败隔离）
+    nacos_instance_blacklist_seconds: float = 30.0
 
 
 class MilvusSettings(BaseSettings):
@@ -723,6 +756,10 @@ class GetConfig:
         # 实例化MinIO配置模型
         return MinioSettings()
 
+    def get_eval_dataset_config(self) -> EvalDatasetSettings:
+        """测评集生成配置。"""
+        return EvalDatasetSettings()
+
     def get_embedding_config(self) -> EmbeddingSettings:
         """
         获取文档切分与向量化配置
@@ -733,9 +770,9 @@ class GetConfig:
         """content MCP 服务配置。"""
         return McpSettings()
 
-    def get_cross_service_config(self) -> CrossServiceSettings:
-        """跨服务基址配置。"""
-        return CrossServiceSettings()
+    def get_rpc_client_config(self) -> RpcClientSettings:
+        """RPC / Feign 客户端配置。"""
+        return RpcClientSettings()
 
     def get_nacos_config(self) -> NacosSettings:
         """Nacos 服务发现配置。"""
@@ -835,10 +872,12 @@ CrawlerAgentConfig = get_config.get_crawler_agent_config()
 MinioConfig = get_config.get_minio_config()
 # 文档切分与向量化配置
 EmbeddingConfig = get_config.get_embedding_config()
+# 测评集生成
+EvalDatasetConfig = get_config.get_eval_dataset_config()
 # content MCP
 McpConfig = get_config.get_mcp_config()
-# 跨服务基址
-CrossServiceConfig = get_config.get_cross_service_config()
+# RPC / Feign 客户端
+RpcClientConfig = get_config.get_rpc_client_config()
 # Nacos
 NacosConfig = get_config.get_nacos_config()
 # Milvus配置

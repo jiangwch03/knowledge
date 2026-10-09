@@ -20,6 +20,17 @@ class TxtToMarkdownModel(BaseVo):
         return self.content
 
 
+class DocumentOptionVo(BaseVo):
+    """创建测评集时选择文档。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True, populate_by_name=True)
+
+    doc_id: int = Field(..., description='文档ID')
+    doc_title: str = Field(..., description='文档标题')
+    doc_version: str | None = Field(default=None, description='文档版本')
+    source_type: str | None = Field(default=None, description='来源：0上传 1爬取')
+
+
 class DocumentFileRespVo(BaseVo):
     """文档文件子表响应"""
 

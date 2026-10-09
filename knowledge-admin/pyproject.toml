@@ -9,6 +9,12 @@ dependencies = [
     "alembic==1.18.3",
     "pillow==12.1.1",
     "textual==8.2.5",
+    # 出题时 admin 自己从 MinIO 读原文
+    "minio==7.2.20",
+    # 测评（RAGAS 出题与打分）。rapidfuzz 只在 ragas[all] 里，默认出题会用到字符串距离。
+    "ragas>=0.2.0",
+    "datasets>=3.0.0",
+    "rapidfuzz>=3.0.0",
     # 开发工具（建议后续移至 dependency-groups.dev）
     "ruff==0.15.0",
 ]

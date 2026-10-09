@@ -15,6 +15,7 @@ from knowledge_common.agent.schema.chat_vo import AgentChatStreamVo
 from knowledge_common.agent.schema.context import AgentIdentityContextVo
 from knowledge_common.vo.user_vo import CurrentUserModel
 from knowledge_retrieval.agents.knowledge_qa_agent.graph import get_knowledge_qa_graph
+from knowledge_retrieval.agents.utils.llm_util import resolve_qa_model_id
 from knowledge_retrieval.agents.states.knowledge_qa_agent_state import KnowledgeQaAgentState
 from knowledge_retrieval.enums.release_tag_enum import ReleaseTag
 from knowledge_retrieval.vo.knowledge_qa_vo import ChatMessageVo
@@ -97,7 +98,7 @@ class KnowledgeQaAgentService:
             user_id=int(current_user.user.user_id or 0),
             dept_id=current_user.user.dept_id,
             user_name=current_user.user.user_name or '',
-            model_id=vo.model_id,
+            model_id=await resolve_qa_model_id(vo.model_id),
         )
         input_state = _KnowledgeQaAgentService.build_chat_input(
             vo.question,

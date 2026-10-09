@@ -16,6 +16,20 @@ async def get_base_chat_model(model_id: int | None = None) -> BaseChatModel:
     return LangChainModelFactory.get_base_chat_model(model_config)
 
 
+async def resolve_qa_model_id(model_id: int | None = None) -> int:
+    """请求没指定模型时，用知识问答适配里的第一个模型。"""
+    adapters = await _load_adapters()
+    if model_id is not None:
+        matched = next((adapter for adapter in adapters if adapter.model_id == model_id), None)
+        if matched is not None and matched.model_id is not None:
+            return matched.model_id
+        logger.warning('[KnowledgeQA] model_id={} 不可用，回退默认', model_id)
+    chosen = adapters[0].model_id
+    if chosen is None:
+        raise ServiceException(message='知识问答未配置可用模型')
+    return chosen
+
+
 def _to_chat_model_config(adapter: AiModelConfigModel) -> ChatModelConfigModel:
     if not adapter.model_code or not adapter.provider:
         raise ServiceException('模型配置缺少 model_code/provider')

@@ -15,6 +15,7 @@ dependencies = [
     "crawl4ai==0.9.0",
     # 对象存储
     "minio==7.2.20",
+    "jieba>=0.42.1",
 ]
 # 没写 include = [".env*"] 的话，.env.dev 不会被打包 默认只打包py文件
 [project.optional-dependencies]

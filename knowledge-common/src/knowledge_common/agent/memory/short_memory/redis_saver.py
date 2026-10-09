@@ -1,4 +1,4 @@
-import threading
+import asyncio
 from typing import Optional
 
 from knowledge_common.config.env import RedisConfig
@@ -17,7 +17,7 @@ class RedisSaver:
     - 线程安全：使用双重检查锁定（DCL）保证多线程环境下只创建一个实例。
     """
     _asyncRedisSaver: Optional[AsyncRedisSaver] = None
-    _lock: threading.Lock = threading.Lock()
+    _lock: asyncio.Lock = asyncio.Lock()
 
     @staticmethod
     def _build_redis_url() -> str:
@@ -44,7 +44,7 @@ class RedisSaver:
         :return: AsyncRedisSaver 实例
         """
         if RedisSaver._asyncRedisSaver is None:
-            with RedisSaver._lock:
+            async with RedisSaver._lock:
                 if RedisSaver._asyncRedisSaver is None:
                     redis_url = RedisSaver._build_redis_url()
                     saver = AsyncRedisSaver(redis_url=redis_url)

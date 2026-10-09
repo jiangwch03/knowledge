@@ -9,6 +9,7 @@ from knowledge_common.common.router import auto_register_routers
 from knowledge_common.config.env import AppConfig, MessageStreamConfig
 from knowledge_common.config.get_db import close_async_engine, init_create_table
 from knowledge_common.config.get_scheduler import SchedulerUtil
+from knowledge_common.config.prompt_config import prompt_config
 from knowledge_common.exceptions.handle import handle_exception
 from knowledge_common.message_stream import MessageStreamService
 from knowledge_common.middlewares.handle import handle_middleware
@@ -16,6 +17,7 @@ from knowledge_common.redis import RedisConnection
 from knowledge_common.service.config_service import ConfigService
 from knowledge_common.service.dict_service import DictDataService
 from knowledge_common.sub_applications.handle import handle_sub_applications
+from knowledge_common.nacos import nacos_deregister_current_app, nacos_register_current_app
 from knowledge_common.utils.common_util import worship
 from knowledge_common.utils.log_util import logger
 from knowledge_common.utils.server_util import APIDocsUtil, IPUtil, StartupUtil
@@ -162,6 +164,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         #  应用启动时缓存参数配置表
         await ConfigService.init_cache(app.state.redis)
 
+        # 加载提示词配置（自动发现 src/configs/prompts.yaml）
+        prompt_config.load()
+
         # 启动后台任务（调度器、日志聚合等长运行协程）
         await _start_background_tasks(app)
 
@@ -203,10 +208,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
             logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
 
+    await nacos_register_current_app()
     yield
 
     shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
     with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
+        await nacos_deregister_current_app()
         # 先关闭消息广播服务
         await BroadcastService.shutdown()
         # 关闭消息流服务（依赖 Redis，须在连接池关闭前）

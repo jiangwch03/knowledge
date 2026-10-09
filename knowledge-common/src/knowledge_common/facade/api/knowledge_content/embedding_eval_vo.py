@@ -63,3 +63,40 @@ class EmbeddingTaskForEvalVo(BaseModel):
     dimensions: int | None = None
     chunk_count: int | None = None
     embedded_count: int | None = None
+
+
+class ContentLabelQuery(BaseModel):
+    """测评任务列表补名称：按文档 ID、向量化任务 ID 批量取展示名。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    doc_ids: str = Field(default='', description='逗号分隔的文档 ID')
+    task_ids: str = Field(default='', description='逗号分隔的向量化任务 ID')
+
+
+class DocumentTitleItemVo(BaseModel):
+    """文档 ID 对应的标题。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    doc_id: int
+    doc_title: str = ''
+
+
+class EmbeddingTaskLabelVo(BaseModel):
+    """向量化任务没有独立名称，用切分策略名区分。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    task_id: int
+    split_type: str | None = None
+    split_type_label: str | None = None
+
+
+class ContentLabelListVo(BaseModel):
+    """文档标题和向量化任务切分策略名。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    documents: list[DocumentTitleItemVo] = Field(default_factory=list)
+    embedding_tasks: list[EmbeddingTaskLabelVo] = Field(default_factory=list)

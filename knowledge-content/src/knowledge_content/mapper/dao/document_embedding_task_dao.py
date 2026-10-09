@@ -8,7 +8,10 @@ from knowledge_common.common.transactional import get_current_session
 from knowledge_common.common.vo import PageModel
 from knowledge_common.enums.del_flag_enum import DeleteFlag
 from knowledge_common.utils.page_util import PageUtil
-from knowledge_common.facade.api.knowledge_content.embedding_eval_vo import CanaryEmbeddingTaskItemVo
+from knowledge_common.facade.api.knowledge_content.embedding_eval_vo import (
+    CanaryEmbeddingTaskItemVo,
+    EmbeddingTaskLabelVo,
+)
 from knowledge_content.enums.embedding_task_status_enum import EmbeddingTaskStatus
 from knowledge_content.enums.segment_status_enum import ReleaseTag
 from knowledge_content.mapper.do.document_do import KnowledgeDocument
@@ -38,6 +41,26 @@ class KnowledgeDocumentEmbeddingTaskDao(BaseDao):
             .scalars()
             .first()
         )
+
+    @staticmethod
+    async def list_split_types_by_ids(task_ids: list[int]) -> list[EmbeddingTaskLabelVo]:
+        """按任务 ID 批量取切分策略，向量化任务没有独立名称。"""
+        if not task_ids:
+            return []
+        db: AsyncSession = get_current_session()
+        rows = await db.execute(
+            select(
+                KnowledgeDocumentEmbeddingTask.task_id,
+                KnowledgeDocumentEmbeddingTask.split_type,
+            ).where(
+                KnowledgeDocumentEmbeddingTask.task_id.in_(task_ids),  # type: ignore
+                KnowledgeDocumentEmbeddingTask.del_flag == DeleteFlag.NORMAL.value,  # type: ignore
+            )
+        )
+        return [
+            EmbeddingTaskLabelVo(task_id=int(task_id), split_type=split_type)
+            for task_id, split_type in rows.all()
+        ]
 
     @staticmethod
     async def add_task(task: KnowledgeDocumentEmbeddingTask) -> KnowledgeDocumentEmbeddingTask:

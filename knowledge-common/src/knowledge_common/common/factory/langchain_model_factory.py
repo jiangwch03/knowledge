@@ -1,6 +1,7 @@
 import threading
 from typing import Any, Callable, Sequence
 
+import httpx
 from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
 from langchain_core.embeddings import Embeddings
@@ -94,6 +95,34 @@ class LangChainModelFactory:
         return cls._get_or_create_cached_chat_model(model_config)
 
     @classmethod
+    def create_uncached_chat_model(
+        cls,
+        model_config: ChatModelConfigModel,
+        timeout: float | None = None,
+    ) -> BaseChatModel:
+        """新建一个不进缓存的对话模型。
+
+        缓存实例的异步客户端绑在第一次使用的事件循环上。RAGAS 在独立循环里调用，不能复用。
+        timeout 同时覆盖连接、读取、写入和连接池等待，单位秒。
+        """
+        params: dict[str, Any] = {
+            'model': model_config.model_code,
+            'model_provider': model_config.provider,
+            'api_key': model_config.api_key,
+            'base_url': model_config.base_url,
+            'temperature': model_config.temperature,
+            'max_tokens': model_config.max_tokens,
+            'rate_limiter': cls._default_rate_limiter,
+        }
+        http_timeout = cls._http_timeout(timeout)
+        if http_timeout is not None:
+            params['timeout'] = http_timeout
+        try:
+            return init_chat_model(**params)
+        except Exception as e:
+            raise ServiceException(message=f'创建 ChatModel 失败: {e}') from e
+
+    @classmethod
     def get_chat_model_with_tools_and_retry(
         cls,
         model_config: ChatModelConfigModel,
@@ -117,7 +146,11 @@ class LangChainModelFactory:
         return cls._bind_tools_and_retry(model, tools, structured_output)
 
     @classmethod
-    def create_embedding_model(cls, model_config: EmbeddingModelConfigModel) -> Embeddings:
+    def create_embedding_model(
+        cls,
+        model_config: EmbeddingModelConfigModel,
+        timeout: float | None = None,
+    ) -> Embeddings:
         """
         根据模型配置创建 LangChain Embeddings 实例
 
@@ -142,11 +175,21 @@ class LangChainModelFactory:
             params['chunk_size'] = model_config.chunk_size
         if model_config.check_embedding_ctx_length is not None:
             params['check_embedding_ctx_length'] = model_config.check_embedding_ctx_length
+        http_timeout = cls._http_timeout(timeout)
+        if http_timeout is not None:
+            params['timeout'] = http_timeout
 
         try:
             return init_embeddings(**params)
         except Exception as e:
-            raise ServiceException(message=f'创建 Embedding 模型失败: {e}')
+            raise ServiceException(message=f'创建 Embedding 模型失败: {e}') from e
+
+    @staticmethod
+    def _http_timeout(timeout: float | None) -> httpx.Timeout | None:
+        """把秒数展开成连接、读取、写入、连接池四段都相同的 HTTP 超时。"""
+        if timeout is None:
+            return None
+        return httpx.Timeout(float(timeout))
 
     @classmethod
     def bind_tools(

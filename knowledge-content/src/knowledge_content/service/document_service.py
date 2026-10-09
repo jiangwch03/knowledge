@@ -10,7 +10,7 @@ from knowledge_content.mapper.dao.document_file_dao import KnowledgeDocumentFile
 from knowledge_content.mapper.do.document_do import KnowledgeDocument
 from knowledge_content.mapper.do.document_file_do import KnowledgeDocumentFile
 from knowledge_content.service.minio_service import KnowledgeMinioService
-from knowledge_content.vo.document_vo import DocumentFileRespVo, TxtToMarkdownModel
+from knowledge_content.vo.document_vo import DocumentFileRespVo, DocumentOptionVo, TxtToMarkdownModel
 
 
 class DocumentService:
@@ -30,6 +30,12 @@ class DocumentService:
             return f'{major + 1}.0'
         except (ValueError, IndexError):
             return '1.0'
+
+    @classmethod
+    async def list_options(cls, keyword: str | None = None) -> list[DocumentOptionVo]:
+        """下拉：已完成向量化的最新文档。"""
+        rows = await KnowledgeDocumentDao.list_options(keyword)
+        return [DocumentOptionVo.model_validate(row) for row in rows]
 
     @classmethod
     async def list_files(cls, doc_id: int) -> list[DocumentFileRespVo]:

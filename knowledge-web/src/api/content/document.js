@@ -2,6 +2,16 @@ import request from "@/utils/request";
 
 const contentBase = import.meta.env.VITE_APP_CONTENT_API || "/dev-content-api";
 
+/** 文档下拉：最新版文档编号和标题 */
+export function listDocumentOptions(keyword) {
+  return request({
+    url: "/document/options",
+    method: "get",
+    params: { keyword },
+    baseURL: contentBase,
+  });
+}
+
 // 获取文档状态选项
 export function getDocumentStatusOptions() {
   return request({

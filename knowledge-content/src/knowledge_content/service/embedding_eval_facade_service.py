@@ -3,12 +3,20 @@ from __future__ import annotations
 
 from knowledge_common.common.vo import PageModel
 from knowledge_common.exceptions.exception import ServiceException
+from knowledge_common.facade.api.knowledge_content.embedding_eval_vo import (
+    CanaryEmbeddingTaskItemVo,
+    ContentLabelListVo,
+    ContentLabelQuery,
+    EmbeddingTaskForEvalVo,
+    EmbeddingTaskLabelVo,
+)
 from knowledge_common.redis import DistributedLock, LockKey
 from knowledge_content.enums.embedding_task_status_enum import EmbeddingTaskStatus
+from knowledge_content.enums.split_type_enum import SplitType
+from knowledge_content.mapper.dao.document_dao import KnowledgeDocumentDao
 from knowledge_content.mapper.dao.document_embedding_task_dao import KnowledgeDocumentEmbeddingTaskDao
 from knowledge_content.mapper.do.document_embedding_task_do import KnowledgeDocumentEmbeddingTask
 from knowledge_content.service.embedding_publish_service import EmbeddingPublishService
-from knowledge_common.facade.api.knowledge_content.embedding_eval_vo import CanaryEmbeddingTaskItemVo, EmbeddingTaskForEvalVo
 
 
 class EmbeddingEvalFacadeService:
@@ -46,6 +54,42 @@ class EmbeddingEvalFacadeService:
             chunk_count=task.chunk_count,
             embedded_count=task.embedded_count,
         )
+
+    @classmethod
+    async def list_content_labels(cls, query: ContentLabelQuery) -> ContentLabelListVo:
+        """批量补文档标题和向量化切分策略名。"""
+        doc_ids = cls._parse_ids(query.doc_ids)
+        task_ids = cls._parse_ids(query.task_ids)
+        documents = await KnowledgeDocumentDao.list_titles_by_ids(doc_ids)
+        tasks = await KnowledgeDocumentEmbeddingTaskDao.list_split_types_by_ids(task_ids)
+        return ContentLabelListVo(
+            documents=documents,
+            embedding_tasks=[cls._with_split_label(item) for item in tasks],
+        )
+
+    @classmethod
+    def _parse_ids(cls, raw: str) -> list[int]:
+        ids: list[int] = []
+        seen: set[int] = set()
+        for part in (raw or '').split(','):
+            text = part.strip()
+            if not text.isdigit():
+                continue
+            value = int(text)
+            if value in seen:
+                continue
+            seen.add(value)
+            ids.append(value)
+            if len(ids) >= 200:
+                break
+        return ids
+
+    @classmethod
+    def _with_split_label(cls, item: EmbeddingTaskLabelVo) -> EmbeddingTaskLabelVo:
+        label = SplitType.label_of(item.split_type)
+        if label == '-':
+            return item
+        return item.model_copy(update={'split_type_label': label})
 
     @classmethod
     async def promote(cls, task_id: int) -> None:

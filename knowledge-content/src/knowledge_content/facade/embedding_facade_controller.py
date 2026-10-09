@@ -10,6 +10,8 @@ from knowledge_content.service.embedding_eval_facade_service import EmbeddingEva
 from knowledge_common.facade.api.knowledge_content.embedding_eval_vo import (
     CanaryEmbeddingTaskItemVo,
     CompletedCanaryTaskQuery,
+    ContentLabelListVo,
+    ContentLabelQuery,
     EmbeddingTaskForEvalVo,
     PromoteTaskRequest,
 )
@@ -36,6 +38,19 @@ async def list_canary_tasks(
         page_size=query.page_size,
     )
     return ResponseUtil.success(model_content=page)
+
+
+@embedding_facade_controller.get(
+    '/labels',
+    summary='批量查询文档标题和向量化切分策略名，供测评任务列表展示',
+    response_model=DataResponseModel[ContentLabelListVo],
+)
+async def list_content_labels(
+    request: Request,
+    query: Annotated[ContentLabelQuery, Query()],
+) -> Response:
+    data = await EmbeddingEvalFacadeService.list_content_labels(query)
+    return ResponseUtil.success(data=data)
 
 
 @embedding_facade_controller.get(

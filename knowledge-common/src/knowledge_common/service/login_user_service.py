@@ -7,10 +7,11 @@ from jwt.exceptions import InvalidTokenError
 from knowledge_common.mapper.dao.user_login_dao import UserDao
 
 from knowledge_common.common.context import RequestContext
+from knowledge_common.common.transactional import transactional
 from knowledge_common.redis.key import RedisKey
 from knowledge_common.config.env import AppConfig, JwtConfig
 from knowledge_common.vo.user_vo import CurrentUserModel, TokenData, UserInfoModel
-from knowledge_common.exceptions.exception import AuthException
+from knowledge_common.exceptions.exception import AuthException, ServiceException
 from knowledge_common.utils.common_util import CamelCaseUtil
 from knowledge_common.utils.log_util import logger
 
@@ -118,6 +119,36 @@ class LoginUserService:
             return current_user
         logger.warning('用户token已失效，请重新登录')
         raise AuthException(data='', message='用户token已失效，请重新登录')
+
+    @classmethod
+    @transactional(read_only=True)
+    async def load_by_user_id(cls, user_id: int) -> CurrentUserModel:
+        """按用户 ID 组装当前用户，供无登录态的内部接口使用。"""
+        query_user = await UserDao.get_user_by_id(user_id=user_id)
+        basic = query_user.get('user_basic_info')
+        if basic is None:
+            raise ServiceException(message=f'用户不存在: {user_id}')
+        role_rows = list(query_user.get('user_role_info') or [])
+        post_rows = list(query_user.get('user_post_info') or [])
+        menu_rows = list(query_user.get('user_menu_info') or [])
+        role_id_list = [item.role_id for item in role_rows]
+        if 1 in role_id_list:
+            permissions = ['*:*:*']
+        else:
+            permissions = [row.perms for row in menu_rows]
+        user = UserInfoModel(
+            **CamelCaseUtil.transform_result(basic),
+            postIds=','.join(str(row.post_id) for row in post_rows),
+            roleIds=','.join(str(row.role_id) for row in role_rows),
+            dept=CamelCaseUtil.transform_result(query_user.get('user_dept_info')),
+            role=CamelCaseUtil.transform_result(role_rows),
+        )
+        user.password = None
+        return CurrentUserModel(
+            permissions=permissions,
+            roles=[row.role_key for row in role_rows],
+            user=user,
+        )
 
     @classmethod
     async def __password_is_expired(cls, request: Request, pwd_update_date: datetime) -> bool:
