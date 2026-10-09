@@ -1,6 +1,6 @@
 ## Context
 
-知识库向量化写入 Milvus canary 后，现有 `EmbeddingPublishService.auto_promote_completed_canary` 定时自动 promote 到 prod。独立检索已支持 `releaseTag`/`taskId`，但问答 Agent 未透传，始终打 prod。`knowledge-admin` 目前是 RuoYi 风格系统管理，facade 为空壳；仓库无 MCP/Ragas。方案定稿见 `docs/rag/知识库发布评测方案.md`。
+知识库向量化写入 Milvus canary 后，现有 `EmbeddingPublishService.auto_promote_completed_canary` 定时自动 promote 到 prod。独立检索已支持 `releaseTag`/`taskId`，但问答 Agent 未透传，始终打 prod。`knowledge-admin` 目前是 RuoYi 风格系统管理，facade 为空壳；仓库无 MCP/Ragas。方案定稿见 `docs/rag/03-知识库发布评测方案.md`。
 
 ## Goals / Non-Goals
 

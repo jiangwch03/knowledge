@@ -1,6 +1,6 @@
 ## Context
 
-测评集生成已经会按文档拉原文，再调用 RAGAS `generate_with_langchain_docs`。现在不传 `query_distribution`，简单题和两种多跳平分题数，而且交进去的页全部做预处理。模糊、对抗、综合题没有。出题方案见 `docs/rag/测试集出题架构方案.md`。发布、打分、测评任务不在本变更里改。
+测评集生成已经会按文档拉原文，再调用 RAGAS `generate_with_langchain_docs`。现在不传 `query_distribution`，简单题和两种多跳平分题数，而且交进去的页全部做预处理。模糊、对抗、综合题没有。出题方案见 `docs/rag/07-测试集出题架构方案.md`。发布、打分、测评任务不在本变更里改。
 
 ## Goals / Non-Goals
 

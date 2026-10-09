@@ -31,4 +31,4 @@
 - **服务**：`knowledge-admin`（评测产品面 + Ragas 跑批 + 生成 Agent）、`knowledge-content`（删 auto-promote、MCP/分段/promote facade）、`knowledge-retrieval`（Agent 参数与评测 facade）。
 - **数据**：新增 `knowledge_eval_dataset` / `item` / `task` / `run` / `run_item`（同库）。
 - **依赖**：Ragas（需验证 Python 版本兼容）；MCP 基建（仓库尚无）；跨服务 facade/RPC 首批落地。
-- **参考**：`docs/rag/知识库发布评测方案.md`。
+- **参考**：`docs/rag/03-知识库发布评测方案.md`。
