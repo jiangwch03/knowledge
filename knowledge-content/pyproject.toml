@@ -1,11 +1,11 @@
 [project]
 name = "knowledge-content"
-version = "1.0.0"
+version = "1.1.0"
 description = "knowledge-content"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "knowledge-common==1.0.0",
+    "knowledge-common==1.1.0",
     # RAG / 文档索引
     "llama-index==0.14.22",
     "llama-index-embeddings-langchain==0.5.0",

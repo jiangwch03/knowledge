@@ -1,10 +1,10 @@
 [project]
 name = "knowledge-admin"
-version = "1.0.0"
+version = "1.1.0"
 description = "Knowledge backend"
 requires-python = ">=3.13"
 dependencies = [
-    "knowledge-common==1.0.0",
+    "knowledge-common==1.1.0",
     # admin 专属
     "alembic==1.18.3",
     "pillow==12.1.1",
