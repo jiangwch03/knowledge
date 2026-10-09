@@ -128,6 +128,30 @@ graph TB
 
 <table>
     <tr>
+        <td><img alt="模型管理" src="./docs/演示图/images/ai-model.png"></td>
+        <td><img alt="模型适配" src="./docs/演示图/images/ai-model-adapt.png"></td>
+    </tr>
+    <tr>
+        <td><img alt="资料上传" src="./docs/演示图/images/doc-upload.png"></td>
+        <td><img alt="网页爬虫" src="./docs/演示图/images/web-crawler.png"></td>
+    </tr>
+    <tr>
+        <td><img alt="网页爬虫任务" src="./docs/演示图/images/web-crawler-task.png"></td>
+        <td><img alt="网页爬虫文档" src="./docs/演示图/images/web-crawler-doc.png"></td>
+    </tr>
+    <tr>
+        <td><img alt="Embedding 任务" src="./docs/演示图/images/embedding-task.png"></td>
+        <td><img alt="Embedding 配置" src="./docs/演示图/images/embedding-config.png"></td>
+    </tr>
+    <tr>
+        <td><img alt="知识问答" src="./docs/演示图/images/knowledge-qa.png"></td>
+        <td><img alt="主题管理" src="./docs/演示图/images/topic.png"></td>
+    </tr>
+    <tr>
+        <td><img alt="主题关键词" src="./docs/演示图/images/topic-keywords.png"></td>
+        <td><img alt="日常词" src="./docs/演示图/images/everyday-word.png"></td>
+    </tr>
+    <tr>
         <td><img alt="测评集" src="./docs/演示图/images/eval-dataset.png"></td>
         <td><img alt="测评集题目" src="./docs/演示图/images/eval-dataset-items.png"></td>
     </tr>
@@ -137,11 +161,7 @@ graph TB
     </tr>
     <tr>
         <td><img alt="逐题得分" src="./docs/演示图/images/eval-run-items.png"></td>
-        <td><img alt="主题管理" src="./docs/演示图/images/topic.png"></td>
-    </tr>
-    <tr>
-        <td><img alt="主题关键词" src="./docs/演示图/images/topic-keywords.png"></td>
-        <td><img alt="日常词" src="./docs/演示图/images/everyday-word.png"></td>
+        <td></td>
     </tr>
 </table>
 
